@@ -23,10 +23,20 @@ implementado como *best-effort* — veja [Limitações](#limitações-conhecidas
   Perturbe do sistema. Notifica quando liga/desliga.
 - **Timer de café**: ciclos de foco/pausa configuráveis (padrão 50/10min),
   ícone da bandeja vira uma xícara durante a pausa e o modo foco é suspenso
-  automaticamente nesse período.
+  automaticamente nesse período. Dá pra pausar o timer sem encerrar a sessão
+  (congela a contagem, retoma de onde parou).
+- **Widget flutuante**: janela estilo "notch", fixa no topo-centro da tela,
+  sempre visível. Colapsada mostra só ícone de status + timer; ao clicar,
+  expande num painel com controles rápidos, anel de progresso da sessão
+  atual (cor customizável ou seguindo o accent color do sistema) e o
+  heatmap de streak.
+- **Atalho global**: `Ctrl+Shift+Space` liga/desliga o modo foco de
+  qualquer lugar, sem precisar focar a janela.
 - **GitHub**: conecta via Personal Access Token (guardado no cofre de
   credenciais do SO, nunca em texto plano) e lista PRs/issues abertos onde
-  você está envolvido. Dá pra importar qualquer item como tarefa.
+  você está envolvido. Dá pra importar qualquer item como tarefa. O widget
+  também puxa sua contribution calendar real (via GraphQL) pra mostrar
+  streak e heatmap dos últimos dias.
 - **Quadro de tarefas**: checklist simples e local, persistido em disco.
 
 ## Rodando localmente
@@ -50,10 +60,10 @@ npm run tauri build
 ## Configuração
 
 Tudo é ajustável na aba **Config** do app: processos monitorados, apps
-bloqueados, intervalo de checagem, se bloqueio/DND estão ligados, e as
-durações do timer. As configurações ficam em
-`%APPDATA%/focusbrew/settings.json` (Windows) — caminho equivalente via
-`ProjectDirs` nas outras plataformas.
+bloqueados, intervalo de checagem, se bloqueio/DND estão ligados, cor do
+anel de progresso do widget, e as durações do timer. As configurações
+ficam em `%APPDATA%/focusbrew/settings.json` (Windows) — caminho
+equivalente via `ProjectDirs` nas outras plataformas.
 
 ## Limitações conhecidas
 
