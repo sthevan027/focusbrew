@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 const SERVICE: &str = "focusbrew";
@@ -115,4 +117,92 @@ pub async fn fetch_involved(token: &str, login: &str) -> Result<Vec<GithubItem>,
             }
         })
         .collect())
+}
+
+#[derive(Debug, Deserialize)]
+struct ContributionsResponse {
+    data: Option<ContributionsData>,
+}
+#[derive(Debug, Deserialize)]
+struct ContributionsData {
+    user: Option<ContributionsUser>,
+}
+#[derive(Debug, Deserialize)]
+struct ContributionsUser {
+    #[serde(rename = "contributionsCollection")]
+    contributions_collection: ContributionsCollection,
+}
+#[derive(Debug, Deserialize)]
+struct ContributionsCollection {
+    #[serde(rename = "contributionCalendar")]
+    contribution_calendar: ContributionCalendar,
+}
+#[derive(Debug, Deserialize)]
+struct ContributionCalendar {
+    weeks: Vec<ContributionWeek>,
+}
+#[derive(Debug, Deserialize)]
+struct ContributionWeek {
+    #[serde(rename = "contributionDays")]
+    contribution_days: Vec<ContributionDay>,
+}
+#[derive(Debug, Deserialize)]
+struct ContributionDay {
+    date: String,
+    #[serde(rename = "contributionCount")]
+    contribution_count: u32,
+}
+
+const CONTRIBUTIONS_QUERY: &str = r#"
+query($login: String!) {
+  user(login: $login) {
+    contributionsCollection {
+      contributionCalendar {
+        weeks {
+          contributionDays {
+            date
+            contributionCount
+          }
+        }
+      }
+    }
+  }
+}
+"#;
+
+/// Fetches the user's real GitHub contribution calendar ("date" ->
+/// contribution count), used to drive the widget's streak heatmap instead
+/// of a locally-invented one.
+pub async fn fetch_contribution_calendar(
+    token: &str,
+    login: &str,
+) -> Result<HashMap<String, u32>, String> {
+    let client = client(token)?;
+    let body = serde_json::json!({
+        "query": CONTRIBUTIONS_QUERY,
+        "variables": { "login": login },
+    });
+    let resp = client
+        .post("https://api.github.com/graphql")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("GitHub GraphQL failed (HTTP {})", resp.status()));
+    }
+    let parsed: ContributionsResponse = resp.json().await.map_err(|e| e.to_string())?;
+    let weeks = parsed
+        .data
+        .and_then(|d| d.user)
+        .map(|u| u.contributions_collection.contribution_calendar.weeks)
+        .ok_or_else(|| "unexpected GitHub contributions response".to_string())?;
+
+    let mut days = HashMap::new();
+    for week in weeks {
+        for day in week.contribution_days {
+            days.insert(day.date, day.contribution_count);
+        }
+    }
+    Ok(days)
 }

@@ -285,3 +285,151 @@ input {
 .settings input[type="checkbox"] {
   width: auto;
 }
+
+.settings input[type="color"] {
+  width: 48px;
+  height: 32px;
+  padding: 2px;
+}
+
+.ring-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.ring-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ring-swatch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ring-swatch.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.ring-swatch-auto {
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.ring-swatch-custom {
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.ring-swatch-custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ring-picker-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.chip-editor {
+  margin-bottom: 0.9rem;
+}
+
+.chip-editor-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.chip-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.4rem 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+}
+
+.chip-remove:hover {
+  color: var(--focus);
+}
+
+.chip-add-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chip-add-row input {
+  flex: 1;
+}
+
+.chip-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.chip-suggestion {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.chip-suggestion:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}

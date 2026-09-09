@@ -5,25 +5,11 @@ use winreg::RegKey;
 pub struct WindowsAdapter;
 
 impl PlatformAdapter for WindowsAdapter {
-    fn set_dark_theme(&self, dark: bool) -> Result<(), String> {
-        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let (key, _) = hkcu
-            .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
-            .map_err(|e| e.to_string())?;
-        let value: u32 = if dark { 0 } else { 1 };
-        key.set_value("AppsUseLightTheme", &value)
-            .map_err(|e| e.to_string())?;
-        key.set_value("SystemUsesLightTheme", &value)
-            .map_err(|e| e.to_string())?;
-        broadcast_setting_change();
-        Ok(())
-    }
-
     fn set_dnd(&self, enabled: bool) -> Result<(), String> {
         // Windows has no public API for Focus Assist / Quiet Hours. This flips
         // the same registry blob the Focus Assist tray flyout writes to.
         // It is unofficial and may not work on every Windows build — if it
-        // fails, focus mode still works (theme + app blocking), this is just
+        // fails, focus mode still works (app blocking), this is just
         // best-effort. Value 0 = off, 1 = priority only, 2 = alarms only.
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let path = "Software\\Microsoft\\Windows\\CurrentVersion\\CloudStore\\Store\\Cache\\DefaultAccount\\Current\\windows.data.notifications.quiethourssettings\\Current";
@@ -48,24 +34,16 @@ impl PlatformAdapter for WindowsAdapter {
     }
 }
 
-fn broadcast_setting_change() {
-    use std::ffi::CString;
-    use windows_sys::Win32::Foundation::{LPARAM, WPARAM};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        SendMessageTimeoutA, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
-    };
-    if let Ok(param) = CString::new("ImmersiveColorSet") {
-        unsafe {
-            let mut result: usize = 0;
-            SendMessageTimeoutA(
-                HWND_BROADCAST,
-                WM_SETTINGCHANGE,
-                0 as WPARAM,
-                param.as_ptr() as LPARAM,
-                SMTO_ABORTIFHUNG,
-                2000,
-                &mut result as *mut usize,
-            );
-        }
-    }
+/// Reads `HKCU\Software\Microsoft\Windows\DWM\AccentColor`, a DWORD storing
+/// the color as 0xAABBGGRR (i.e. R is the low byte).
+pub fn accent_color() -> Option<String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let key = hkcu
+        .open_subkey("Software\\Microsoft\\Windows\\DWM")
+        .ok()?;
+    let value: u32 = key.get_value("AccentColor").ok()?;
+    let r = value & 0xFF;
+    let g = (value >> 8) & 0xFF;
+    let b = (value >> 16) & 0xFF;
+    Some(format!("#{r:02x}{g:02x}{b:02x}"))
 }

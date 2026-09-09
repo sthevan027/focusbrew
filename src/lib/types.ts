@@ -13,9 +13,9 @@ export interface AppConfig {
   focus_auto_enable: boolean;
   block_apps_enabled: boolean;
   dnd_enabled: boolean;
-  theme_switch_enabled: boolean;
   timer: TimerConfig;
   github_login: string | null;
+  ring_color: string | null;
 }
 
 export type TimerPhase = "off" | "focus" | "break";
@@ -23,6 +23,7 @@ export type TimerPhase = "off" | "focus" | "break";
 export interface TimerState {
   phase: TimerPhase;
   remaining_secs: number;
+  paused: boolean;
 }
 
 export type TaskSource = "manual" | "github";
@@ -52,4 +53,7 @@ export interface StateSnapshot {
   github_items: GithubItem[];
   github_error: string | null;
   config: AppConfig;
+  focus_days: Record<string, number>;
+  streak: number;
+  github_days: Record<string, number>;
 }

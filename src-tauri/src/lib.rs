@@ -1,3 +1,4 @@
+mod activity;
 mod commands;
 mod config;
 mod detector;
@@ -7,6 +8,7 @@ mod platform;
 mod state;
 mod tasks;
 mod timer;
+mod widget;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -14,9 +16,12 @@ use std::time::Duration;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{image::Image, AppHandle, Emitter, Manager};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 use state::{Activity, AppState, StateSnapshot};
 use timer::TimerPhase;
+
+const FOCUS_HOTKEY: &str = "CommandOrControl+Shift+Space";
 
 const ICON_IDLE: &[u8] = include_bytes!("../icons/tray/idle.png");
 const ICON_WORKING: &[u8] = include_bytes!("../icons/tray/working.png");
@@ -69,13 +74,23 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
 /// Recomputes whether focus mode should be active given the current
 /// activity/timer/config, applying the platform side-effects only on change.
 pub fn reconcile_focus(app: &AppHandle, state: &mut AppState) {
-    let should_focus = state.activity == Activity::Working
+    // App-blocking pauses during the coffee break or a manual pause — you
+    // can use blocked apps on your break.
+    let should_block = state.activity == Activity::Working
         && state.config.focus_auto_enable
-        && state.timer.phase != TimerPhase::Break;
+        && state.timer.phase != TimerPhase::Break
+        && !state.timer.paused;
+    state.focus_mode = should_block;
 
-    if should_focus != state.focus_mode {
-        state.focus_mode = should_focus;
-        if should_focus {
+    // DND stays on for the whole session (focus AND break) — it only flips
+    // off once the session actually ends, instead of toggling every
+    // pomodoro cycle.
+    let should_stay_immersed = state.timer.phase != TimerPhase::Off
+        || (state.activity == Activity::Working && state.config.focus_auto_enable);
+
+    if should_stay_immersed != state.immersed {
+        state.immersed = should_stay_immersed;
+        if should_stay_immersed {
             focus::enable(app, &state.config);
         } else {
             focus::disable(app, &state.config);
@@ -87,6 +102,25 @@ pub fn reconcile_focus(app: &AppHandle, state: &mut AppState) {
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         detector::kill_blocked_processes(&sys, &state.config.blocked_apps);
     }
+}
+
+/// Starts a focus session if the timer is off, stops it otherwise. Bound to
+/// the global hotkey and to the tray/widget "toggle" controls.
+pub fn toggle_focus_session(app: &AppHandle) {
+    let shared = app.state::<Shared>();
+    let mut state = shared.0.lock().unwrap();
+
+    if state.timer.phase == TimerPhase::Off {
+        let timer_config = state.config.timer.clone();
+        state.timer.start_focus(&timer_config);
+        focus::notify(app, "Foco iniciado", "Sessão de foco começou pelo atalho.");
+    } else {
+        state.timer.stop();
+        focus::notify(app, "Foco parado", "Sessão de foco encerrada pelo atalho.");
+    }
+
+    reconcile_focus(app, &mut state);
+    sync_ui(app, &state);
 }
 
 fn spawn_background_loop(app: AppHandle) {
@@ -115,9 +149,13 @@ fn spawn_background_loop(app: AppHandle) {
                 Activity::Idle
             };
 
+            let was_focus = state.timer.phase == TimerPhase::Focus;
             let timer_config = state.config.timer.clone();
             let flipped = state.timer.tick(poll_secs as u32, &timer_config);
             if flipped {
+                if was_focus {
+                    activity::record_completed_block(&mut state.focus_log);
+                }
                 let (title, body) = match state.timer.phase {
                     TimerPhase::Break => ("Hora do café ☕", "Bora dar um tempo — a pausa começou."),
                     TimerPhase::Focus => ("De volta ao foco", "Pausa terminada, hora de voltar."),
@@ -136,9 +174,20 @@ fn spawn_background_loop(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
+        .with_handler(|app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                toggle_focus_session(app);
+            }
+        })
+        .with_shortcut(FOCUS_HOTKEY)
+        .expect("invalid global shortcut definition")
+        .build();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(global_shortcut_plugin)
         .manage(Shared(Mutex::new(AppState::load())))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
@@ -152,14 +201,22 @@ pub fn run() {
             commands::import_github_item_as_task,
             commands::start_coffee_break,
             commands::stop_timer,
+            commands::set_widget_expanded,
+            commands::toggle_widget_visibility,
+            commands::open_main_window,
+            commands::toggle_focus_session,
+            commands::get_accent_color,
+            commands::toggle_pause_timer,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
 
             let menu = MenuBuilder::new(app)
                 .text("open", "Abrir painel")
+                .text("toggle_widget", "Mostrar/ocultar widget")
                 .separator()
                 .text("coffee_break", "Iniciar pausa-café ☕")
+                .text("toggle_focus", "Iniciar/parar foco (Ctrl+Shift+Space)")
                 .text("toggle_monitor", "Pausar/retomar detecção")
                 .separator()
                 .text("quit", "Sair")
@@ -173,6 +230,8 @@ pub fn run() {
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "open" => show_main_window(app),
                     "quit" => app.exit(0),
+                    "toggle_widget" => widget::toggle_visible(app),
+                    "toggle_focus" => toggle_focus_session(app),
                     "coffee_break" => {
                         let shared = app.state::<Shared>();
                         let mut state = shared.0.lock().unwrap();
@@ -203,6 +262,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            widget::create(app.handle())?;
             spawn_background_loop(handle);
             Ok(())
         })
@@ -217,7 +277,7 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn show_main_window(app: &AppHandle) {
+pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();

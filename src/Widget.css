@@ -1,0 +1,288 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.widget-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 100%;
+  padding: 0 0.75rem;
+  background: rgba(11, 12, 16, 0.92);
+  border: 1px solid #2a2e37;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #e6e8ec;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.widget-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.glyph-idle {
+  color: #565b66;
+  font-size: 0.6rem;
+}
+
+.glyph-code {
+  color: #7aa6ff;
+  font-size: 0.75rem;
+}
+
+.glyph-coffee {
+  color: #d9a066;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+
+.glyph-paused {
+  color: #9aa1ac;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 0.75rem;
+}
+
+.widget-time {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.widget-time-inline {
+  margin-left: auto;
+  margin-right: 0.4rem;
+}
+
+.widget-task-hint {
+  font-size: 0.75rem;
+  color: #9aa1ac;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 0.4rem;
+  border-left: 1px solid #2a2e37;
+}
+
+.widget-chevron {
+  color: #9aa1ac;
+  font-size: 0.7rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.widget-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  height: 100%;
+  padding: 0.65rem 0.8rem 0.8rem;
+  background: rgba(11, 12, 16, 0.96);
+  border: 1px solid #2a2e37;
+  border-radius: 18px;
+  color: #e6e8ec;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+/* Progress ring: a conic-gradient sits under the pill/panel and is
+   revealed only in the border area, so it traces the rounded shape. */
+.widget-pill.widget-ring {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(rgba(11, 12, 16, 0.92), rgba(11, 12, 16, 0.92)) padding-box,
+    conic-gradient(var(--ring-color) calc(var(--progress) * 360deg), #2a2e37 0) border-box;
+}
+
+.widget-panel.widget-ring {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(rgba(11, 12, 16, 0.96), rgba(11, 12, 16, 0.96)) padding-box,
+    conic-gradient(var(--ring-color) calc(var(--progress) * 360deg), #2a2e37 0) border-box;
+}
+
+.widget-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.widget-panel-header .glyph-code {
+  font-size: 0.95rem;
+}
+
+.widget-panel-header .glyph-idle {
+  font-size: 0.75rem;
+}
+
+.widget-panel-header .glyph-coffee {
+  font-size: 1.1rem;
+}
+
+.widget-panel-header .glyph-paused {
+  font-size: 0.95rem;
+}
+
+.widget-panel-header .widget-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.widget-collapse {
+  background: transparent;
+  border: 1px solid #2a2e37;
+  color: #9aa1ac;
+  border-radius: 6px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.widget-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.widget-actions button {
+  flex: 1;
+  background: #171a21;
+  color: #e6e8ec;
+  border: 1px solid #2a2e37;
+  border-radius: 8px;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.widget-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.widget-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.widget-col {
+  background: #121319;
+  border: 1px solid #22252d;
+  border-radius: 12px;
+  padding: 0.55rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+}
+
+.widget-col-title {
+  font-size: 0.7rem;
+  color: #9aa1ac;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.widget-todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.widget-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.widget-todo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3b82f6;
+  flex-shrink: 0;
+}
+
+.widget-todo-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-todo-empty {
+  color: #565b66;
+  font-size: 0.75rem;
+}
+
+.widget-todo-add input {
+  width: 100%;
+  background: #0b0c10;
+  color: #e6e8ec;
+  border: 1px solid #2a2e37;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.widget-heatmap {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  flex: 1;
+}
+
+.widget-heat-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: #1c1f26;
+}
+
+.widget-heat-cell.lvl-1 {
+  background: #1e3a6e;
+}
+
+.widget-heat-cell.lvl-2 {
+  background: #2f5aa8;
+}
+
+.widget-heat-cell.lvl-3 {
+  background: #4b7fe0;
+}
+
+.widget-heat-cell.lvl-4 {
+  background: #7aa6ff;
+}
+
+.widget-open {
+  background: transparent;
+  color: #9aa1ac;
+  border: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.1rem;
+}
+
+.widget-open:hover {
+  color: #e6e8ec;
+}

@@ -31,10 +31,12 @@ pub struct AppConfig {
     pub focus_auto_enable: bool,
     pub block_apps_enabled: bool,
     pub dnd_enabled: bool,
-    pub theme_switch_enabled: bool,
     pub timer: TimerConfig,
     /// GitHub login cached after the token is validated, used to build search queries.
     pub github_login: Option<String>,
+    /// Color of the widget's progress ring, as "#rrggbb". `None` follows the
+    /// OS accent color (best-effort, Windows only for now).
+    pub ring_color: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -52,9 +54,9 @@ impl Default for AppConfig {
             focus_auto_enable: true,
             block_apps_enabled: true,
             dnd_enabled: true,
-            theme_switch_enabled: true,
             timer: TimerConfig::default(),
             github_login: None,
+            ring_color: None,
         }
     }
 }

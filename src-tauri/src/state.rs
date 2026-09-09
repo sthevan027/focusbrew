@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
+use crate::activity::ActivityLog;
 use crate::config::AppConfig;
 use crate::github::GithubItem;
 use crate::tasks::Task;
@@ -16,10 +19,18 @@ pub struct AppState {
     pub config: AppConfig,
     pub activity: Activity,
     pub focus_mode: bool,
+    /// Whether the session's DND is active. Stays on through the coffee
+    /// break — only `focus_mode` (app blocking) pauses.
+    pub immersed: bool,
     pub timer: TimerState,
     pub tasks: Vec<Task>,
     pub github_items: Vec<GithubItem>,
     pub github_error: Option<String>,
+    pub focus_log: ActivityLog,
+    /// Real GitHub contribution calendar ("YYYY-MM-DD" -> count), fetched
+    /// alongside PRs/issues. Drives the widget's streak heatmap when a
+    /// token is connected; falls back to `focus_log` otherwise.
+    pub github_days: HashMap<String, u32>,
 }
 
 impl AppState {
@@ -28,10 +39,13 @@ impl AppState {
             config: crate::config::load(),
             activity: Activity::Idle,
             focus_mode: false,
+            immersed: false,
             timer: TimerState::default(),
             tasks: crate::tasks::load(),
             github_items: Vec::new(),
             github_error: None,
+            focus_log: crate::activity::load(),
+            github_days: HashMap::new(),
         }
     }
 }
@@ -46,6 +60,9 @@ pub struct StateSnapshot {
     pub github_items: Vec<GithubItem>,
     pub github_error: Option<String>,
     pub config: AppConfig,
+    pub focus_days: HashMap<String, u32>,
+    pub streak: u32,
+    pub github_days: HashMap<String, u32>,
 }
 
 impl From<&AppState> for StateSnapshot {
@@ -58,6 +75,9 @@ impl From<&AppState> for StateSnapshot {
             github_items: state.github_items.clone(),
             github_error: state.github_error.clone(),
             config: state.config.clone(),
+            focus_days: state.focus_log.days.clone(),
+            streak: crate::activity::current_streak(&state.focus_log),
+            github_days: state.github_days.clone(),
         }
     }
 }

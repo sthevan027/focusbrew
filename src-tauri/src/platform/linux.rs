@@ -7,14 +7,6 @@ pub struct LinuxAdapter;
 /// `gsettings`. Other desktop environments are not yet supported — this is
 /// documented as an open contribution area in the README.
 impl PlatformAdapter for LinuxAdapter {
-    fn set_dark_theme(&self, dark: bool) -> Result<(), String> {
-        let scheme = if dark { "prefer-dark" } else { "default" };
-        run(
-            "gsettings",
-            &["set", "org.gnome.desktop.interface", "color-scheme", scheme],
-        )
-    }
-
     fn set_dnd(&self, enabled: bool) -> Result<(), String> {
         run(
             "gsettings",

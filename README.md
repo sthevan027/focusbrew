@@ -1,17 +1,17 @@
 # focusbrew
 
 App de bandeja (tray) open source que percebe quando você está trabalhando com
-IA/editor de código, ativa um modo foco (bloqueia distrações, troca o tema,
-liga o Não Perturbe) e te dá um painel com tarefas, PRs/issues do GitHub e um
-timer estilo Pomodoro com pausa-café.
+IA/editor de código, ativa um modo foco (bloqueia distrações, liga o Não
+Perturbe) e te dá um painel com tarefas, PRs/issues do GitHub e um timer
+estilo Pomodoro com pausa-café.
 
 Feito com [Tauri](https://tauri.app) (Rust) + React/TypeScript — nativo,
 leve, multiplataforma.
 
 ## Estado do projeto
 
-MVP funcional no Windows. Linux e macOS têm os hooks de sistema (tema,
-Não Perturbe) implementados como *best-effort* — veja [Limitações](#limitações-conhecidas).
+MVP funcional no Windows. Linux e macOS têm o hook de sistema (Não Perturbe)
+implementado como *best-effort* — veja [Limitações](#limitações-conhecidas).
 
 ## Funcionalidades
 
@@ -19,8 +19,8 @@ Não Perturbe) implementados como *best-effort* — veja [Limitações](#limita�
   Code, Cursor — configurável) e muda o ícone da bandeja entre
   idle / trabalhando / foco / pausa-café.
 - **Modo foco**: ao detectar atividade, opcionalmente bloqueia apps de
-  distração (fecha processos de uma lista configurável), ativa o Não
-  Perturbe do sistema e troca o tema pra escuro. Notifica quando liga/desliga.
+  distração (fecha processos de uma lista configurável) e ativa o Não
+  Perturbe do sistema. Notifica quando liga/desliga.
 - **Timer de café**: ciclos de foco/pausa configuráveis (padrão 50/10min),
   ícone da bandeja vira uma xícara durante a pausa e o modo foco é suspenso
   automaticamente nesse período.
@@ -50,7 +50,7 @@ npm run tauri build
 ## Configuração
 
 Tudo é ajustável na aba **Config** do app: processos monitorados, apps
-bloqueados, intervalo de checagem, se bloqueio/DND/tema estão ligados, e as
+bloqueados, intervalo de checagem, se bloqueio/DND estão ligados, e as
 durações do timer. As configurações ficam em
 `%APPDATA%/focusbrew/settings.json` (Windows) — caminho equivalente via
 `ProjectDirs` nas outras plataformas.
@@ -64,12 +64,12 @@ durações do timer. As configurações ficam em
 - **Não Perturbe do Windows** usa uma chave de registro não documentada
   oficialmente pela Microsoft (a mesma que a flyout do Focus Assist escreve).
   Funciona nas versões testadas, mas pode quebrar em builds futuras do
-  Windows — se falhar, o resto do modo foco (tema, bloqueio de apps) continua
+  Windows — se falhar, o resto do modo foco (bloqueio de apps) continua
   funcionando normalmente.
-- **Linux/macOS**: tema (`gsettings`/AppleScript) e DND são best-effort e
-  cobrem só os casos mais comuns (GNOME no Linux; no macOS o DND depende de
-  você criar manualmente os atalhos `focusbrew-dnd-on`/`focusbrew-dnd-off`
-  no app Atalhos). Contribuições pra outras DEs/versões são bem-vindas.
+- **Linux/macOS**: DND é best-effort e cobre só os casos mais comuns (GNOME
+  no Linux; no macOS depende de você criar manualmente os atalhos
+  `focusbrew-dnd-on`/`focusbrew-dnd-off` no app Atalhos). Contribuições pra
+  outras DEs/versões são bem-vindas.
 
 ## Recomendado no VS Code
 
