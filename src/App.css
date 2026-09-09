@@ -1,13 +1,21 @@
 :root {
-  color-scheme: light dark;
-  --bg: #0f1115;
-  --panel: #171a21;
-  --border: #2a2e37;
-  --text: #e6e8ec;
-  --muted: #9aa1ac;
-  --accent: #2ea043;
-  --focus: #d84242;
-  --coffee: #8b5e3c;
+  color-scheme: dark;
+  /* Espresso-dark palette — warm brown-black, not neutral gray, so the app
+     reads as "coffee at night" rather than generic dev-tool dark mode. */
+  --bg: #17130f;
+  --panel: #221b14;
+  --panel-2: #2b2118;
+  --border: rgba(243, 232, 214, 0.1);
+  --text: #f3e8d9;
+  --muted: #a6957f;
+  --brew: #d99a4e;
+  --brew-strong: #e8b06c;
+  --accent: #8fbf6f;
+  --focus: #e0604a;
+  --coffee: #b98650;
+
+  --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Noto Serif", serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
   font-family: "Segoe UI", system-ui, sans-serif;
 }
 
@@ -38,70 +46,38 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 .app-header h1 {
-  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.3rem;
   margin: 0;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  color: var(--brew-strong);
 }
 
 .tabs {
   display: flex;
-  gap: 0.25rem;
+  gap: 1.1rem;
 }
 
 .tabs button {
   background: transparent;
-  border: 1px solid var(--border);
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--muted);
-  padding: 0.4rem 0.75rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.05rem;
   cursor: pointer;
   font-size: 0.85rem;
+  border-radius: 0;
 }
 
 .tabs button.active {
   color: var(--text);
-  border-color: var(--accent);
-}
-
-.status-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  text-align: center;
-  margin-bottom: 1rem;
-}
-
-.status-card.status-working {
-  border-color: var(--accent);
-}
-
-.status-card.status-focus {
-  border-color: var(--focus);
-}
-
-.status-card.status-coffee {
-  border-color: var(--coffee);
-}
-
-.status-card h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.3rem;
-}
-
-.status-card .timer {
-  font-size: 2.5rem;
-  font-variant-numeric: tabular-nums;
-  margin: 0.25rem 0;
-}
-
-.status-card .hint {
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin: 0;
+  border-bottom-color: var(--brew);
 }
 
 .actions {
@@ -110,7 +86,7 @@ body {
 }
 
 button {
-  background: var(--panel);
+  background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -120,11 +96,98 @@ button {
 }
 
 button:hover {
-  border-color: var(--accent);
+  border-color: var(--brew);
 }
 
 button.secondary {
   border-color: var(--focus);
+}
+
+.link-button {
+  background: transparent;
+  border: none;
+  color: var(--brew-strong);
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* --- Status "cup" — the signature element. A gradient rises from the
+   bottom like coffee filling the card as the current focus/break phase
+   progresses, tying the panel back to the tray icon and the app icon
+   (both a mug), not just a decorative border color. --- */
+.status-cup {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.status-cup-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--fill-color, var(--brew)) 0%, var(--fill-color, var(--brew)) 100%);
+  opacity: 0.16;
+  height: calc(var(--fill, 0) * 100%);
+  bottom: 0;
+  top: auto;
+  transition: height 0.6s ease;
+}
+
+.status-cup-body {
+  position: relative;
+  padding: 1.6rem 1.5rem;
+  text-align: center;
+}
+
+.status-cup.status-working {
+  --fill-color: var(--accent);
+}
+.status-cup.status-working .status-cup-body h2 {
+  color: var(--accent);
+}
+
+.status-cup.status-focus {
+  --fill-color: var(--focus);
+}
+.status-cup.status-focus .status-cup-body h2 {
+  color: var(--focus);
+}
+
+.status-cup.status-coffee {
+  --fill-color: var(--coffee);
+}
+.status-cup.status-coffee .status-cup-body h2 {
+  color: var(--coffee);
+}
+
+.status-cup h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  margin: 0 0 0.4rem;
+  font-size: 1.4rem;
+  color: var(--text);
+}
+
+.status-cup .timer {
+  font-family: var(--font-mono);
+  font-size: 2.75rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.1rem 0 0.3rem;
+}
+
+.status-cup .hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 1.1rem;
+}
+
+.status-cup .actions {
+  margin: 0;
 }
 
 input {
@@ -206,6 +269,238 @@ input {
 .error {
   color: var(--focus);
   font-size: 0.85rem;
+}
+
+/* --- Ticket — the daily summary, styled like a coffee-shop receipt
+   instead of a row of generic big-number stat tiles. Dotted leaders
+   between label and value are the whole idea. --- */
+.ticket {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.ticket-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+
+.ticket-header h3 {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--brew-strong);
+}
+
+.ticket-date {
+  font-family: var(--font-mono);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.ticket-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.ticket-row .label {
+  white-space: nowrap;
+}
+
+.ticket-row .leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--border);
+  margin-bottom: 0.3rem;
+}
+
+.ticket-row .value {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-row-muted {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.ticket-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 1rem 0 0.6rem;
+}
+
+.app-usage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.app-usage-row {
+  display: grid;
+  grid-template-columns: 1.4rem 6.5rem 1fr 3.5rem;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+}
+
+.app-badge {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #17130f;
+  letter-spacing: -0.02em;
+}
+
+.app-usage-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-usage-bar-track {
+  background: var(--panel);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.app-usage-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--brew);
+  border-radius: 999px;
+}
+
+.app-usage-time {
+  color: var(--muted);
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+
+/* --- Compact GitHub card on the panel: a couple of open items + the
+   contribution streak. Full list/connect flow still lives in its own
+   tab. --- */
+.github-card .ticket-header h3 {
+  color: var(--brew-strong);
+}
+
+.github-mini-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.github-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.github-mini-row a {
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-mini-row a:hover {
+  text-decoration: underline;
+}
+
+.heat {
+  margin-top: 0.8rem;
+}
+
+.heat-scroll {
+  overflow-x: auto;
+}
+
+.heat-months {
+  display: flex;
+  margin-bottom: 0.25rem;
+}
+
+.heat-month {
+  width: 12px;
+  flex: 0 0 12px;
+  font-size: 0.6rem;
+  color: var(--muted);
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.heat-grid {
+  display: flex;
+  gap: 3px;
+}
+
+.heat-dow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-right: 2px;
+}
+
+.heat-dow-label {
+  height: 9px;
+  font-size: 0.55rem;
+  line-height: 9px;
+  color: var(--muted);
+}
+
+.heat-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.heat-cell {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--panel);
+  display: block;
+}
+
+.heat-cell.lvl-1 {
+  background: color-mix(in srgb, var(--brew) 30%, var(--panel));
+}
+.heat-cell.lvl-2 {
+  background: color-mix(in srgb, var(--brew) 55%, var(--panel));
+}
+.heat-cell.lvl-3 {
+  background: color-mix(in srgb, var(--brew) 78%, var(--panel));
+}
+.heat-cell.lvl-4 {
+  background: var(--brew-strong);
 }
 
 .github-header {

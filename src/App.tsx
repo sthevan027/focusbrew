@@ -49,7 +49,7 @@ function App() {
         </nav>
       </header>
 
-      {tab === "dashboard" && <Dashboard state={state} />}
+      {tab === "dashboard" && <Dashboard state={state} onNavigate={setTab} />}
       {tab === "tasks" && <TaskBoard tasks={state.tasks} />}
       {tab === "github" && <GithubPanel state={state} />}
       {tab === "settings" && <Settings config={state.config} />}

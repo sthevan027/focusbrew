@@ -24,7 +24,10 @@ interface Glyph {
 function glyphFor(state: StateSnapshot): Glyph {
   if (state.timer.phase === "break") return { symbol: "☕", className: "glyph-coffee" };
   if (state.timer.paused) return { symbol: "⏸", className: "glyph-paused" };
-  if (state.focus_mode || state.activity === "working") return { symbol: "</>", className: "glyph-code" };
+  // Same split as the tray icon (lib.rs `icon_for`): focus-locked and
+  // merely-detected-working are different states, not one blue blob.
+  if (state.focus_mode) return { symbol: "</>", className: "glyph-focus" };
+  if (state.activity === "working") return { symbol: "</>", className: "glyph-working" };
   return { symbol: "●", className: "glyph-idle" };
 }
 
@@ -46,7 +49,7 @@ function formatRemaining(secs: number): string {
   return `${m}:${s}`;
 }
 
-const FALLBACK_RING_COLOR = "#3b82f6";
+const FALLBACK_RING_COLOR = "#d99a4e";
 
 function phaseTotalSecs(state: StateSnapshot): number {
   if (state.timer.phase === "focus") return state.config.timer.focus_minutes * 60;

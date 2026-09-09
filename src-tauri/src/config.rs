@@ -50,7 +50,7 @@ impl Default for AppConfig {
                 "Cursor.exe".into(),
             ],
             blocked_apps: vec![],
-            poll_interval_secs: 5,
+            poll_interval_secs: 1,
             focus_auto_enable: true,
             block_apps_enabled: true,
             dnd_enabled: true,
