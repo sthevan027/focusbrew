@@ -4,8 +4,8 @@
      hex tokens from App.css converted to rgba here since alpha can't be
      layered onto a var() color without color-mix, and this window needs
      the OS-level transparency to only show through these shapes. */
-  --widget-surface: rgba(23, 19, 15, 0.94);
-  --widget-surface-strong: rgba(23, 19, 15, 0.97);
+  --widget-surface: rgb(23, 19, 15);
+  --widget-surface-strong: rgb(23, 19, 15);
 }
 
 * {
