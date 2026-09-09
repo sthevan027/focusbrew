@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::activity::ActivityLog;
+use crate::activity::{ActivityLog, SessionRecord};
 use crate::config::AppConfig;
 use crate::github::GithubItem;
 use crate::tasks::Task;
@@ -63,6 +63,9 @@ pub struct StateSnapshot {
     pub focus_days: HashMap<String, u32>,
     pub streak: u32,
     pub github_days: HashMap<String, u32>,
+    pub sessions: Vec<SessionRecord>,
+    pub app_seconds_today: HashMap<String, u32>,
+    pub uptime_secs: u64,
 }
 
 impl From<&AppState> for StateSnapshot {
@@ -78,6 +81,9 @@ impl From<&AppState> for StateSnapshot {
             focus_days: state.focus_log.days.clone(),
             streak: crate::activity::current_streak(&state.focus_log),
             github_days: state.github_days.clone(),
+            sessions: state.focus_log.sessions.clone(),
+            app_seconds_today: state.focus_log.app_seconds_today.clone(),
+            uptime_secs: sysinfo::System::uptime(),
         }
     }
 }

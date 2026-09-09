@@ -1,16 +1,25 @@
 use sysinfo::System;
 
-/// Returns true if any process whose name matches (case-insensitive) one of
-/// `monitored` is currently running.
-pub fn is_any_monitored_process_running(sys: &System, monitored: &[String]) -> bool {
+/// Returns the subset of `monitored` (original casing, as configured) that
+/// currently has a matching process running — used to attribute "time open"
+/// per app on the dashboard, not just a single working/idle boolean.
+pub fn monitored_processes_seen(sys: &System, monitored: &[String]) -> Vec<String> {
     if monitored.is_empty() {
-        return false;
+        return Vec::new();
     }
-    let wanted: Vec<String> = monitored.iter().map(|p| p.to_lowercase()).collect();
-    sys.processes().values().any(|process| {
-        let name = process.name().to_string_lossy().to_lowercase();
-        wanted.iter().any(|w| name == *w || name.starts_with(w.as_str()))
-    })
+    let running: Vec<String> = sys
+        .processes()
+        .values()
+        .map(|p| p.name().to_string_lossy().to_lowercase())
+        .collect();
+    monitored
+        .iter()
+        .filter(|wanted| {
+            let w = wanted.to_lowercase();
+            running.iter().any(|name| *name == w || name.starts_with(w.as_str()))
+        })
+        .cloned()
+        .collect()
 }
 
 /// Kills every running process whose name matches (case-insensitive) one of `blocked`.

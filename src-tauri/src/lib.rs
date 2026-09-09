@@ -139,22 +139,28 @@ fn spawn_background_loop(app: AppHandle) {
             let shared = app.state::<Shared>();
             let mut state = shared.0.lock().unwrap();
 
-            let working = detector::is_any_monitored_process_running(
+            let seen_apps = detector::monitored_processes_seen(
                 &sys,
                 &state.config.monitored_processes,
             );
-            state.activity = if working {
-                Activity::Working
-            } else {
+            state.activity = if seen_apps.is_empty() {
                 Activity::Idle
+            } else {
+                Activity::Working
             };
+            activity::record_app_tick(&mut state.focus_log, &seen_apps, poll_secs as u32);
 
             let was_focus = state.timer.phase == TimerPhase::Focus;
+            let was_break = state.timer.phase == TimerPhase::Break;
             let timer_config = state.config.timer.clone();
             let flipped = state.timer.tick(poll_secs as u32, &timer_config);
             if flipped {
                 if was_focus {
-                    activity::record_completed_block(&mut state.focus_log);
+                    let duration = timer_config.focus_minutes * 60;
+                    activity::record_completed_block(&mut state.focus_log, activity::SessionKind::Focus, duration);
+                } else if was_break {
+                    let duration = timer_config.break_minutes * 60;
+                    activity::record_completed_block(&mut state.focus_log, activity::SessionKind::Break, duration);
                 }
                 let (title, body) = match state.timer.phase {
                     TimerPhase::Break => ("Hora do café ☕", "Bora dar um tempo — a pausa começou."),

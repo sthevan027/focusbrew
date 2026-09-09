@@ -36,6 +36,15 @@ export interface Task {
   source: TaskSource;
 }
 
+export type SessionKind = "focus" | "break";
+
+export interface SessionRecord {
+  kind: SessionKind;
+  started_at: string;
+  ended_at: string;
+  duration_secs: number;
+}
+
 export interface GithubItem {
   number: number;
   title: string;
@@ -56,4 +65,7 @@ export interface StateSnapshot {
   focus_days: Record<string, number>;
   streak: number;
   github_days: Record<string, number>;
+  sessions: SessionRecord[];
+  app_seconds_today: Record<string, number>;
+  uptime_secs: number;
 }
