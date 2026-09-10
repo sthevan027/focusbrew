@@ -104,6 +104,23 @@ pub fn reconcile_focus(app: &AppHandle, state: &mut AppState) {
     }
 }
 
+/// Records whatever time is left running in the current phase (if any) and
+/// stops the timer. Used for every way a session can end early — the
+/// "Parar" button, the hotkey toggle, and the app quitting mid-session —
+/// so early stops keep their time instead of losing it silently.
+pub(crate) fn stop_and_record(state: &mut AppState) {
+    let kind = match state.timer.phase {
+        TimerPhase::Focus => Some(activity::SessionKind::Focus),
+        TimerPhase::Break => Some(activity::SessionKind::Break),
+        TimerPhase::Off => None,
+    };
+    if let Some(kind) = kind {
+        let elapsed = state.timer.elapsed_secs(&state.config.timer);
+        activity::record_block(&mut state.focus_log, kind, elapsed);
+    }
+    state.timer.stop();
+}
+
 /// Starts a focus session if the timer is off, stops it otherwise. Bound to
 /// the global hotkey and to the tray/widget "toggle" controls.
 pub fn toggle_focus_session(app: &AppHandle) {
@@ -115,7 +132,7 @@ pub fn toggle_focus_session(app: &AppHandle) {
         state.timer.start_focus(&timer_config);
         focus::notify(app, "Foco iniciado", "Sessão de foco começou pelo atalho.");
     } else {
-        state.timer.stop();
+        stop_and_record(&mut state);
         focus::notify(app, "Foco parado", "Sessão de foco encerrada pelo atalho.");
     }
 
@@ -157,10 +174,10 @@ fn spawn_background_loop(app: AppHandle) {
             if flipped {
                 if was_focus {
                     let duration = timer_config.focus_minutes * 60;
-                    activity::record_completed_block(&mut state.focus_log, activity::SessionKind::Focus, duration);
+                    activity::record_block(&mut state.focus_log, activity::SessionKind::Focus, duration);
                 } else if was_break {
                     let duration = timer_config.break_minutes * 60;
-                    activity::record_completed_block(&mut state.focus_log, activity::SessionKind::Break, duration);
+                    activity::record_block(&mut state.focus_log, activity::SessionKind::Break, duration);
                 }
                 let (title, body) = match state.timer.phase {
                     TimerPhase::Break => ("Hora do café ☕", "Bora dar um tempo — a pausa começou."),
@@ -288,8 +305,18 @@ pub fn run() {
                 api.prevent_close();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Flush whatever time is left in a running session before the
+            // process actually goes away ("Sair" in the tray, or the OS
+            // shutting the app down) — otherwise that time was silently lost.
+            if let tauri::RunEvent::Exit = event {
+                let shared = app_handle.state::<Shared>();
+                let mut state = shared.0.lock().unwrap();
+                stop_and_record(&mut state);
+            }
+        });
 }
 
 pub(crate) fn show_main_window(app: &AppHandle) {

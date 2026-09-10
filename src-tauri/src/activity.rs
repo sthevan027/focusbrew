@@ -14,8 +14,8 @@ pub enum SessionKind {
     Break,
 }
 
-/// One completed (naturally finished, not stopped early) focus or break
-/// block — powers the "resumo de hoje" on the dashboard.
+/// One focus or break block that was recorded — either finished naturally
+/// or stopped early — powers the "resumo de hoje" on the dashboard.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRecord {
     pub kind: SessionKind,
@@ -65,20 +65,33 @@ fn today_key() -> String {
     Local::now().format("%Y-%m-%d").to_string()
 }
 
-/// Records that a focus or break block just completed naturally (timer hit
-/// zero on its own). Manual/early stops don't count — same rule that
-/// already applied to the streak counter.
-pub fn record_completed_block(log: &mut ActivityLog, kind: SessionKind, duration_secs: u32) {
+/// Mutates the in-memory log for a finished block — streak day + session
+/// record — without touching disk. Split out from `record_block` so the
+/// logic is unit-testable without writing to the real activity log file.
+fn apply_block(log: &mut ActivityLog, kind: SessionKind, elapsed_secs: u32) {
     if kind == SessionKind::Focus {
         *log.days.entry(today_key()).or_insert(0) += 1;
     }
     let ended_at = Local::now();
-    let started_at = ended_at - ChronoDuration::seconds(duration_secs as i64);
-    log.sessions.push(SessionRecord { kind, started_at, ended_at, duration_secs });
+    let started_at = ended_at - ChronoDuration::seconds(elapsed_secs as i64);
+    log.sessions.push(SessionRecord { kind, started_at, ended_at, duration_secs: elapsed_secs });
     if log.sessions.len() > MAX_SESSIONS {
         let excess = log.sessions.len() - MAX_SESSIONS;
         log.sessions.drain(0..excess);
     }
+}
+
+/// Records a focus or break block that just ended, whatever the reason —
+/// timer hit zero on its own, the user stopped it early, or the app exited
+/// mid-session. `elapsed_secs` is the real time spent, not the configured
+/// block length, so early stops keep whatever was actually done instead of
+/// losing it. No-op for a block with no elapsed time (e.g. stopped the
+/// instant it started).
+pub fn record_block(log: &mut ActivityLog, kind: SessionKind, elapsed_secs: u32) {
+    if elapsed_secs == 0 {
+        return;
+    }
+    apply_block(log, kind, elapsed_secs);
     let _ = save(log);
 }
 
@@ -124,4 +137,78 @@ pub fn current_streak(log: &ActivityLog) -> u32 {
         }
     }
     streak
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Exercises `apply_block` directly (never `record_block`/`save`) so
+    // these tests can't overwrite the real `activity.json` on this machine.
+
+    #[test]
+    fn early_stop_still_records_the_time_actually_spent() {
+        let mut log = ActivityLog::default();
+        apply_block(&mut log, SessionKind::Focus, 12 * 60); // stopped at 12 of 50 min
+        assert_eq!(log.sessions.len(), 1);
+        assert_eq!(log.sessions[0].duration_secs, 12 * 60);
+        assert_eq!(log.sessions[0].kind, SessionKind::Focus);
+    }
+
+    #[test]
+    fn focus_block_counts_toward_todays_streak_even_if_stopped_early() {
+        let mut log = ActivityLog::default();
+        apply_block(&mut log, SessionKind::Focus, 5 * 60);
+        assert_eq!(log.days.get(&today_key()), Some(&1));
+    }
+
+    #[test]
+    fn break_block_does_not_count_toward_the_streak() {
+        let mut log = ActivityLog::default();
+        apply_block(&mut log, SessionKind::Break, 5 * 60);
+        assert_eq!(log.days.get(&today_key()), None);
+        assert_eq!(log.sessions.len(), 1);
+    }
+
+    #[test]
+    fn record_block_is_a_noop_for_zero_elapsed_time() {
+        let mut log = ActivityLog::default();
+        record_block(&mut log, SessionKind::Focus, 0);
+        assert!(log.sessions.is_empty());
+        assert!(log.days.is_empty());
+    }
+
+    #[test]
+    fn multiple_early_stops_same_day_accumulate_in_days_and_sessions() {
+        let mut log = ActivityLog::default();
+        apply_block(&mut log, SessionKind::Focus, 10 * 60);
+        apply_block(&mut log, SessionKind::Focus, 8 * 60);
+        assert_eq!(log.sessions.len(), 2);
+        assert_eq!(log.days.get(&today_key()), Some(&2));
+    }
+
+    #[test]
+    fn session_list_caps_at_max_sessions() {
+        let mut log = ActivityLog::default();
+        for _ in 0..(MAX_SESSIONS + 5) {
+            apply_block(&mut log, SessionKind::Break, 60);
+        }
+        assert_eq!(log.sessions.len(), MAX_SESSIONS);
+    }
+
+    #[test]
+    fn streak_counts_consecutive_days_ending_today() {
+        let mut log = ActivityLog::default();
+        let today = Local::now().date_naive();
+        log.days.insert(today.format("%Y-%m-%d").to_string(), 1);
+        log.days.insert(
+            (today - ChronoDuration::days(1)).format("%Y-%m-%d").to_string(),
+            1,
+        );
+        log.days.insert(
+            (today - ChronoDuration::days(2)).format("%Y-%m-%d").to_string(),
+            1,
+        );
+        assert_eq!(current_streak(&log), 3);
+    }
 }

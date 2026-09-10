@@ -5,7 +5,7 @@ use crate::github;
 use crate::state::StateSnapshot;
 use crate::tasks::{self, TaskSource};
 use crate::widget;
-use crate::{reconcile_focus, sync_ui, Shared};
+use crate::{reconcile_focus, stop_and_record, sync_ui, Shared};
 
 #[tauri::command]
 pub fn get_state(shared: State<'_, Shared>) -> StateSnapshot {
@@ -138,7 +138,7 @@ pub fn start_coffee_break(app: AppHandle, shared: State<'_, Shared>) -> StateSna
 #[tauri::command]
 pub fn stop_timer(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
     let mut state = shared.0.lock().unwrap();
-    state.timer.stop();
+    stop_and_record(&mut state);
     reconcile_focus(&app, &mut state);
     sync_ui(&app, &state);
     StateSnapshot::from(&*state)

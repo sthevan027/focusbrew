@@ -48,6 +48,17 @@ impl TimerState {
         self.paused = false;
     }
 
+    /// Real time spent in the current phase so far, for logging before
+    /// `stop()` resets `remaining_secs` to 0. `Off` has nothing running.
+    pub fn elapsed_secs(&self, config: &TimerConfig) -> u32 {
+        let total = match self.phase {
+            TimerPhase::Focus => config.focus_minutes * 60,
+            TimerPhase::Break => config.break_minutes * 60,
+            TimerPhase::Off => return 0,
+        };
+        total.saturating_sub(self.remaining_secs)
+    }
+
     pub fn set_paused(&mut self, paused: bool) {
         if self.phase != TimerPhase::Off {
             self.paused = paused;
@@ -71,5 +82,57 @@ impl TimerState {
             TimerPhase::Off => {}
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config() -> TimerConfig {
+        TimerConfig { focus_minutes: 50, break_minutes: 10, auto_start: false }
+    }
+
+    #[test]
+    fn elapsed_secs_is_zero_when_off() {
+        let timer = TimerState::default();
+        assert_eq!(timer.elapsed_secs(&config()), 0);
+    }
+
+    #[test]
+    fn elapsed_secs_tracks_time_spent_mid_focus() {
+        let mut timer = TimerState::default();
+        timer.start_focus(&config());
+        timer.tick(20 * 60, &config()); // 20 of 50 minutes gone
+        assert_eq!(timer.elapsed_secs(&config()), 20 * 60);
+    }
+
+    #[test]
+    fn elapsed_secs_tracks_time_spent_mid_break() {
+        let mut timer = TimerState::default();
+        timer.start_break(&config());
+        timer.tick(4 * 60, &config()); // 4 of 10 minutes gone
+        assert_eq!(timer.elapsed_secs(&config()), 4 * 60);
+    }
+
+    #[test]
+    fn elapsed_secs_is_full_length_right_before_natural_completion() {
+        let mut timer = TimerState::default();
+        timer.start_focus(&config());
+        // One tick short of the flip — everything but the final instant has
+        // elapsed, mirroring what the background loop sees right before it
+        // calls activity::record_block for a natural completion.
+        timer.tick(50 * 60 - 1, &config());
+        assert_eq!(timer.elapsed_secs(&config()), 50 * 60 - 1);
+    }
+
+    #[test]
+    fn stop_resets_state_so_elapsed_is_zero_after() {
+        let mut timer = TimerState::default();
+        timer.start_focus(&config());
+        timer.tick(30 * 60, &config());
+        timer.stop();
+        assert_eq!(timer.phase, TimerPhase::Off);
+        assert_eq!(timer.elapsed_secs(&config()), 0);
     }
 }
