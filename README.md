@@ -75,7 +75,44 @@ equivalente via `ProjectDirs` nas outras plataformas.
   oficialmente pela Microsoft (a mesma que a flyout do Focus Assist escreve).
   Funciona nas versões testadas, mas pode quebrar em builds futuras do
   Windows — se falhar, o resto do modo foco (bloqueio de apps) continua
-  funcionando normalmente.
+  funcionando normalmente. O focusbrew liga o modo **"Prioritário"**
+  (Priority only), não "Apenas alarmes" — veja a seção abaixo sobre por quê.
+
+### Não Perturbe e notificações importantes
+
+O Focus Assist do Windows tem dois modos "ligado": **Prioritário**
+(deixa passar apps/contatos da sua lista de prioridades) e **Apenas
+alarmes** (bloqueia absolutamente tudo, menos alarmes). O focusbrew sempre
+usa o modo **Prioritário** — de propósito: se usasse "Apenas alarmes",
+qualquer notificação importante que devesse aparecer durante o foco (ex.:
+um aviso de que uma sessão do Claude Code está perto do limite de uso, ou
+de um prazo batendo, disparado por outra ferramenta via toast nativo do
+Windows) seria silenciada e só apareceria na Central de Ações — justamente
+no momento em que você mais precisa ver o aviso.
+
+Só que "Prioritário" só deixa passar o que está na *lista de prioridades*
+do Focus Assist, e o Windows **não tem nenhuma API pública ou documentada
+para adicionar um app a essa lista programaticamente** (pesquisado —
+existe só a chave de registro não-oficial que liga/desliga o modo, usada
+acima; a lista de prioridades em si não tem um mecanismo confiável e
+documentado de escrita). Então, se você tem alguma ferramenta que dispara
+notificações via `powershell.exe` (como os scripts do JARVIS,
+`usage-guard`/`jarvis-notify`) e quer que elas continuem aparecendo mesmo
+com o focusbrew em modo foco, adicione manualmente à lista de prioridades:
+
+1. **Configurações do Windows** → **Sistema** → **Foco** (Windows 11) ou
+   **Assistente de Foco** (Windows 10).
+2. Abra **"Personalizar sua lista de prioridades"** (ou **"Apenas
+   prioritário"** → **Personalizar a lista de prioridades**, dependendo da
+   versão).
+3. Em **Apps**, clique **Adicionar um app** e escolha **Windows
+   PowerShell** (é esse o app que aparece nos toasts do JARVIS, AppId
+   `...\WindowsPowerShell\v1.0\powershell.exe`).
+4. Salve. A partir daí, toasts do PowerShell (JARVIS incluso) aparecem
+   normalmente mesmo com o focusbrew em modo foco.
+
+Isso é único por máquina — precisa ser feito de novo se você reinstalar o
+Windows ou usar outro PC.
 - **Linux/macOS**: DND é best-effort e cobre só os casos mais comuns (GNOME
   no Linux; no macOS depende de você criar manualmente os atalhos
   `focusbrew-dnd-on`/`focusbrew-dnd-off` no app Atalhos). Contribuições pra
