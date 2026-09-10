@@ -2,9 +2,9 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, Webvie
 
 /// Collapsed pill: just the status icon + timer, hugging the top-center of the
 /// screen (like a macOS notch widget). Expanded: adds quick controls.
-pub const COLLAPSED_SIZE: (f64, f64) = (260.0, 46.0);
+pub const COLLAPSED_SIZE: (f64, f64) = (260.0, 55.0);
 pub const EXPANDED_SIZE: (f64, f64) = (440.0, 300.0);
-const TOP_MARGIN: f64 = 6.0;
+const TOP_MARGIN: f64 = 0.0;
 const FALLBACK_MONITOR_WIDTH: f64 = 1280.0;
 
 fn monitor_logical_width(app: &AppHandle) -> f64 {
