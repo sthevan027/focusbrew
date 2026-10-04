@@ -67,15 +67,24 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
     // the state mutex here — while the main thread itself locks that mutex
     // (sync commands, tray menu, hotkey). Waiting would deadlock the UI, so
     // the update is posted to the main thread instead of awaited.
-    let icon = icon_for(state);
+    //
+    // The tooltip maps 1:1 to the tray icon, so it doubles as the "did the
+    // tray change" key — this runs every poll tick and the icon rarely moves.
+    static LAST_TOOLTIP: Mutex<String> = Mutex::new(String::new());
     let tooltip = tooltip_for(state);
-    let handle = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        if let Some(tray) = handle.tray_by_id("main-tray") {
-            let _ = tray.set_icon(Some(icon));
-            let _ = tray.set_tooltip(Some(tooltip));
-        }
-    });
+    let mut last = LAST_TOOLTIP.lock().unwrap();
+    if *last != tooltip {
+        *last = tooltip.clone();
+        let icon = icon_for(state);
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(tray) = handle.tray_by_id("main-tray") {
+                let _ = tray.set_icon(Some(icon));
+                let _ = tray.set_tooltip(Some(tooltip));
+            }
+        });
+    }
+    drop(last);
     let snapshot = StateSnapshot::from(state);
     let _ = app.emit("state-changed", snapshot);
 }
@@ -106,10 +115,18 @@ pub fn reconcile_focus(app: &AppHandle, state: &mut AppState) {
         }
     }
 
+    // Blocked apps are killed by the background loop, using the process list
+    // it already refreshed and with the state mutex released — scanning every
+    // process here held the lock (and, from commands, the main thread) for
+    // the whole scan.
+}
+
+/// Apps to kill right now, if focus mode is blocking any.
+fn apps_to_block(state: &AppState) -> Vec<String> {
     if state.focus_mode && state.config.block_apps_enabled {
-        let mut sys = sysinfo::System::new();
-        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-        detector::kill_blocked_processes(&sys, &state.config.blocked_apps);
+        state.config.blocked_apps.clone()
+    } else {
+        Vec::new()
     }
 }
 
@@ -160,7 +177,13 @@ fn spawn_background_loop(app: AppHandle) {
             };
             tokio::time::sleep(Duration::from_secs(poll_secs)).await;
 
-            sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+            // Only process names are used (detection + blocking), so skip
+            // the per-process CPU/memory/disk reads `refresh_processes` does.
+            sys.refresh_processes_specifics(
+                sysinfo::ProcessesToUpdate::All,
+                true,
+                sysinfo::ProcessRefreshKind::new(),
+            );
 
             let shared = app.state::<Shared>();
             let mut state = shared.0.lock().unwrap();
@@ -200,6 +223,10 @@ fn spawn_background_loop(app: AppHandle) {
 
             reconcile_focus(&app, &mut state);
             sync_ui(&app, &state);
+            let blocked = apps_to_block(&state);
+            drop(state);
+
+            detector::kill_blocked_processes(&sys, &blocked);
         }
     });
 }
