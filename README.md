@@ -128,7 +128,9 @@ tarefas e o streak.
   Token (guardado no cofre de credenciais do SO, nunca em texto plano). O
   login do `gh` tem prioridade e é lido a cada atualização, então um novo
   `gh auth login` vale sem reconectar. Lista PRs/issues abertos onde você
-  está envolvido e dá pra importar qualquer item como tarefa. O painel e o
+  está envolvido e dá pra importar qualquer item como tarefa. A lista e o
+  heatmap atualizam sozinhos ao abrir o app e a cada 5 minutos (o botão
+  Atualizar força na hora). O painel e o
   widget também puxam sua contribution calendar real (via GraphQL) pra
   mostrar streak e heatmap.
 - **Quadro de tarefas**: checklist simples e local, persistido em disco. A

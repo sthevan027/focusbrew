@@ -231,6 +231,30 @@ fn spawn_background_loop(app: AppHandle) {
     });
 }
 
+/// How often the PR/issue list and the heatmap refresh on their own.
+const GITHUB_REFRESH_EVERY: Duration = Duration::from_secs(5 * 60);
+
+/// Keeps the GitHub data fresh without anyone opening the GitHub tab: once
+/// shortly after launch, then every few minutes while connected.
+fn spawn_github_refresh_loop(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        // Let the windows come up first.
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        loop {
+            let connected = {
+                let shared = app.state::<Shared>();
+                let state = shared.0.lock().unwrap();
+                state.config.github_login.is_some()
+            };
+            if connected {
+                // Failures land in `github_error`; nothing else to do here.
+                let _ = commands::refresh_github_now(&app).await;
+            }
+            tokio::time::sleep(GITHUB_REFRESH_EVERY).await;
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
@@ -333,6 +357,7 @@ pub fn run() {
                 .build(app)?;
 
             widget::create(app.handle())?;
+            spawn_github_refresh_loop(handle.clone());
             spawn_background_loop(handle);
             Ok(())
         })

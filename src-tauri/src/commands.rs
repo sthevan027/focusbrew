@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::config::{self, AppConfig};
 use crate::github;
@@ -106,7 +106,14 @@ pub fn clear_github_token(shared: State<'_, Shared>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn refresh_github(app: AppHandle, shared: State<'_, Shared>) -> Result<StateSnapshot, String> {
+pub async fn refresh_github(app: AppHandle) -> Result<StateSnapshot, String> {
+    refresh_github_now(&app).await
+}
+
+/// Fetches PRs/issues and the contribution calendar and publishes them.
+/// Shared by the "Atualizar" button and the background refresh loop.
+pub(crate) async fn refresh_github_now(app: &AppHandle) -> Result<StateSnapshot, String> {
+    let shared = app.state::<Shared>();
     let (use_gh, login) = {
         let state = shared.0.lock().unwrap();
         let login = state
@@ -119,30 +126,22 @@ pub async fn refresh_github(app: AppHandle, shared: State<'_, Shared>) -> Result
     // Resolved on every refresh, so a re-login in gh is picked up without
     // reconnecting here.
     let gh = if use_gh { github::gh_token().await } else { None };
-    let (token, source) = github::pick_token(use_gh, gh, github::load_token()).ok_or(
-        "sem token do GitHub — rode `gh auth login` num terminal ou cole um token na aba GitHub",
-    )?;
+    let Some((token, source)) = github::pick_token(use_gh, gh, github::load_token()) else {
+        let message = "sem token do GitHub — rode `gh auth login` num terminal ou cole um token na aba GitHub";
+        let mut state = shared.0.lock().unwrap();
+        if state.fail_github_refresh(&login, message.into()) {
+            sync_ui(app, &state);
+        }
+        return Err(message.into());
+    };
 
-    let result = github::fetch_involved(&token, &login).await;
-    // Best-effort: a broken contribution calendar fetch shouldn't blank out
-    // the PR/issue list, so its error isn't surfaced to `github_error`.
-    let contributions = github::fetch_contribution_calendar(&token, &login).await;
+    let items = github::fetch_involved(&token, &login).await;
+    let days = github::fetch_contribution_calendar(&token, &login).await;
 
     let mut state = shared.0.lock().unwrap();
-    state.github_source = Some(source);
-    match result {
-        Ok(items) => {
-            state.github_items = items;
-            state.github_error = None;
-        }
-        Err(e) => {
-            state.github_error = Some(e);
-        }
+    if state.apply_github_refresh(&login, source, items, days) {
+        sync_ui(app, &state);
     }
-    if let Ok(days) = contributions {
-        state.github_days = days;
-    }
-    sync_ui(&app, &state);
     Ok(StateSnapshot::from(&*state))
 }
 
