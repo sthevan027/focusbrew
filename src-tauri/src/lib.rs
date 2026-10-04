@@ -63,10 +63,19 @@ fn tooltip_for(state: &AppState) -> String {
 /// Applies the latest state to the tray icon/tooltip and notifies the
 /// frontend window. Called after every state mutation.
 pub fn sync_ui(app: &AppHandle, state: &AppState) {
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        let _ = tray.set_icon(Some(icon_for(state)));
-        let _ = tray.set_tooltip(Some(tooltip_for(state)));
-    }
+    // Tray setters block until the main thread runs them, and callers hold
+    // the state mutex here — while the main thread itself locks that mutex
+    // (sync commands, tray menu, hotkey). Waiting would deadlock the UI, so
+    // the update is posted to the main thread instead of awaited.
+    let icon = icon_for(state);
+    let tooltip = tooltip_for(state);
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(tray) = handle.tray_by_id("main-tray") {
+            let _ = tray.set_icon(Some(icon));
+            let _ = tray.set_tooltip(Some(tooltip));
+        }
+    });
     let snapshot = StateSnapshot::from(state);
     let _ = app.emit("state-changed", snapshot);
 }
