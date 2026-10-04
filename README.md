@@ -197,8 +197,9 @@ src-tauri/src/
 Tudo é ajustável na aba **Config** do app: processos monitorados, apps
 bloqueados, intervalo de checagem, se bloqueio/DND estão ligados, cor do
 anel de progresso do widget, e as durações do timer. As configurações
-ficam em `%APPDATA%/focusbrew/settings.json` (Windows) — caminho
-equivalente via `ProjectDirs` nas outras plataformas.
+ficam em `%APPDATA%\sthevandev\focusbrew\config\settings.json` e o
+histórico/tarefas em `%APPDATA%\sthevandev\focusbrew\data\` (Windows) —
+caminhos equivalentes via `ProjectDirs` nas outras plataformas.
 
 ## Limitações conhecidas
 
