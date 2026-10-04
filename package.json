@@ -14,7 +14,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "dist": "tauri build",
+    "dist:signed": "tauri build --config src-tauri/tauri.signing.conf.json"
   },
   "dependencies": {
     "react": "^19.1.0",
