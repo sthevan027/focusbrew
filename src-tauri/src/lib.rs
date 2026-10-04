@@ -264,6 +264,8 @@ pub fn run() {
             commands::remove_task,
             commands::update_settings,
             commands::save_github_token,
+            commands::github_gh_available,
+            commands::connect_github_with_gh,
             commands::clear_github_token,
             commands::refresh_github,
             commands::import_github_item_as_task,

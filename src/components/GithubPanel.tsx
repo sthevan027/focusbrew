@@ -1,11 +1,40 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { GithubItem, StateSnapshot } from "../lib/types";
-import { importGithubItemAsTask, refreshGithub, saveGithubToken, clearGithubToken } from "../lib/tauri";
+import {
+  clearGithubToken,
+  connectGithubWithGh,
+  githubGhAvailable,
+  importGithubItemAsTask,
+  refreshGithub,
+  saveGithubToken,
+} from "../lib/tauri";
 
 export default function GithubPanel({ state }: { state: StateSnapshot }) {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ghAvailable, setGhAvailable] = useState<boolean | null>(null);
+  const connected = Boolean(state.config.github_login);
+
+  useEffect(() => {
+    if (connected) return;
+    githubGhAvailable()
+      .then(setGhAvailable)
+      .catch(() => setGhAvailable(false));
+  }, [connected]);
+
+  const connectWithGh = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await connectGithubWithGh();
+      await refreshGithub();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const connect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,13 +52,25 @@ export default function GithubPanel({ state }: { state: StateSnapshot }) {
     }
   };
 
-  if (!state.config.github_login) {
+  if (!connected) {
     return (
       <section className="github-panel">
-        <p>
-          Conecte um Personal Access Token do GitHub (escopo <code>repo</code>) pra ver seus PRs e
-          issues abertos aqui.
-        </p>
+        {ghAvailable ? (
+          <>
+            <p>Achei o GitHub CLI logado nesta máquina. Conecte com ele, sem colar token.</p>
+            <button onClick={connectWithGh} disabled={busy}>
+              {busy ? "Conectando..." : "Conectar com o GitHub CLI"}
+            </button>
+          </>
+        ) : (
+          <p>
+            Pra conectar sem token, instale o <a href="https://cli.github.com" target="_blank" rel="noreferrer">GitHub CLI</a>{" "}
+            e rode <code>gh auth login</code> num terminal
+            {ghAvailable === false ? "." : " (verificando...)"}
+          </p>
+        )}
+
+        <p className="hint">Ou conecte com um Personal Access Token (escopo <code>repo</code>):</p>
         <form onSubmit={connect} className="task-form">
           <input
             type="password"
@@ -51,6 +92,9 @@ export default function GithubPanel({ state }: { state: StateSnapshot }) {
       <div className="github-header">
         <span>
           Conectado como <strong>{state.config.github_login}</strong>
+          {state.github_source && (
+            <span className="github-source"> · via {state.github_source === "gh" ? "GitHub CLI" : "token"}</span>
+          )}
         </span>
         <div>
           <button onClick={() => refreshGithub()}>Atualizar</button>

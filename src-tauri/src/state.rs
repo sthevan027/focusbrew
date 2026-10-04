@@ -31,6 +31,8 @@ pub struct AppState {
     /// alongside PRs/issues. Drives the widget's streak heatmap when a
     /// token is connected; falls back to `focus_log` otherwise.
     pub github_days: HashMap<String, u32>,
+    /// Where the last successful GitHub token came from (gh CLI or a saved PAT).
+    pub github_source: Option<crate::github::TokenSource>,
 }
 
 impl AppState {
@@ -46,6 +48,7 @@ impl AppState {
             github_error: None,
             focus_log: crate::activity::load(),
             github_days: HashMap::new(),
+            github_source: None,
         }
     }
 }
@@ -63,6 +66,7 @@ pub struct StateSnapshot {
     pub focus_days: HashMap<String, u32>,
     pub streak: u32,
     pub github_days: HashMap<String, u32>,
+    pub github_source: Option<crate::github::TokenSource>,
     pub sessions: Vec<SessionRecord>,
     pub app_seconds_today: HashMap<String, u32>,
     pub uptime_secs: u64,
@@ -81,6 +85,7 @@ impl From<&AppState> for StateSnapshot {
             focus_days: state.focus_log.days.clone(),
             streak: crate::activity::current_streak(&state.focus_log),
             github_days: state.github_days.clone(),
+            github_source: state.github_source,
             sessions: state.focus_log.sessions.clone(),
             app_seconds_today: state.focus_log.app_seconds_today.clone(),
             uptime_secs: sysinfo::System::uptime(),

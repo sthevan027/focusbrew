@@ -728,3 +728,13 @@ input {
   border-color: var(--accent);
   color: var(--text);
 }
+
+.github-panel .hint {
+  color: var(--muted);
+  margin: 1.25rem 0 0.5rem;
+}
+
+.github-source {
+  color: var(--muted);
+  font-weight: normal;
+}

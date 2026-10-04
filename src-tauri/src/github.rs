@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -51,6 +52,73 @@ pub fn clear_token() -> Result<(), String> {
         Ok(entry) => entry.delete_credential().map_err(|e| e.to_string()),
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// Where the token used for the GitHub calls came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenSource {
+    /// The GitHub CLI's login (`gh auth token`).
+    Gh,
+    /// A Personal Access Token pasted in the app (OS keyring).
+    Manual,
+}
+
+/// How long `gh auth token` may take before we give up on it (it can hang
+/// on a keyring prompt).
+const GH_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// `gh auth token` prints the token plus a newline; nothing means "not
+/// logged in".
+fn parse_gh_token(stdout: &str) -> Option<String> {
+    let token = stdout.trim();
+    (!token.is_empty()).then(|| token.to_string())
+}
+
+/// gh first (unless the user turned it off), the saved token as fallback.
+pub fn pick_token(
+    use_gh: bool,
+    gh: Option<String>,
+    manual: Option<String>,
+) -> Option<(String, TokenSource)> {
+    if use_gh {
+        if let Some(token) = gh {
+            return Some((token, TokenSource::Gh));
+        }
+    }
+    manual.map(|token| (token, TokenSource::Manual))
+}
+
+/// Runs a command and returns its trimmed stdout, or `None` if it can't be
+/// started, fails, prints nothing or outlives `timeout`.
+async fn run_token_command(program: &str, args: &[&str], timeout: Duration) -> Option<String> {
+    let mut command = tokio::process::Command::new(program);
+    command
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true);
+    // No console window flashing every time the app asks gh for a token.
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+
+    let output = tokio::time::timeout(timeout, command.output()).await.ok()?.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_gh_token(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// The GitHub CLI's token, if gh is installed and logged in.
+pub async fn gh_token() -> Option<String> {
+    if let Some(token) = run_token_command("gh", &["auth", "token"], GH_TIMEOUT).await {
+        return Some(token);
+    }
+    // gh installed as a .cmd shim (scoop, etc.) isn't found without a shell.
+    #[cfg(windows)]
+    return run_token_command("cmd", &["/C", "gh", "auth", "token"], GH_TIMEOUT).await;
+    #[cfg(not(windows))]
+    None
 }
 
 fn client(token: &str) -> Result<reqwest::Client, String> {
@@ -205,4 +273,68 @@ pub async fn fetch_contribution_calendar(
         }
     }
     Ok(days)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn gh_output_is_trimmed() {
+        assert_eq!(parse_gh_token("gho_abc123\r\n"), Some("gho_abc123".to_string()));
+    }
+
+    #[test]
+    fn empty_gh_output_means_not_logged_in() {
+        assert_eq!(parse_gh_token(""), None);
+        assert_eq!(parse_gh_token("  \n"), None);
+    }
+
+    #[test]
+    fn gh_token_wins_over_saved_token() {
+        let picked = pick_token(true, Some("gh".into()), Some("pat".into()));
+        assert_eq!(picked, Some(("gh".to_string(), TokenSource::Gh)));
+    }
+
+    #[test]
+    fn saved_token_is_the_fallback_when_gh_has_none() {
+        let picked = pick_token(true, None, Some("pat".into()));
+        assert_eq!(picked, Some(("pat".to_string(), TokenSource::Manual)));
+    }
+
+    // "Desconectar" turns gh off; it must not reconnect through gh.
+    #[test]
+    fn gh_is_ignored_when_disabled() {
+        assert_eq!(pick_token(false, Some("gh".into()), None), None);
+        let picked = pick_token(false, Some("gh".into()), Some("pat".into()));
+        assert_eq!(picked, Some(("pat".to_string(), TokenSource::Manual)));
+    }
+
+    #[test]
+    fn no_token_anywhere() {
+        assert_eq!(pick_token(true, None, None), None);
+    }
+
+    #[tokio::test]
+    async fn missing_program_yields_no_token() {
+        let out = run_token_command("focusbrew-no-such-program", &[], Duration::from_secs(2)).await;
+        assert_eq!(out, None);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn hung_command_times_out() {
+        let started = std::time::Instant::now();
+        let out = run_token_command("cmd", &["/C", "ping -n 6 127.0.0.1 >nul & echo late"], Duration::from_millis(500)).await;
+        assert_eq!(out, None);
+        assert!(started.elapsed() < Duration::from_secs(3), "must not wait for the command");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn command_output_becomes_the_token() {
+        let out = run_token_command("cmd", &["/C", "echo tok_123"], Duration::from_secs(5)).await;
+        assert_eq!(out, Some("tok_123".to_string()));
+    }
 }
