@@ -1,311 +1,119 @@
-:root {
-  color-scheme: dark;
-  /* Same translucent espresso surface in both pill and panel states —
-     hex tokens from App.css converted to rgba here since alpha can't be
-     layered onto a var() color without color-mix, and this window needs
-     the OS-level transparency to only show through these shapes. */
-  --widget-surface: rgb(23, 19, 15);
-  --widget-surface-strong: rgb(23, 19, 15);
+/* Everything is scoped under .widget-root: both windows load the same bundle,
+   so nothing here may style html/body or the settings window would inherit it. */
+.widget-root {
+  --accent: #0a84ff;
+  --s: 1;
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  color: #f2f2f3;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-* {
+/* Everything inside is written in Medium pixels; the backend sizes the window
+   to base * scale, and this fills it exactly while scaling the content. */
+.scaled {
+  width: calc(100vw / var(--s));
+  height: calc(100vh / var(--s));
+  transform: scale(var(--s));
+  transform-origin: 0 0;
+  position: relative;
+}
+
+/* ---- parked: a flat bar at the very top, nothing inside ---- */
+.notch-idle {
+  height: 6px;
+  background: #000;
+}
+
+/* ---- running / paused ---- */
+.notch-box {
+  position: relative;
   box-sizing: border-box;
-}
-
-.widget-pill {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 0 0 14px 14px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  height: 100%;
-  padding: 0 0.75rem;
-  background: var(--widget-surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  cursor: pointer;
-  color: var(--text);
-  font-family: "Segoe UI", system-ui, sans-serif;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 22px;
+  font-size: 13px;
 }
 
-.widget-glyph {
-  display: inline-flex;
+.notch-clock {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-weight: 700;
-  font-family: var(--font-mono);
-}
-
-.glyph-idle {
-  color: var(--muted);
-  font-size: 0.6rem;
-}
-
-.glyph-working {
-  color: var(--accent);
-  font-size: 0.75rem;
-}
-
-.glyph-focus {
-  color: var(--focus);
-  font-size: 0.75rem;
-}
-
-.glyph-coffee {
-  color: var(--coffee);
-  font-family: "Segoe UI", system-ui, sans-serif;
-  font-size: 0.9rem;
-}
-
-.glyph-paused {
-  color: var(--muted);
-  font-family: "Segoe UI", system-ui, sans-serif;
-  font-size: 0.75rem;
-}
-
-.widget-time {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  gap: 6px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
 }
 
-.widget-time-inline {
-  margin-left: auto;
-  margin-right: 0.4rem;
+.notch-box.paused .notch-time {
+  animation: pulse 1.6s ease-in-out infinite;
 }
 
-.widget-task-hint {
-  font-size: 0.75rem;
-  color: var(--muted);
-  flex: 1;
+.notch-title {
+  min-width: 0;
+  max-width: 58%;
+  color: #8a8a90;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  padding-left: 0.4rem;
-  border-left: 1px solid var(--border);
 }
 
-.widget-chevron {
-  color: var(--muted);
-  font-size: 0.7rem;
-  margin-left: auto;
-  flex-shrink: 0;
+@keyframes pulse {
+  50% {
+    opacity: 0.4;
+  }
 }
 
-.widget-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+/* ---- the progress line ---- */
+.progress-line {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.progress-line svg {
+  display: block;
+}
+
+.progress-track {
+  stroke: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.progress-fill {
+  stroke: var(--accent);
+}
+
+.progress-fill.rgb {
+  animation: rgb-spin 4s linear infinite;
+}
+
+@keyframes rgb-spin {
+  from {
+    filter: hue-rotate(0deg) drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+  }
+  to {
+    filter: hue-rotate(360deg) drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+  }
+}
+
+/* ---- the open panel (frame only; the content is styled in Task 10) ---- */
+.panel {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
   height: 100%;
-  padding: 0.65rem 0.8rem 0.8rem;
-  background: var(--widget-surface-strong);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  color: var(--text);
-  font-family: "Segoe UI", system-ui, sans-serif;
-}
-
-/* Progress ring: a conic-gradient sits under the pill/panel and is
-   revealed only in the border area, so it traces the rounded shape. */
-.widget-pill.widget-ring {
-  border: 2px solid transparent;
-  background:
-    linear-gradient(var(--widget-surface), var(--widget-surface)) padding-box,
-    conic-gradient(var(--ring-color) calc(var(--progress) * 360deg), rgba(243, 232, 214, 0.14) 0) border-box;
-}
-
-.widget-panel.widget-ring {
-  border: 2px solid transparent;
-  background:
-    linear-gradient(var(--widget-surface-strong), var(--widget-surface-strong)) padding-box,
-    conic-gradient(var(--ring-color) calc(var(--progress) * 360deg), rgba(243, 232, 214, 0.14) 0) border-box;
-}
-
-.widget-panel-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.widget-panel-header .glyph-working,
-.widget-panel-header .glyph-focus {
-  font-size: 0.95rem;
-}
-
-.widget-panel-header .glyph-idle {
-  font-size: 0.75rem;
-}
-
-.widget-panel-header .glyph-coffee {
-  font-size: 1.1rem;
-}
-
-.widget-panel-header .glyph-paused {
-  font-size: 0.95rem;
-}
-
-.widget-panel-header .widget-text {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 0.95rem;
-  color: var(--brew-strong);
-}
-
-.widget-collapse {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  border-radius: 6px;
-  padding: 0.1rem 0.4rem;
-  cursor: pointer;
-  font-size: 0.75rem;
-}
-
-.widget-actions {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.widget-actions button {
-  flex: 1;
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.35rem 0.4rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.widget-actions button:hover {
-  border-color: var(--brew);
-}
-
-.widget-actions button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.widget-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-  flex: 1;
-  min-height: 0;
-}
-
-.widget-col {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0.55rem 0.6rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  min-height: 0;
-  min-width: 0;
-}
-
-.widget-col-title {
-  font-size: 0.7rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.widget-todo-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.widget-todo-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  font-size: 0.75rem;
-  min-width: 0;
-}
-
-.widget-todo-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--brew);
-  flex-shrink: 0;
-}
-
-.widget-todo-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.widget-todo-empty {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.widget-todo-add input {
-  width: 100%;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
-}
-
-.widget-heatmap {
-  display: grid;
-  grid-template-rows: repeat(7, 1fr);
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 3px;
-  flex: 1;
-}
-
-.widget-heat-cell {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 2px;
-  background: var(--panel-2);
-}
-
-.widget-heat-cell.lvl-1 {
-  background: color-mix(in srgb, var(--brew) 30%, var(--panel-2));
-}
-
-.widget-heat-cell.lvl-2 {
-  background: color-mix(in srgb, var(--brew) 55%, var(--panel-2));
-}
-
-.widget-heat-cell.lvl-3 {
-  background: color-mix(in srgb, var(--brew) 78%, var(--panel-2));
-}
-
-.widget-heat-cell.lvl-4 {
-  background: var(--brew-strong);
-}
-
-.widget-open {
-  background: transparent;
-  color: var(--muted);
-  border: none;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 0.1rem;
-}
-
-.widget-open:hover {
-  color: var(--text);
+  background: #0b0b0d;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  border-top: none;
+  border-radius: 0 0 18px 18px;
 }

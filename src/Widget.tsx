@@ -1,14 +1,30 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
-import { getState, onStateChanged } from "./lib/tauri";
+import { getState, onStateChanged, setWidgetExpanded } from "./lib/tauri";
+import { SCALE_FACTOR } from "./lib/scale";
+import Notch from "./widget/Notch";
+import TodoPanel from "./widget/TodoPanel";
+import { useHoverOpen, useNow } from "./widget/hooks";
+import "./Widget.css";
 
 export default function Widget() {
   const [state, setState] = useState<StateSnapshot | null>(null);
+  const hover = useHoverOpen((open) => {
+    void setWidgetExpanded(open);
+  });
+  const now = useNow(state?.timer.status === "running");
 
   useEffect(() => {
-    document.documentElement.style.background = "transparent";
-    document.body.style.background = "transparent";
-    document.body.style.margin = "0";
+    // Inline and in this window only (the settings window shares the bundle):
+    // a transparent, margin-less, non-scrolling page behind the notch.
+    for (const el of [document.documentElement, document.body, document.getElementById("root")]) {
+      if (!el) continue;
+      el.style.background = "transparent";
+      el.style.margin = "0";
+      el.style.padding = "0";
+      el.style.overflow = "hidden";
+    }
     getState().then(setState);
     const unlisten = onStateChanged(setState);
     return () => {
@@ -17,5 +33,26 @@ export default function Widget() {
   }, []);
 
   if (!state) return null;
-  return <div style={{ background: "#000", color: "#f2f2f3", font: "11px sans-serif" }}>{state.timer.status}</div>;
+
+  const style = {
+    "--accent": state.config.accent_color,
+    "--s": SCALE_FACTOR[state.config.widget_scale],
+  } as CSSProperties;
+
+  return (
+    <div
+      className="widget-root"
+      style={style}
+      onMouseEnter={hover.onMouseEnter}
+      onMouseLeave={hover.onMouseLeave}
+    >
+      <div className="scaled">
+        {hover.open ? (
+          <TodoPanel state={state} now={now} onHold={hover.setHolding} />
+        ) : (
+          <Notch state={state} now={now} />
+        )}
+      </div>
+    </div>
+  );
 }
