@@ -13,9 +13,12 @@
     "windows": [
       {
         "label": "main",
-        "title": "focusbrew",
-        "width": 680,
-        "height": 640,
+        "title": "focusbrew — Configurações",
+        "width": 760,
+        "height": 540,
+        "minWidth": 640,
+        "minHeight": 420,
+        "center": true,
         "visible": false
       }
     ],
