@@ -8,6 +8,7 @@ mod platform;
 mod state;
 mod tasks;
 mod timer;
+mod tracker;
 mod widget;
 
 use std::sync::Mutex;
