@@ -122,10 +122,16 @@ tarefas e o streak.
   heatmap de streak.
 - **Atalho global**: `Ctrl+Shift+Space` liga/desliga o modo foco de
   qualquer lugar, sem precisar focar a janela.
-- **GitHub**: conecta via Personal Access Token (guardado no cofre de
-  credenciais do SO, nunca em texto plano) e lista PRs/issues abertos onde
-  você está envolvido. Dá pra importar qualquer item como tarefa. O painel
-  e o widget também puxam sua contribution calendar real (via GraphQL) pra
+- **GitHub**: conecta com o login do **GitHub CLI** (`gh auth token`), sem
+  colar token: se o `gh` estiver instalado e logado, a aba GitHub mostra
+  "Conectar com o GitHub CLI". Sem o `gh`, dá pra usar um Personal Access
+  Token (guardado no cofre de credenciais do SO, nunca em texto plano). O
+  login do `gh` tem prioridade e é lido a cada atualização, então um novo
+  `gh auth login` vale sem reconectar. Lista PRs/issues abertos onde você
+  está envolvido e dá pra importar qualquer item como tarefa. A lista e o
+  heatmap atualizam sozinhos ao abrir o app e a cada 5 minutos (o botão
+  Atualizar força na hora). O painel e o
+  widget também puxam sua contribution calendar real (via GraphQL) pra
   mostrar streak e heatmap.
 - **Quadro de tarefas**: checklist simples e local, persistido em disco. A
   primeira tarefa pendente aparece no widget durante o foco.
@@ -187,7 +193,7 @@ src-tauri/src/
   focus.rs           liga/desliga modo foco + notificações
   timer.rs           ciclos de foco/pausa
   activity.rs        histórico de sessões, tempo por app, streak
-  github.rs          REST (PRs/issues) + GraphQL (contribution calendar)
+  github.rs          login via gh/PAT, REST (PRs/issues), GraphQL (calendário)
   widget.rs          janela do widget (posição, colapsar/expandir)
   platform/          Não Perturbe por SO (Windows, Linux, macOS)
 ```
@@ -256,10 +262,6 @@ Windows ou usar outro PC.
 
 ## Melhorias futuras
 
-- **Login do GitHub pelo `gh` CLI**: usar o token do `gh auth token`
-  primeiro e deixar o Personal Access Token manual só como fallback, como
-  já faz o [PR Indicator](https://github.com/sthevan027/gnome-pr-indicator).
-  Quem já usa o `gh` não precisaria colar token nenhum.
 - Ícone real do `.exe` na lista de apps do painel (hoje é um monograma).
 - Detecção de atividade real da IA (extensão do VS Code / hook do Claude
   Code) em vez de só "processo aberto".

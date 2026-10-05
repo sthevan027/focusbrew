@@ -37,6 +37,14 @@ pub struct AppConfig {
     /// Color of the widget's progress ring, as "#rrggbb". `None` follows the
     /// OS accent color (best-effort, Windows only for now).
     pub ring_color: Option<String>,
+    /// Use the GitHub CLI's login (`gh auth token`) before the saved token.
+    /// Turned off by "Desconectar" so gh doesn't silently reconnect.
+    #[serde(default = "default_true")]
+    pub github_use_gh: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for AppConfig {
@@ -57,6 +65,7 @@ impl Default for AppConfig {
             timer: TimerConfig::default(),
             github_login: None,
             ring_color: None,
+            github_use_gh: true,
         }
     }
 }
@@ -89,4 +98,37 @@ pub fn data_dir() -> PathBuf {
     let dir = dirs.data_dir().to_path_buf();
     fs::create_dir_all(&dir).ok();
     dir
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A settings.json written before `github_use_gh` existed must still load
+    // with the user's values — a missing field used to make `load()` fall
+    // back to defaults for the whole file.
+    #[test]
+    fn settings_without_github_use_gh_keep_their_values() {
+        let raw = r#"{
+            "monitored_processes": ["Code.exe"],
+            "blocked_apps": ["Discord.exe"],
+            "poll_interval_secs": 3,
+            "focus_auto_enable": false,
+            "block_apps_enabled": true,
+            "dnd_enabled": false,
+            "timer": { "focus_minutes": 25, "break_minutes": 5, "auto_start": true },
+            "github_login": "someone",
+            "ring_color": null
+        }"#;
+        let config: AppConfig = serde_json::from_str(raw).expect("old settings must parse");
+        assert_eq!(config.blocked_apps, vec!["Discord.exe".to_string()]);
+        assert_eq!(config.poll_interval_secs, 3);
+        assert_eq!(config.github_login.as_deref(), Some("someone"));
+        assert!(config.github_use_gh, "gh login is on by default");
+    }
+
+    #[test]
+    fn github_use_gh_defaults_to_true() {
+        assert!(AppConfig::default().github_use_gh);
+    }
 }

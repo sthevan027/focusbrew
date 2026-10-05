@@ -179,7 +179,7 @@ function GithubCard({ state, onNavigate }: { state: StateSnapshot; onNavigate: (
 
       {!state.config.github_login ? (
         <p className="empty">
-          Conecte um token na aba GitHub pra ver PRs/issues abertos e sua streak de verdade aqui.
+          Conecte o GitHub na aba GitHub pra ver PRs/issues abertos e sua streak de verdade aqui.
         </p>
       ) : (
         <>

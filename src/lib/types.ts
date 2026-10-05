@@ -16,6 +16,7 @@ export interface AppConfig {
   timer: TimerConfig;
   github_login: string | null;
   ring_color: string | null;
+  github_use_gh: boolean;
 }
 
 export type TimerPhase = "off" | "focus" | "break";
@@ -54,6 +55,8 @@ export interface GithubItem {
   updated_at: string;
 }
 
+export type GithubTokenSource = "gh" | "manual";
+
 export interface StateSnapshot {
   activity: Activity;
   focus_mode: boolean;
@@ -65,6 +68,7 @@ export interface StateSnapshot {
   focus_days: Record<string, number>;
   streak: number;
   github_days: Record<string, number>;
+  github_source: GithubTokenSource | null;
   sessions: SessionRecord[];
   app_seconds_today: Record<string, number>;
   uptime_secs: number;

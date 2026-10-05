@@ -15,6 +15,8 @@ export const updateSettings = (newConfig: AppConfig) =>
   invoke<StateSnapshot>("update_settings", { newConfig });
 
 export const saveGithubToken = (token: string) => invoke<string>("save_github_token", { token });
+export const githubGhAvailable = () => invoke<boolean>("github_gh_available");
+export const connectGithubWithGh = () => invoke<string>("connect_github_with_gh");
 export const clearGithubToken = () => invoke<void>("clear_github_token");
 export const refreshGithub = () => invoke<StateSnapshot>("refresh_github");
 export const importGithubItemAsTask = (title: string) =>
