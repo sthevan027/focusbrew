@@ -3,5 +3,6 @@
 
 #![allow(dead_code)] // wired up in Task 7; remove there
 
+pub mod activity;
 pub mod tasks;
 pub mod timer;
