@@ -1,30 +1,28 @@
-export type Activity = "idle" | "working";
-
-export interface TimerConfig {
-  focus_minutes: number;
-  break_minutes: number;
-  auto_start: boolean;
-}
+export type NotchStyle = "standard" | "minimal";
+export type WidgetScale = "small" | "medium" | "large";
 
 export interface AppConfig {
-  monitored_processes: string[];
-  blocked_apps: string[];
-  poll_interval_secs: number;
-  focus_auto_enable: boolean;
-  block_apps_enabled: boolean;
-  dnd_enabled: boolean;
-  timer: TimerConfig;
   github_login: string | null;
-  ring_color: string | null;
   github_use_gh: boolean;
+  default_minutes: number;
+  notify_on_finish: boolean;
+  notch_style: NotchStyle;
+  progress_line: boolean;
+  rgb_line: boolean;
+  accent_color: string;
+  widget_scale: WidgetScale;
+  widget_visible: boolean;
 }
 
-export type TimerPhase = "off" | "focus" | "break";
+export type TimerStatus = "idle" | "running" | "paused";
 
-export interface TimerState {
-  phase: TimerPhase;
+export interface TimerView {
+  status: TimerStatus;
+  task_id: string | null;
+  planned_secs: number;
   remaining_secs: number;
-  paused: boolean;
+  /** Epoch ms when a running block ends; 0 unless running. */
+  deadline_ms: number;
 }
 
 export type TaskSource = "manual" | "github";
@@ -32,18 +30,12 @@ export type TaskSource = "manual" | "github";
 export interface Task {
   id: string;
   title: string;
+  note: string | null;
+  minutes: number;
   done: boolean;
   created_at: string;
   source: TaskSource;
-}
-
-export type SessionKind = "focus" | "break";
-
-export interface SessionRecord {
-  kind: SessionKind;
-  started_at: string;
-  ended_at: string;
-  duration_secs: number;
+  spent_secs: number;
 }
 
 export interface GithubItem {
@@ -58,18 +50,13 @@ export interface GithubItem {
 export type GithubTokenSource = "gh" | "manual";
 
 export interface StateSnapshot {
-  activity: Activity;
-  focus_mode: boolean;
-  timer: TimerState;
   tasks: Task[];
+  timer: TimerView;
+  /** "AAAA-MM-DD" -> seconds of focus that ended on that day. */
+  focus_secs_by_day: Record<string, number>;
+  config: AppConfig;
   github_items: GithubItem[];
   github_error: string | null;
-  config: AppConfig;
-  focus_days: Record<string, number>;
-  streak: number;
   github_days: Record<string, number>;
   github_source: GithubTokenSource | null;
-  sessions: SessionRecord[];
-  app_seconds_today: Record<string, number>;
-  uptime_secs: number;
 }

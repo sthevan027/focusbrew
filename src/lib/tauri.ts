@@ -10,6 +10,13 @@ export const getState = () => invoke<StateSnapshot>("get_state");
 export const addTask = (title: string) => invoke<StateSnapshot>("add_task", { title });
 export const toggleTask = (id: string) => invoke<StateSnapshot>("toggle_task", { id });
 export const removeTask = (id: string) => invoke<StateSnapshot>("remove_task", { id });
+export const updateTaskMinutes = (id: string, minutes: number) =>
+  invoke<StateSnapshot>("update_task_minutes", { id, minutes });
+export const reorderTasks = (ids: string[]) => invoke<StateSnapshot>("reorder_tasks", { ids });
+
+export const startTask = (id: string) => invoke<StateSnapshot>("start_task", { id });
+export const toggleTimerPause = () => invoke<StateSnapshot>("toggle_pause");
+export const stopTimer = () => invoke<StateSnapshot>("stop_timer");
 
 export const updateSettings = (newConfig: AppConfig) =>
   invoke<StateSnapshot>("update_settings", { newConfig });
@@ -19,19 +26,12 @@ export const githubGhAvailable = () => invoke<boolean>("github_gh_available");
 export const connectGithubWithGh = () => invoke<string>("connect_github_with_gh");
 export const clearGithubToken = () => invoke<void>("clear_github_token");
 export const refreshGithub = () => invoke<StateSnapshot>("refresh_github");
-export const importGithubItemAsTask = (title: string) =>
-  invoke<StateSnapshot>("import_github_item_as_task", { title });
-
-export const startCoffeeBreak = () => invoke<StateSnapshot>("start_coffee_break");
-export const stopTimer = () => invoke<StateSnapshot>("stop_timer");
-export const togglePauseTimer = () => invoke<StateSnapshot>("toggle_pause_timer");
+export const importGithubItemAsTask = (title: string, note: string) =>
+  invoke<StateSnapshot>("import_github_item_as_task", { title, note });
 
 export const setWidgetExpanded = (expanded: boolean) =>
   invoke<void>("set_widget_expanded", { expanded });
-export const toggleWidgetVisibility = () => invoke<void>("toggle_widget_visibility");
-export const openMainWindow = () => invoke<void>("open_main_window");
-export const toggleFocusSession = () => invoke<void>("toggle_focus_session");
-export const getAccentColor = () => invoke<string | null>("get_accent_color");
+export const openSettingsWindow = () => invoke<void>("open_settings_window");
 
 export const onStateChanged = (cb: (snapshot: StateSnapshot) => void) =>
   listen<StateSnapshot>("state-changed", (event) => cb(event.payload));

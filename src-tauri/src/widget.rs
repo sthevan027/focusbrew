@@ -1,69 +1,73 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::config::AppConfig;
 use crate::tracker::timer::TimerStatus;
 
-/// Collapsed pill: just the status icon + timer, hugging the top-center of the
-/// screen (like a macOS notch widget). Expanded: adds quick controls.
-pub const COLLAPSED_SIZE: (f64, f64) = (200.0, 80.0);
-pub const EXPANDED_SIZE: (f64, f64) = (440.0, 300.0);
-const TOP_MARGIN: f64 = 0.0;
 const FALLBACK_MONITOR_WIDTH: f64 = 1280.0;
 
-fn monitor_logical_width(app: &AppHandle) -> f64 {
-    let window = match app.get_webview_window("widget") {
-        Some(w) => w,
-        None => return FALLBACK_MONITOR_WIDTH,
-    };
-    match window.primary_monitor() {
-        Ok(Some(monitor)) => monitor.size().width as f64 / monitor.scale_factor(),
-        _ => FALLBACK_MONITOR_WIDTH,
-    }
+/// Whether the panel is open. Set by the front-end (`set_widget_expanded`)
+/// when the mouse hovers the widget; read when sizing the window.
+static EXPANDED: AtomicBool = AtomicBool::new(false);
+
+pub fn set_expanded(expanded: bool) {
+    EXPANDED.store(expanded, Ordering::Relaxed);
 }
 
-fn centered_x(app: &AppHandle, width: f64) -> f64 {
-    ((monitor_logical_width(app) - width) / 2.0).max(0.0)
+pub fn is_expanded() -> bool {
+    EXPANDED.load(Ordering::Relaxed)
 }
 
-/// Creates the floating widget window, pinned top-center, collapsed by default.
+/// Creates the floating widget window: transparent, always on top, no
+/// decorations. Starts hidden; the first `apply` sizes, places and shows it.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("widget").is_some() {
         return Ok(());
     }
-
-    let (w, h) = COLLAPSED_SIZE;
-    // Centered against a fallback width first; corrected right after via
-    // `set_expanded` once the window (and its monitor handle) exists.
-    let x = (FALLBACK_MONITOR_WIDTH - w) / 2.0;
-
     WebviewWindowBuilder::new(app, "widget", WebviewUrl::App("index.html".into()))
         .title("focusbrew")
-        .inner_size(w, h)
-        .position(x, TOP_MARGIN)
+        .inner_size(IDLE_SIZE.0, IDLE_SIZE.1)
+        .position(0.0, 0.0)
         .decorations(false)
         .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)
         .shadow(false)
-        .visible(true)
+        .visible(false)
         .focused(false)
         .build()?;
-
-    set_expanded(app, false);
     Ok(())
 }
 
-/// Resizes the widget between its collapsed pill and expanded panel, keeping
-/// it centered horizontally and pinned to the top of the screen.
-pub fn set_expanded(app: &AppHandle, expanded: bool) {
+/// Sizes the window and pins it to the very top of the primary monitor,
+/// centered. Must run on the main thread (`sync_ui` posts it there).
+pub fn apply(app: &AppHandle, layout: Layout) {
     let Some(window) = app.get_webview_window("widget") else {
         return;
     };
-    let (w, h) = if expanded { EXPANDED_SIZE } else { COLLAPSED_SIZE };
-    let x = centered_x(app, w);
-    let _ = window.set_size(LogicalSize::new(w, h));
-    let _ = window.set_position(LogicalPosition::new(x, TOP_MARGIN));
+    if !layout.visible {
+        let _ = window.hide();
+        return;
+    }
+    let (origin_x, origin_y, width) = match window.primary_monitor() {
+        Ok(Some(monitor)) => {
+            let pos = monitor.position();
+            logical_monitor(pos.x, pos.y, monitor.size().width, monitor.scale_factor())
+        }
+        _ => (0.0, 0.0, FALLBACK_MONITOR_WIDTH),
+    };
+    let _ = window.set_size(LogicalSize::new(layout.width, layout.height));
+    let _ = window.set_position(LogicalPosition::new(
+        top_center_x(origin_x, width, layout.width),
+        origin_y,
+    ));
+    // `show` activates the window; only do it when it was hidden, or every
+    // resize would steal focus from whatever the user is typing in.
+    if !window.is_visible().unwrap_or(false) {
+        let _ = window.show();
+    }
 }
 
 /// Parked: a flat bar at the very top of the screen (the 14 px tall window
@@ -108,18 +112,6 @@ pub fn top_center_x(monitor_x: f64, monitor_width: f64, window_width: f64) -> f6
 pub fn logical_monitor(x: i32, y: i32, width: u32, scale: f64) -> (f64, f64, f64) {
     let s = if scale > 0.0 { scale } else { 1.0 };
     (x as f64 / s, y as f64 / s, width as f64 / s)
-}
-
-pub fn toggle_visible(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("widget") else {
-        return;
-    };
-    let visible = window.is_visible().unwrap_or(true);
-    if visible {
-        let _ = window.hide();
-    } else {
-        let _ = window.show();
-    }
 }
 
 #[cfg(test)]

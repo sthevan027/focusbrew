@@ -2,10 +2,11 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::config::{self, AppConfig};
 use crate::github;
-use crate::state::StateSnapshot;
-use crate::tasks::{self, TaskSource};
+use crate::state::{AppState, StateSnapshot};
+use crate::tracker::tasks::{self, TaskSource};
+use crate::tracker::{now_ms, today_key};
 use crate::widget;
-use crate::{reconcile_focus, stop_and_record, sync_ui, Shared};
+use crate::{notify_finished, sync_ui, Shared};
 
 #[tauri::command]
 pub fn get_state(shared: State<'_, Shared>) -> StateSnapshot {
@@ -13,33 +14,86 @@ pub fn get_state(shared: State<'_, Shared>) -> StateSnapshot {
     StateSnapshot::from(&*state)
 }
 
+/// Locks the state, runs `change`, saves tasks/log and publishes the result.
+/// Every task and timer command has this shape.
+fn apply<T>(
+    app: &AppHandle,
+    shared: &Shared,
+    change: impl FnOnce(&mut AppState, i64, &str) -> T,
+) -> (StateSnapshot, T) {
+    let mut state = shared.0.lock().unwrap();
+    let result = change(&mut state, now_ms(), &today_key());
+    state.save_tracker();
+    sync_ui(app, &state);
+    (StateSnapshot::from(&*state), result)
+}
+
 #[tauri::command]
 pub fn add_task(title: String, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    state.tasks.push(tasks::new_task(title, TaskSource::Manual));
-    let _ = tasks::save(&state.tasks);
-    sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
+    apply(&app, &shared, |state, _, _| {
+        let minutes = state.config.default_minutes;
+        if let Some(task) = tasks::new_task(&title, TaskSource::Manual, minutes) {
+            state.tracker.tasks.push(task);
+        }
+    })
+    .0
 }
 
 #[tauri::command]
 pub fn toggle_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    if let Some(task) = state.tasks.iter_mut().find(|t| t.id == id) {
-        task.done = !task.done;
-    }
-    let _ = tasks::save(&state.tasks);
-    sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
+    apply(&app, &shared, |state, now, today| state.tracker.toggle_task(&id, now, today)).0
 }
 
 #[tauri::command]
 pub fn remove_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    state.tasks.retain(|t| t.id != id);
-    let _ = tasks::save(&state.tasks);
-    sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
+    apply(&app, &shared, |state, now, today| state.tracker.remove_task(&id, now, today)).0
+}
+
+#[tauri::command]
+pub fn update_task_minutes(
+    id: String,
+    minutes: u32,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> StateSnapshot {
+    let (snapshot, (finished, notify_on)) = apply(&app, &shared, |state, now, today| {
+        (
+            state.tracker.set_minutes(&id, minutes, now, today),
+            state.config.notify_on_finish,
+        )
+    });
+    if notify_on {
+        if let Some(done) = finished {
+            notify_finished(&app, &done);
+        }
+    }
+    snapshot
+}
+
+#[tauri::command]
+pub fn reorder_tasks(ids: Vec<String>, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    apply(&app, &shared, |state, _, _| tasks::reorder(&mut state.tracker.tasks, &ids)).0
+}
+
+#[tauri::command]
+pub fn start_task(
+    id: String,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> Result<StateSnapshot, String> {
+    let (snapshot, result) =
+        apply(&app, &shared, |state, now, today| state.tracker.start_task(&id, now, today));
+    result.map(|_| snapshot)
+}
+
+#[tauri::command]
+pub fn toggle_pause(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    apply(&app, &shared, |state, now, _| state.tracker.toggle_pause(now)).0
+}
+
+#[tauri::command]
+pub fn stop_timer(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    apply(&app, &shared, |state, now, today| state.tracker.stop(now, today)).0
 }
 
 #[tauri::command]
@@ -49,9 +103,13 @@ pub fn update_settings(
     shared: State<'_, Shared>,
 ) -> StateSnapshot {
     let mut state = shared.0.lock().unwrap();
-    state.config = new_config;
+    let mut config = new_config.normalized();
+    // The GitHub login and the gh switch belong to the GitHub commands; a
+    // settings form holding an older copy must not overwrite them.
+    config.github_login = state.config.github_login.clone();
+    config.github_use_gh = state.config.github_use_gh;
+    state.config = config;
     let _ = config::save(&state.config);
-    reconcile_focus(&app, &mut state);
     sync_ui(&app, &state);
     StateSnapshot::from(&*state)
 }
@@ -148,66 +206,28 @@ pub(crate) async fn refresh_github_now(app: &AppHandle) -> Result<StateSnapshot,
 #[tauri::command]
 pub fn import_github_item_as_task(
     title: String,
+    note: Option<String>,
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    state.tasks.push(tasks::new_task(title, TaskSource::Github));
-    let _ = tasks::save(&state.tasks);
+    apply(&app, &shared, |state, _, _| {
+        let minutes = state.config.default_minutes;
+        if let Some(mut task) = tasks::new_task(&title, TaskSource::Github, minutes) {
+            task.note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+            state.tracker.tasks.push(task);
+        }
+    })
+    .0
+}
+
+#[tauri::command]
+pub fn set_widget_expanded(expanded: bool, app: AppHandle, shared: State<'_, Shared>) {
+    widget::set_expanded(expanded);
+    let state = shared.0.lock().unwrap();
     sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
 }
 
 #[tauri::command]
-pub fn start_coffee_break(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    let timer_config = state.config.timer.clone();
-    state.timer.start_break(&timer_config);
-    reconcile_focus(&app, &mut state);
-    sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
-}
-
-#[tauri::command]
-pub fn stop_timer(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    stop_and_record(&mut state);
-    reconcile_focus(&app, &mut state);
-    sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
-}
-
-#[tauri::command]
-pub fn toggle_pause_timer(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
-    let paused = !state.timer.paused;
-    state.timer.set_paused(paused);
-    reconcile_focus(&app, &mut state);
-    sync_ui(&app, &state);
-    StateSnapshot::from(&*state)
-}
-
-#[tauri::command]
-pub fn set_widget_expanded(expanded: bool, app: AppHandle) {
-    widget::set_expanded(&app, expanded);
-}
-
-#[tauri::command]
-pub fn toggle_widget_visibility(app: AppHandle) {
-    widget::toggle_visible(&app);
-}
-
-#[tauri::command]
-pub fn open_main_window(app: AppHandle) {
+pub fn open_settings_window(app: AppHandle) {
     crate::show_main_window(&app);
-}
-
-#[tauri::command]
-pub fn toggle_focus_session(app: AppHandle) {
-    crate::toggle_focus_session(&app);
-}
-
-#[tauri::command]
-pub fn get_accent_color() -> Option<String> {
-    crate::platform::accent_color()
 }

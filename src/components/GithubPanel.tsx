@@ -127,7 +127,7 @@ function GithubRow({ item }: { item: GithubItem }) {
       </a>
       <div className="github-meta">
         <span>{item.repository}</span>
-        <button onClick={() => importGithubItemAsTask(`${item.repository} #${item.number} — ${item.title}`)}>
+        <button onClick={() => importGithubItemAsTask(item.title, `${item.repository} #${item.number}`)}>
           + Tarefa
         </button>
       </div>
