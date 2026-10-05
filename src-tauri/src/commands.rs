@@ -220,11 +220,11 @@ pub fn import_github_item_as_task(
     .0
 }
 
+/// The panel opened or closed. The window keeps its size; this only decides
+/// whether it takes the mouse everywhere (open) or just over the shape.
 #[tauri::command]
-pub fn set_widget_expanded(expanded: bool, app: AppHandle, shared: State<'_, Shared>) {
+pub fn set_widget_expanded(expanded: bool) {
     widget::set_expanded(expanded);
-    let state = shared.0.lock().unwrap();
-    sync_ui(&app, &state);
 }
 
 #[tauri::command]

@@ -23,10 +23,64 @@
   position: relative;
 }
 
-/* ---- parked: a flat bar at the very top, nothing inside ---- */
-.notch-idle {
-  height: 6px;
+/* ---- the area that takes the mouse (the backend lets it pass everywhere
+   else while the panel is closed), centered at the top ---- */
+.hit {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ---- the shape: one element that morphs bar -> box -> panel ----
+   Centered on the same axis. The window is always panel-sized and never
+   resizes, so every change here is a plain CSS animation. */
+.shell {
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  overflow: hidden;
   background: #000;
+  border-radius: 0 0 14px 14px;
+  transition:
+    width 260ms var(--ease),
+    height 260ms var(--ease),
+    border-radius 260ms var(--ease),
+    background-color 260ms var(--ease);
+}
+
+.shell.idle:not(.open) {
+  border-radius: 0 0 4px 4px;
+}
+
+.shell.open {
+  background: #0b0b0d;
+  border-radius: 0 0 18px 18px;
+}
+
+/* Must match CLOSE_MS in Widget.tsx. */
+.shell.closing {
+  transition-duration: 200ms;
+}
+
+/* The accent outline of the open panel (no top edge), drawn over the
+   content so it doesn't change the shape's size. */
+.shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  border-top: none;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms;
+}
+.shell.open::after {
+  opacity: 1;
 }
 
 /* ---- running / paused ---- */
@@ -35,8 +89,7 @@
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  background: #000;
-  border-radius: 0 0 14px 14px;
+  animation: content-in 180ms 60ms both ease-out;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,6 +127,12 @@
   }
 }
 
+@keyframes content-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* ---- the progress line ---- */
 .progress-line {
   position: absolute;
@@ -89,8 +148,10 @@
   stroke: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
+/* The countdown updates once a second; the line glides between updates. */
 .progress-fill {
   stroke: var(--accent);
+  transition: stroke-dashoffset 1s linear;
 }
 
 .progress-fill.rgb {
@@ -106,16 +167,22 @@
   }
 }
 
-/* ---- the open panel (frame only; the content is styled in Task 10) ---- */
+/* ---- the open panel: laid out at its full size and revealed by the
+   growing shape, so nothing reflows while it animates ---- */
 .panel {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 470px;
+  height: 230px;
+  margin-left: -235px;
   box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  background: #0b0b0d;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
-  border-top: none;
-  border-radius: 0 0 18px 18px;
+  opacity: 0;
+  transition: opacity 90ms;
+}
+.shell.open .panel {
+  opacity: 1;
+  transition: opacity 180ms 70ms ease-out;
 }
 
 /* ---- panel content ---- */

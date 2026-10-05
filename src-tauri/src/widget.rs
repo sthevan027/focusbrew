@@ -1,33 +1,54 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::Duration;
 
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(not(windows))]
+use tauri::{PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::config::AppConfig;
 use crate::tracker::timer::TimerStatus;
 
-const FALLBACK_MONITOR_WIDTH: f64 = 1280.0;
+const FALLBACK_MONITOR_WIDTH: u32 = 1280;
 
-/// Whether the panel is open. Set by the front-end (`set_widget_expanded`)
-/// when the mouse hovers the widget; read when sizing the window.
+/// The window never changes size while you use it: resizing a WebView makes
+/// it skip ~100 ms of frames. It is always as big as the open panel, lets the
+/// mouse pass through, and only catches it inside the visible shape's area.
+pub const OPEN_SIZE: (f64, f64) = (470.0, 230.0);
+/// Parked: the area over the flat bar that reacts to the mouse (the bar is 6 px).
+pub const IDLE_ZONE: (f64, f64) = (140.0, 14.0);
+/// A block is running or paused: the box with the progress line around it.
+pub const RUNNING_ZONE: (f64, f64) = (320.0, 44.0);
+
+/// How often the cursor is checked while the mouse passes through.
+const HOVER_POLL: Duration = Duration::from_millis(30);
+
+type Bounds = (i32, i32, i32, i32);
+
+/// Whether the panel is open. Set by the front-end (`set_widget_expanded`);
+/// while open the whole window takes the mouse.
 static EXPANDED: AtomicBool = AtomicBool::new(false);
+/// Physical (x, y, width, height) placed last; repeats are skipped.
+static LAST_BOUNDS: Mutex<Option<Bounds>> = Mutex::new(None);
+/// Physical area that catches the mouse while closed; `None` when hidden.
+static ZONE: Mutex<Option<Bounds>> = Mutex::new(None);
+/// Whether the window currently lets the mouse pass through.
+static PASS_THROUGH: AtomicBool = AtomicBool::new(true);
 
 pub fn set_expanded(expanded: bool) {
     EXPANDED.store(expanded, Ordering::Relaxed);
 }
 
-pub fn is_expanded() -> bool {
-    EXPANDED.load(Ordering::Relaxed)
-}
-
 /// Creates the floating widget window: transparent, always on top, no
-/// decorations. Starts hidden; the first `apply` sizes, places and shows it.
+/// decorations, mouse passing through. Starts hidden; the first `apply`
+/// places and shows it.
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     if app.get_webview_window("widget").is_some() {
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, "widget", WebviewUrl::App("index.html".into()))
+    let window = WebviewWindowBuilder::new(app, "widget", WebviewUrl::App("index.html".into()))
         .title("focusbrew")
-        .inner_size(IDLE_SIZE.0, IDLE_SIZE.1)
+        .inner_size(OPEN_SIZE.0, OPEN_SIZE.1)
         .position(0.0, 0.0)
         .decorations(false)
         .transparent(true)
@@ -38,45 +59,124 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .focused(false)
         .build()?;
+    window.set_ignore_cursor_events(true)?;
+    PASS_THROUGH.store(true, Ordering::Relaxed);
     Ok(())
 }
 
-/// Sizes the window and pins it to the very top of the primary monitor,
-/// centered. Must run on the main thread (`sync_ui` posts it there).
-pub fn apply(app: &AppHandle, layout: Layout) {
+/// Pins the window to the very top of the primary monitor, centered, and
+/// records the mouse area for `zone`. Must run on the main thread (`sync_ui`
+/// posts it there).
+pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout) {
     let Some(window) = app.get_webview_window("widget") else {
         return;
     };
-    if !layout.visible {
+    if !window_layout.visible {
+        *LAST_BOUNDS.lock().unwrap() = None;
+        *ZONE.lock().unwrap() = None;
         let _ = window.hide();
         return;
     }
-    let (origin_x, origin_y, width) = match window.primary_monitor() {
+    let place = |layout: &Layout| match window.primary_monitor() {
         Ok(Some(monitor)) => {
             let pos = monitor.position();
-            logical_monitor(pos.x, pos.y, monitor.size().width, monitor.scale_factor())
+            physical_bounds(pos.x, pos.y, monitor.size().width, monitor.scale_factor(), layout)
         }
-        _ => (0.0, 0.0, FALLBACK_MONITOR_WIDTH),
+        _ => physical_bounds(0, 0, FALLBACK_MONITOR_WIDTH, 1.0, layout),
     };
-    let _ = window.set_size(LogicalSize::new(layout.width, layout.height));
-    let _ = window.set_position(LogicalPosition::new(
-        top_center_x(origin_x, width, layout.width),
-        origin_y,
-    ));
-    // `show` activates the window; only do it when it was hidden, or every
-    // resize would steal focus from whatever the user is typing in.
-    if !window.is_visible().unwrap_or(false) {
+    *ZONE.lock().unwrap() = Some(place(&zone));
+    let bounds = place(&window_layout);
+    let visible = window.is_visible().unwrap_or(false);
+    {
+        let mut last = LAST_BOUNDS.lock().unwrap();
+        if visible && *last == Some(bounds) {
+            return;
+        }
+        *last = Some(bounds);
+    }
+    set_bounds(&window, bounds);
+    // `show` activates the window; only do it when it was hidden, or it
+    // would steal focus from whatever the user is typing in.
+    if !visible {
         let _ = window.show();
     }
 }
 
-/// Parked: a flat bar at the very top of the screen (the 14 px tall window
-/// is the area that reacts to the mouse; the bar itself is 6 px).
-pub const IDLE_SIZE: (f64, f64) = (140.0, 14.0);
-/// A block is running or paused: the box with the progress line around it.
-pub const RUNNING_SIZE: (f64, f64) = (320.0, 44.0);
-/// The To Do + Activity panel.
-pub const OPEN_SIZE: (f64, f64) = (470.0, 230.0);
+/// While the panel is closed the window lets the mouse through, except when
+/// the cursor is over the visible shape — then the page gets the hover.
+pub fn spawn_hover_loop(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(HOVER_POLL).await;
+            let zone = *ZONE.lock().unwrap();
+            let pass_through = match zone {
+                None => true,
+                Some(_) if EXPANDED.load(Ordering::Relaxed) => false,
+                Some(zone) => match cursor_position(&app) {
+                    Some((x, y)) => !contains(zone, x, y),
+                    None => true,
+                },
+            };
+            if PASS_THROUGH.swap(pass_through, Ordering::Relaxed) != pass_through {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Some(window) = handle.get_webview_window("widget") {
+                        let _ = window.set_ignore_cursor_events(pass_through);
+                    }
+                });
+            }
+        }
+    });
+}
+
+#[cfg(windows)]
+fn cursor_position(_app: &AppHandle) -> Option<(i32, i32)> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    let mut point = POINT::default();
+    // SAFETY: GetCursorPos only writes the POINT we own.
+    unsafe { GetCursorPos(&mut point) }.ok()?;
+    Some((point.x, point.y))
+}
+
+#[cfg(not(windows))]
+fn cursor_position(app: &AppHandle) -> Option<(i32, i32)> {
+    let pos = app.cursor_position().ok()?;
+    Some((pos.x.round() as i32, pos.y.round() as i32))
+}
+
+/// Size and position in a single native call: separate `set_size` and
+/// `set_position` calls show one frame with the new size at the old spot.
+#[cfg(windows)]
+fn set_bounds(window: &WebviewWindow, (x, y, w, h): Bounds) {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SWP_NOZORDER,
+    };
+    if let Ok(hwnd) = window.hwnd() {
+        // SAFETY: a valid window handle owned by this process, used on the main thread.
+        unsafe {
+            let _ = SetWindowPos(hwnd, None, x, y, w, h, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn set_bounds(window: &WebviewWindow, (x, y, w, h): Bounds) {
+    let _ = window.set_size(PhysicalSize::new(w as u32, h as u32));
+    let _ = window.set_position(PhysicalPosition::new(x, y));
+}
+
+/// Where a layout goes on a monitor given in physical px: top edge, centered.
+pub fn physical_bounds(mon_x: i32, mon_y: i32, mon_width: u32, scale: f64, layout: &Layout) -> Bounds {
+    let s = if scale > 0.0 { scale } else { 1.0 };
+    let w = (layout.width * s).round() as i32;
+    let h = (layout.height * s).round() as i32;
+    (mon_x + (mon_width as i32 - w).div_euclid(2), mon_y, w, h)
+}
+
+pub fn contains((x, y, w, h): Bounds, px: i32, py: i32) -> bool {
+    px >= x && px < x + w && py >= y && py < y + h
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Layout {
@@ -85,15 +185,7 @@ pub struct Layout {
     pub visible: bool,
 }
 
-/// Window size (logical px, already scaled) and visibility for a given state.
-pub fn layout_for(config: &AppConfig, status: TimerStatus, expanded: bool) -> Layout {
-    let (w, h) = if expanded {
-        OPEN_SIZE
-    } else if status == TimerStatus::Idle {
-        IDLE_SIZE
-    } else {
-        RUNNING_SIZE
-    };
+fn scaled(config: &AppConfig, (w, h): (f64, f64)) -> Layout {
     let scale = config.widget_scale.factor();
     Layout {
         width: (w * scale).round(),
@@ -102,16 +194,14 @@ pub fn layout_for(config: &AppConfig, status: TimerStatus, expanded: bool) -> La
     }
 }
 
-/// Left edge that centers a window of `window_width` on a monitor; the
-/// monitor's own origin is added so a monitor at a negative x still works.
-pub fn top_center_x(monitor_x: f64, monitor_width: f64, window_width: f64) -> f64 {
-    monitor_x + ((monitor_width - window_width) / 2.0).floor()
+/// The window: always the open panel's size (logical px, already scaled).
+pub fn window_layout(config: &AppConfig) -> Layout {
+    scaled(config, OPEN_SIZE)
 }
 
-/// A monitor's origin and width in logical pixels, from its physical values.
-pub fn logical_monitor(x: i32, y: i32, width: u32, scale: f64) -> (f64, f64, f64) {
-    let s = if scale > 0.0 { scale } else { 1.0 };
-    (x as f64 / s, y as f64 / s, width as f64 / s)
+/// The area that catches the mouse while the panel is closed.
+pub fn hot_zone(config: &AppConfig, status: TimerStatus) -> Layout {
+    scaled(config, if status == TimerStatus::Idle { IDLE_ZONE } else { RUNNING_ZONE })
 }
 
 #[cfg(test)]
@@ -123,70 +213,86 @@ mod layout_tests {
         AppConfig { widget_scale: scale, ..AppConfig::default() }
     }
 
-    #[test]
-    fn medium_sizes_follow_the_state() {
-        let c = cfg(WidgetScale::Medium);
-        let at = |status, expanded| {
-            let l = layout_for(&c, status, expanded);
-            (l.width, l.height)
-        };
-        assert_eq!(at(TimerStatus::Idle, false), (140.0, 14.0));
-        assert_eq!(at(TimerStatus::Running, false), (320.0, 44.0));
-        assert_eq!(at(TimerStatus::Paused, false), (320.0, 44.0));
+    fn size(l: Layout) -> (f64, f64) {
+        (l.width, l.height)
     }
 
     #[test]
-    fn the_open_panel_wins_over_the_timer_state() {
-        let c = cfg(WidgetScale::Medium);
-        for status in [TimerStatus::Idle, TimerStatus::Running, TimerStatus::Paused] {
-            let l = layout_for(&c, status, true);
-            assert_eq!((l.width, l.height), (470.0, 230.0));
-        }
+    fn the_window_is_always_the_panel_size() {
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (470.0, 230.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (400.0, 196.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (588.0, 288.0));
     }
 
     #[test]
-    fn small_and_large_scale_every_size() {
-        let small = layout_for(&cfg(WidgetScale::Small), TimerStatus::Idle, false);
-        assert_eq!((small.width, small.height), (119.0, 12.0));
-        let small_run = layout_for(&cfg(WidgetScale::Small), TimerStatus::Running, false);
-        assert_eq!((small_run.width, small_run.height), (272.0, 37.0));
+    fn the_mouse_zone_follows_the_state() {
+        let c = cfg(WidgetScale::Medium);
+        assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (140.0, 14.0));
+        assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (320.0, 44.0));
+        assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (320.0, 44.0));
+    }
 
-        let large = layout_for(&cfg(WidgetScale::Large), TimerStatus::Running, true);
-        assert_eq!((large.width, large.height), (588.0, 288.0));
+    #[test]
+    fn the_mouse_zone_follows_the_scale() {
+        assert_eq!(size(hot_zone(&cfg(WidgetScale::Small), TimerStatus::Idle)), (119.0, 12.0));
+        assert_eq!(size(hot_zone(&cfg(WidgetScale::Small), TimerStatus::Running)), (272.0, 37.0));
+        assert_eq!(size(hot_zone(&cfg(WidgetScale::Large), TimerStatus::Running)), (400.0, 55.0));
     }
 
     #[test]
     fn visibility_follows_the_setting() {
         let hidden = AppConfig { widget_visible: false, ..AppConfig::default() };
-        assert!(!layout_for(&hidden, TimerStatus::Idle, false).visible);
-        assert!(layout_for(&AppConfig::default(), TimerStatus::Idle, false).visible);
+        assert!(!window_layout(&hidden).visible);
+        assert!(window_layout(&AppConfig::default()).visible);
     }
 
     #[test]
-    fn the_window_is_centered_on_the_monitor() {
-        assert_eq!(top_center_x(0.0, 1920.0, 320.0), 800.0);
-        assert_eq!(top_center_x(0.0, 1366.0, 320.0), 523.0);
+    fn the_zone_and_the_window_share_the_same_top_center() {
+        let c = cfg(WidgetScale::Medium);
+        let window = physical_bounds(0, 0, 1920, 1.0, &window_layout(&c));
+        let zone = physical_bounds(0, 0, 1920, 1.0, &hot_zone(&c, TimerStatus::Running));
+        assert_eq!(window, (725, 0, 470, 230));
+        assert_eq!(zone, (800, 0, 320, 44));
+    }
+
+    #[test]
+    fn contains_is_inclusive_left_top_exclusive_right_bottom() {
+        let zone = (800, 0, 320, 44);
+        assert!(contains(zone, 800, 0));
+        assert!(contains(zone, 1119, 43));
+        assert!(!contains(zone, 1120, 10));
+        assert!(!contains(zone, 900, 44));
+        assert!(!contains(zone, 799, 10));
+    }
+
+    #[test]
+    fn the_window_is_centered_on_top_of_the_monitor() {
+        let run = Layout { width: 320.0, height: 44.0, visible: true };
+        assert_eq!(physical_bounds(0, 0, 1920, 1.0, &run), (800, 0, 320, 44));
         // odd leftover pixel: never a half pixel
-        assert_eq!(top_center_x(0.0, 1367.0, 320.0), 523.0);
+        assert_eq!(physical_bounds(0, 0, 1367, 1.0, &run), (523, 0, 320, 44));
     }
 
     // Review focus: a second monitor to the left of the main one has a
     // negative origin; the widget must follow the monitor, not (0, 0).
     #[test]
     fn a_monitor_with_a_negative_origin_keeps_the_widget_on_it() {
-        assert_eq!(top_center_x(-1920.0, 1920.0, 320.0), -1120.0);
+        let open = Layout { width: 470.0, height: 230.0, visible: true };
+        assert_eq!(physical_bounds(-1920, 0, 1920, 1.0, &open), (-1195, 0, 470, 230));
+        assert_eq!(physical_bounds(-2880, 120, 2880, 1.5, &open), (-1793, 120, 705, 345));
     }
 
-    // Review focus: at 150 % the monitor is 2880 physical px = 1920 logical.
+    // Review focus: at 150 % sizes and position are all in physical px.
     #[test]
-    fn physical_monitor_values_become_logical_ones() {
-        assert_eq!(logical_monitor(0, 0, 2880, 1.5), (0.0, 0.0, 1920.0));
-        assert_eq!(logical_monitor(-2880, 120, 2880, 1.5), (-1920.0, 80.0, 1920.0));
+    fn a_scaled_monitor_gets_physical_sizes_still_centered() {
+        let open = Layout { width: 470.0, height: 230.0, visible: true };
+        assert_eq!(physical_bounds(0, 0, 2880, 1.5, &open), (1087, 0, 705, 345));
     }
 
     #[test]
     fn a_zero_or_negative_scale_factor_is_treated_as_one() {
-        assert_eq!(logical_monitor(10, 20, 1000, 0.0), (10.0, 20.0, 1000.0));
-        assert_eq!(logical_monitor(10, 20, 1000, -2.0), (10.0, 20.0, 1000.0));
+        let run = Layout { width: 320.0, height: 44.0, visible: true };
+        assert_eq!(physical_bounds(0, 0, 1000, 0.0, &run), (340, 0, 320, 44));
+        assert_eq!(physical_bounds(0, 0, 1000, -2.0, &run), (340, 0, 320, 44));
     }
 }

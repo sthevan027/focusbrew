@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { nextTickDelay } from "../lib/shell";
 
 /**
- * Current time in ms, refreshed every 250 ms while `active`. The progress
- * line moves well under 1 px per second and the countdown changes once a
- * second, so 4 updates a second is smooth and costs almost no CPU.
+ * Current time in ms while `active`, refreshed right when the countdown to
+ * `deadlineMs` changes — so every second lasts a second on screen. The
+ * progress line glides between updates with a CSS transition.
  */
-export function useNow(active: boolean): number {
+export function useNow(active: boolean, deadlineMs: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     setNow(Date.now());
     if (!active) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [active]);
+    let id = 0;
+    // +2 ms so the whole second has surely flipped when we read the clock.
+    const schedule = (from: number) => {
+      id = window.setTimeout(tick, nextTickDelay(from, deadlineMs) + 2);
+    };
+    const tick = () => {
+      const t = Date.now();
+      setNow(t);
+      schedule(t);
+    };
+    schedule(Date.now());
+    return () => window.clearTimeout(id);
+  }, [active, deadlineMs]);
   return now;
 }
 

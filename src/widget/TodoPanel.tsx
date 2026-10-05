@@ -5,7 +5,6 @@ import { addTask, reorderTasks } from "../lib/tauri";
 import { dropIndex, moveItem } from "../lib/reorder";
 import ActivityGrid from "./ActivityGrid";
 import { BarsIcon } from "./icons";
-import ProgressLine from "./ProgressLine";
 import TaskRow from "./TaskRow";
 
 interface Props {
@@ -21,7 +20,7 @@ interface Drag {
 }
 
 export default function TodoPanel({ state, now, onHold }: Props) {
-  const { timer, config } = state;
+  const { timer } = state;
   const open = state.tasks.filter((t) => !t.done);
   const done = state.tasks.filter((t) => t.done);
 
@@ -145,13 +144,6 @@ export default function TodoPanel({ state, now, onHold }: Props) {
           <ActivityGrid secsByDay={state.focus_secs_by_day} />
         </section>
       </div>
-
-      <ProgressLine
-        timer={timer}
-        now={now}
-        rgb={config.rgb_line}
-        visible={config.progress_line && timer.status !== "idle"}
-      />
     </div>
   );
 }
