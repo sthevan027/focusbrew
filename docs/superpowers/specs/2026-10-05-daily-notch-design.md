@@ -79,8 +79,8 @@ em "U" — desce pelo lado esquerdo, corre pela borda de baixo e sobe pelo direi
 tempo_planejado`. Cor = cor de destaque. **RGB** (`rgb_line`, desligado por
 padrão): troca a cor por um gradiente de arco-íris que gira (ciclo de 4 s) com
 um brilho suave (blur de 6 px). A fração vem de `deadline_ms` e do relógio da
-máquina, desenhada com `requestAnimationFrame`; a interface não conta tempo
-sozinha.
+máquina, atualizada a cada 250 ms (a linha anda bem menos de 1 px por segundo;
+atualizar a cada quadro só gastaria CPU); a interface não conta tempo sozinha.
 
 **Abrir e fechar.** Passar o mouse na janela e ficar **250 ms** abre o painel.
 Sair com o mouse e ficar fora **400 ms** fecha. Não fecha enquanto o campo "Add
@@ -103,10 +103,14 @@ Duas colunas separadas por um traço vertical fino.
 - **tempo**: ícone de relógio, minutos e setinhas ▲▼ (de 5 em 5; mínimo 5,
   máximo 180);
 - **play** redondo na cor de destaque (vira pausa na tarefa que roda);
-- **alça** de seis pontos pra arrastar e reordenar.
+- **alça** de seis pontos pra arrastar e reordenar;
+- **×** pequeno, que só aparece ao passar o mouse na linha, antes da alça; remove
+  a tarefa (inclusive concluída). Se ela está rodando, o tempo trabalhado é
+  guardado antes de remover.
 
 A tarefa que roda fica com a linha destacada e mostra a contagem ao vivo no
-lugar dos minutos. Cabem 4 linhas; passando disso a lista rola por dentro. Tarefas
+lugar dos minutos. A lista mostra de 3 a 4 linhas (menos quando há notas) e rola por dentro quando
+passa disso. Tarefas
 concluídas ficam **depois** das abertas, riscadas e sem play nem alça (a ordem
 guardada não muda, só a exibição). No fim, o campo **"Add a task"**: Enter
 adiciona com os minutos padrão. Lista vazia mostra "Nenhuma tarefa ainda".
@@ -225,9 +229,10 @@ bloco e salto de relógio).
 ## 9. Bandeja
 
 Um ícone só (o `idle.png` atual; `focus.png`, `working.png` e `coffee.png` saem).
-Dica: `focusbrew` parado, ou `focusbrew — <tarefa> mm:ss` com timer ativo.
-Clique esquerdo abre as configurações. Menu: **Abrir configurações**,
-**Mostrar/ocultar widget**, **Pausar/retomar** (só com timer ativo), **Sair**.
+Dica: `focusbrew` parado, `focusbrew — <tarefa>` com timer rodando ou
+`focusbrew — <tarefa> (pausado)`. Clique esquerdo abre as configurações. Menu:
+**Abrir configurações**, **Mostrar/ocultar widget**, **Pausar/retomar**, **Sair**.
+O item **Pausar/retomar** fica sempre no menu e não faz nada com o timer parado.
 
 ## 10. Janela de configurações
 
@@ -256,9 +261,10 @@ são substituídos por prints do app novo.
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src-tauri/src/timer.rs` (reescrito) | O enum `Timer`, as transições e as contas de tempo. Puro, sem Tauri. |
-| `src-tauri/src/tasks.rs` | `Task`, leitura/gravação, `reorder`, limites. |
-| `src-tauri/src/activity.rs` | `focus_secs_by_day` e `add_focus_secs`. |
+| `src-tauri/src/tracker/timer.rs` | O enum `Timer`, as transições e as contas de tempo. Puro, sem Tauri. |
+| `src-tauri/src/tracker/tasks.rs` | `Task`, leitura/gravação, `reorder`, limites. |
+| `src-tauri/src/tracker/activity.rs` | `focus_secs_by_day` e `add_focus_secs`. |
+| `src-tauri/src/tracker/mod.rs` | `Tracker`: junta timer, tarefas e atividade (iniciar, pausar, parar, tick). Puro. |
 | `src-tauri/src/config.rs` | `AppConfig` novo e validações. |
 | `src-tauri/src/state.rs` | `AppState` e `StateSnapshot` novos. |
 | `src-tauri/src/commands.rs` | os comandos da seção 8. |
