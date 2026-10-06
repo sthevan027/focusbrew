@@ -89,26 +89,6 @@ pub fn remove_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> Sta
     apply(&app, &shared, |state, now, today| state.tracker.remove_task(&id, now, today)).0
 }
 
-#[tauri::command]
-pub fn update_task_minutes(
-    id: String,
-    minutes: u32,
-    app: AppHandle,
-    shared: State<'_, Shared>,
-) -> StateSnapshot {
-    let (snapshot, (finished, notify_on)) = apply(&app, &shared, |state, now, today| {
-        (
-            state.tracker.set_minutes(&id, minutes, now, today),
-            state.config.notify_on_finish,
-        )
-    });
-    if notify_on {
-        if let Some(done) = finished {
-            notify_finished(&app, &done);
-        }
-    }
-    snapshot
-}
 
 #[tauri::command]
 pub fn reorder_tasks(ids: Vec<String>, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {

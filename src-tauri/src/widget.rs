@@ -14,7 +14,7 @@ const FALLBACK_MONITOR_WIDTH: u32 = 1280;
 /// The window never changes size while you use it: resizing a WebView makes
 /// it skip ~100 ms of frames. It is always as big as the open panel, lets the
 /// mouse pass through, and only catches it inside the visible shape's area.
-pub const OPEN_SIZE: (f64, f64) = (470.0, 230.0);
+pub const OPEN_SIZE: (f64, f64) = (560.0, 300.0);
 /// Parked: the area over the flat bar that reacts to the mouse (the bar is 6 px).
 pub const IDLE_ZONE: (f64, f64) = (140.0, 14.0);
 /// A block is running or paused: the box with the progress line around it.
@@ -219,9 +219,9 @@ mod layout_tests {
 
     #[test]
     fn the_window_is_always_the_panel_size() {
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (470.0, 230.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (400.0, 196.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (588.0, 288.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (560.0, 300.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (476.0, 255.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (700.0, 375.0));
     }
 
     #[test]
@@ -251,7 +251,7 @@ mod layout_tests {
         let c = cfg(WidgetScale::Medium);
         let window = physical_bounds(0, 0, 1920, 1.0, &window_layout(&c));
         let zone = physical_bounds(0, 0, 1920, 1.0, &hot_zone(&c, TimerStatus::Running));
-        assert_eq!(window, (725, 0, 470, 230));
+        assert_eq!(window, (680, 0, 560, 300));
         assert_eq!(zone, (800, 0, 320, 44));
     }
 

@@ -214,7 +214,6 @@ pub fn run() {
             commands::add_task,
             commands::toggle_task,
             commands::remove_task,
-            commands::update_task_minutes,
             commands::nudge_task_minutes,
             commands::move_task,
             commands::reorder_tasks,
