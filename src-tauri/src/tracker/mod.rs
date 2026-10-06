@@ -5,7 +5,7 @@ pub mod activity;
 pub mod tasks;
 pub mod timer;
 
-use activity::ActivityLog;
+use activity::{ActivityLog, Session};
 use tasks::{clamp_minutes, Task};
 use timer::{Timer, SLEEP_GAP_MS};
 
@@ -38,30 +38,48 @@ impl Tracker {
         Tracker { timer: Timer::Idle, tasks, log }
     }
 
-    pub fn first_open_task(&self) -> Option<String> {
-        self.tasks.iter().find(|t| !t.done).map(|t| t.id.clone())
+    /// The first open task for today (planned today or carried over), in
+    /// list order — what the global shortcut starts.
+    pub fn first_open_task(&self, today: &str) -> Option<String> {
+        self.tasks
+            .iter()
+            .find(|t| !t.done && t.day.as_str() <= today)
+            .map(|t| t.id.clone())
     }
 
-    /// Adds worked seconds to the task and to the day's total.
-    fn record(&mut self, task_id: &str, secs: u32, today: &str) {
+    /// Adds worked seconds to the task, the day's total and the block history.
+    fn record(&mut self, task_id: &str, secs: u32, now_ms: i64, today: &str) {
         if secs == 0 {
             return;
         }
-        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == task_id) {
-            task.spent_secs = task.spent_secs.saturating_add(secs);
-        }
+        let (title, project) = match self.tasks.iter_mut().find(|t| t.id == task_id) {
+            Some(task) => {
+                task.spent_secs = task.spent_secs.saturating_add(secs);
+                (task.title.clone(), task.project.clone())
+            }
+            None => (String::new(), None),
+        };
         self.log.add_focus_secs(today, secs);
+        self.log.sessions.push(Session {
+            task_id: task_id.to_string(),
+            title,
+            project,
+            day: today.to_string(),
+            ended_ms: now_ms,
+            secs,
+        });
+        self.log.prune_sessions(today);
     }
 
     /// Ends the active block counting `secs` as worked.
-    fn finish(&mut self, task_id: &str, secs: u32, today: &str) -> Finished {
+    fn finish(&mut self, task_id: &str, secs: u32, now_ms: i64, today: &str) -> Finished {
         let title = self
             .tasks
             .iter()
             .find(|t| t.id == task_id)
             .map(|t| t.title.clone())
             .unwrap_or_default();
-        self.record(task_id, secs, today);
+        self.record(task_id, secs, now_ms, today);
         self.timer = Timer::Idle;
         Finished { title, secs }
     }
@@ -70,9 +88,31 @@ impl Tracker {
     pub fn stop(&mut self, now_ms: i64, today: &str) {
         if let Some(id) = self.timer.task_id().map(str::to_string) {
             let secs = self.timer.elapsed_secs(now_ms);
-            self.record(&id, secs, today);
+            self.record(&id, secs, now_ms, today);
         }
         self.timer = Timer::Idle;
+    }
+
+    /// Plans a task for another day.
+    pub fn move_task(&mut self, id: &str, day: &str) -> Result<(), String> {
+        if !tasks::is_valid_day(day) {
+            return Err(format!("dia inválido: {day}"));
+        }
+        let task = self
+            .tasks
+            .iter_mut()
+            .find(|t| t.id == id)
+            .ok_or_else(|| "tarefa não encontrada".to_string())?;
+        task.day = day.to_string();
+        Ok(())
+    }
+
+    /// The ▲▼ arrows: adds `delta` minutes to the task's current value here,
+    /// so two quick clicks never compute from the same stale number.
+    pub fn nudge_minutes(&mut self, id: &str, delta: i32, now_ms: i64, today: &str) -> Option<Finished> {
+        let current = self.tasks.iter().find(|t| t.id == id)?.minutes;
+        let wanted = (current as i64 + delta as i64).clamp(0, u32::MAX as i64) as u32;
+        self.set_minutes(id, wanted, now_ms, today)
     }
 
     pub fn start_task(&mut self, id: &str, now_ms: i64, today: &str) -> Result<(), String> {
@@ -123,7 +163,7 @@ impl Tracker {
         }
         let planned_secs = minutes * 60;
         if self.timer.set_planned(planned_secs, now_ms) {
-            return Some(self.finish(id, planned_secs, today));
+            return Some(self.finish(id, planned_secs, now_ms, today));
         }
         None
     }
@@ -134,6 +174,7 @@ impl Tracker {
                 return;
             };
             task.done = !task.done;
+            task.done_at = task.done.then_some(now_ms);
             task.done
         };
         if now_done && self.timer.task_id() == Some(id) {
@@ -161,7 +202,7 @@ impl Tracker {
         }
         let id = self.timer.task_id()?.to_string();
         let secs = self.timer.planned_secs();
-        Some(self.finish(&id, secs, today))
+        Some(self.finish(&id, secs, now_ms, today))
     }
 }
 
@@ -178,7 +219,7 @@ mod tests {
         let list = tasks
             .iter()
             .map(|(id, minutes)| {
-                let mut t = tasks::new_task(id, TaskSource::Manual, *minutes).unwrap();
+                let mut t = tasks::new_task(id, TaskSource::Manual, *minutes, DAY).unwrap();
                 t.id = id.to_string();
                 t
             })
@@ -414,10 +455,113 @@ mod tests {
     #[test]
     fn first_open_task_skips_done_ones() {
         let mut tr = tracker(&[("a", 25), ("b", 25)]);
-        assert_eq!(tr.first_open_task().as_deref(), Some("a"));
+        assert_eq!(tr.first_open_task(DAY).as_deref(), Some("a"));
         tr.toggle_task("a", T0, DAY);
-        assert_eq!(tr.first_open_task().as_deref(), Some("b"));
+        assert_eq!(tr.first_open_task(DAY).as_deref(), Some("b"));
         tr.toggle_task("b", T0, DAY);
-        assert_eq!(tr.first_open_task(), None);
+        assert_eq!(tr.first_open_task(DAY), None);
+    }
+
+    #[test]
+    fn first_open_task_ignores_tasks_planned_for_later() {
+        let mut tr = tracker(&[("later", 25), ("old", 25)]);
+        tr.move_task("later", "2026-10-09").unwrap();
+        tr.move_task("old", "2026-10-01").unwrap();
+        assert_eq!(tr.first_open_task(DAY).as_deref(), Some("old"));
+    }
+
+    fn sessions(tr: &Tracker) -> Vec<(String, String, u32, i64)> {
+        tr.log
+            .sessions
+            .iter()
+            .map(|s| (s.task_id.clone(), s.day.clone(), s.secs, s.ended_ms))
+            .collect()
+    }
+
+    #[test]
+    fn every_way_of_ending_a_block_writes_a_session() {
+        let mut tr = tracker(&[("a", 25), ("b", 25), ("c", 25), ("d", 5), ("e", 25)]);
+        // stopped
+        tr.start_task("a", T0, DAY).unwrap();
+        tr.stop(T0 + MIN, DAY);
+        // switched to another task
+        tr.start_task("b", T0 + 2 * MIN, DAY).unwrap();
+        tr.start_task("c", T0 + 4 * MIN, DAY).unwrap();
+        // checked off while running
+        tr.toggle_task("c", T0 + 7 * MIN, DAY);
+        // ran to the end
+        tr.start_task("d", T0 + 10 * MIN, DAY).unwrap();
+        tr.tick(T0 + 15 * MIN, T0 + 15 * MIN - 1000, DAY);
+        // removed while running
+        tr.start_task("e", T0 + 20 * MIN, DAY).unwrap();
+        tr.remove_task("e", T0 + 21 * MIN, DAY);
+        assert_eq!(
+            sessions(&tr),
+            vec![
+                ("a".into(), DAY.into(), 60, T0 + MIN),
+                ("b".into(), DAY.into(), 120, T0 + 4 * MIN),
+                ("c".into(), DAY.into(), 180, T0 + 7 * MIN),
+                ("d".into(), DAY.into(), 300, T0 + 15 * MIN),
+                ("e".into(), DAY.into(), 60, T0 + 21 * MIN),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_session_keeps_the_title_and_project_of_that_moment() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.tasks[0].project = Some("virex".into());
+        tr.start_task("a", T0, DAY).unwrap();
+        tr.stop(T0 + MIN, DAY);
+        tr.tasks[0].title = "renamed".into();
+        assert_eq!(tr.log.sessions[0].title, "a");
+        assert_eq!(tr.log.sessions[0].project.as_deref(), Some("virex"));
+    }
+
+    #[test]
+    fn a_zero_second_block_writes_no_session() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.start_task("a", T0, DAY).unwrap();
+        tr.stop(T0, DAY);
+        assert!(tr.log.sessions.is_empty());
+    }
+
+    #[test]
+    fn checking_off_remembers_when_and_reopening_forgets() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.toggle_task("a", T0, DAY);
+        assert_eq!(tr.tasks[0].done_at, Some(T0));
+        tr.toggle_task("a", T0 + MIN, DAY);
+        assert_eq!(tr.tasks[0].done_at, None);
+    }
+
+    #[test]
+    fn a_task_moves_to_a_real_day_only() {
+        let mut tr = tracker(&[("a", 25)]);
+        assert!(tr.move_task("a", "2026-10-09").is_ok());
+        assert_eq!(tr.tasks[0].day, "2026-10-09");
+        assert!(tr.move_task("a", "2026-13-01").is_err());
+        assert!(tr.move_task("ghost", "2026-10-09").is_err());
+        assert_eq!(tr.tasks[0].day, "2026-10-09");
+    }
+
+    #[test]
+    fn nudging_minutes_adds_to_the_current_value() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.nudge_minutes("a", 5, T0, DAY);
+        tr.nudge_minutes("a", 5, T0, DAY);
+        assert_eq!(minutes(&tr, "a"), 35, "two quick clicks are both counted");
+        tr.nudge_minutes("a", -100, T0, DAY);
+        assert_eq!(minutes(&tr, "a"), 5);
+        tr.nudge_minutes("a", 1000, T0, DAY);
+        assert_eq!(minutes(&tr, "a"), 180);
+    }
+
+    #[test]
+    fn nudging_the_running_task_below_the_time_worked_finishes_it() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.start_task("a", T0, DAY).unwrap();
+        let finished = tr.nudge_minutes("a", -20, T0 + 10 * MIN, DAY);
+        assert_eq!(finished, Some(Finished { title: "a".into(), secs: 300 }));
     }
 }

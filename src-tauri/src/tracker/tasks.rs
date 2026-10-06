@@ -39,6 +39,36 @@ pub struct Task {
     /// Total seconds worked on this task, across blocks.
     #[serde(default)]
     pub spent_secs: u32,
+    /// "AAAA-MM-DD" the task is planned for. Empty in 0.2 files until
+    /// `fill_missing_days` runs on load.
+    #[serde(default)]
+    pub day: String,
+    /// When it was checked off (epoch ms); `None` while open.
+    #[serde(default)]
+    pub done_at: Option<i64>,
+    #[serde(default)]
+    pub project: Option<String>,
+    /// Link of the PR/issue it was imported from.
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
+/// A real calendar date written exactly as "AAAA-MM-DD".
+pub fn is_valid_day(day: &str) -> bool {
+    day.len() == 10 && chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok()
+}
+
+/// "dono/repo" -> "repo".
+pub fn project_from_repository(repository: &str) -> Option<String> {
+    let name = repository.rsplit('/').next()?.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
+/// Tasks from before days existed belong to today.
+pub fn fill_missing_days(tasks: &mut [Task], today: &str) {
+    for task in tasks.iter_mut().filter(|t| t.day.is_empty()) {
+        task.day = today.to_string();
+    }
 }
 
 pub fn clamp_minutes(minutes: u32) -> u32 {
@@ -55,7 +85,7 @@ pub fn clean_title(raw: &str) -> Option<String> {
     Some(cut.trim_end().to_string())
 }
 
-pub fn new_task(title: &str, source: TaskSource, minutes: u32) -> Option<Task> {
+pub fn new_task(title: &str, source: TaskSource, minutes: u32, day: &str) -> Option<Task> {
     Some(Task {
         id: uuid::Uuid::new_v4().to_string(),
         title: clean_title(title)?,
@@ -65,6 +95,10 @@ pub fn new_task(title: &str, source: TaskSource, minutes: u32) -> Option<Task> {
         created_at: chrono::Utc::now().to_rfc3339(),
         source,
         spent_secs: 0,
+        day: day.to_string(),
+        done_at: None,
+        project: None,
+        url: None,
     })
 }
 
@@ -111,7 +145,7 @@ mod tests {
     use super::*;
 
     fn task(id: &str) -> Task {
-        let mut t = new_task(id, TaskSource::Manual, 25).unwrap();
+        let mut t = new_task(id, TaskSource::Manual, 25, "2026-10-05").unwrap();
         t.id = id.to_string();
         t
     }
@@ -162,7 +196,7 @@ mod tests {
         assert_eq!(clean_title("  Revisar PR  ").as_deref(), Some("Revisar PR"));
         assert_eq!(clean_title(""), None);
         assert_eq!(clean_title("   \t\n"), None);
-        assert!(new_task("   ", TaskSource::Manual, 25).is_none());
+        assert!(new_task("   ", TaskSource::Manual, 25, "2026-10-05").is_none());
     }
 
     // Review focus: 200 *characters*, not bytes — accents and emoji must not
@@ -179,7 +213,7 @@ mod tests {
 
     #[test]
     fn a_new_task_gets_the_requested_minutes_clamped() {
-        let t = new_task("x", TaskSource::Manual, 1).unwrap();
+        let t = new_task("x", TaskSource::Manual, 1, "2026-10-05").unwrap();
         assert_eq!(t.minutes, 5);
         assert!(!t.done);
         assert_eq!(t.spent_secs, 0);
@@ -206,6 +240,45 @@ mod tests {
         let mut tasks = vec![task("a"), task("b")];
         reorder(&mut tasks, &[]);
         assert_eq!(ids(&tasks), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn an_old_file_has_no_day_and_gets_today_when_filled_in() {
+        let raw = r#"[{"id":"1","title":"x","done":false,"created_at":"","source":"manual"},
+                      {"id":"2","title":"y","done":false,"created_at":"","source":"manual","day":"2026-10-09"}]"#;
+        let mut tasks = parse(raw);
+        assert_eq!(tasks[0].day, "");
+        assert_eq!(tasks[0].done_at, None);
+        assert_eq!(tasks[0].project, None);
+        assert_eq!(tasks[0].url, None);
+        fill_missing_days(&mut tasks, "2026-10-05");
+        assert_eq!(tasks[0].day, "2026-10-05");
+        assert_eq!(tasks[1].day, "2026-10-09", "a planned day is kept");
+    }
+
+    #[test]
+    fn a_new_task_is_planned_for_the_given_day() {
+        let t = new_task("x", TaskSource::Manual, 25, "2026-10-08").unwrap();
+        assert_eq!(t.day, "2026-10-08");
+    }
+
+    #[test]
+    fn the_project_of_a_repository_is_its_name() {
+        assert_eq!(project_from_repository("sthevan027/focusbrew").as_deref(), Some("focusbrew"));
+        assert_eq!(project_from_repository("focusbrew").as_deref(), Some("focusbrew"));
+        assert_eq!(project_from_repository("dono/"), None);
+        assert_eq!(project_from_repository(""), None);
+    }
+
+    #[test]
+    fn only_real_dates_are_valid_days() {
+        assert!(is_valid_day("2026-10-05"));
+        assert!(is_valid_day("2028-02-29"));
+        assert!(!is_valid_day("2026-02-30"));
+        assert!(!is_valid_day("2026-10-5"));
+        assert!(!is_valid_day("05/10/2026"));
+        assert!(!is_valid_day(""));
+        assert!(!is_valid_day("2026-10-05T00:00"));
     }
 
     #[test]

@@ -10,7 +10,7 @@ use crate::{notify_finished, sync_ui, Shared};
 
 #[tauri::command]
 pub fn get_state(shared: State<'_, Shared>) -> StateSnapshot {
-    let state = shared.0.lock().unwrap();
+    let state = shared.lock();
     StateSnapshot::from(&*state)
 }
 
@@ -21,22 +21,62 @@ fn apply<T>(
     shared: &Shared,
     change: impl FnOnce(&mut AppState, i64, &str) -> T,
 ) -> (StateSnapshot, T) {
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     let result = change(&mut state, now_ms(), &today_key());
     state.save_tracker();
     sync_ui(app, &state);
     (StateSnapshot::from(&*state), result)
 }
 
+/// Adds a task to `day` (today when missing or not a real date).
 #[tauri::command]
-pub fn add_task(title: String, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
-    apply(&app, &shared, |state, _, _| {
+pub fn add_task(
+    title: String,
+    day: Option<String>,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> StateSnapshot {
+    apply(&app, &shared, |state, _, today| {
         let minutes = state.config.default_minutes;
-        if let Some(task) = tasks::new_task(&title, TaskSource::Manual, minutes) {
+        let day = day.filter(|d| tasks::is_valid_day(d)).unwrap_or_else(|| today.to_string());
+        if let Some(task) = tasks::new_task(&title, TaskSource::Manual, minutes, &day) {
             state.tracker.tasks.push(task);
         }
     })
     .0
+}
+
+#[tauri::command]
+pub fn move_task(
+    id: String,
+    day: String,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> Result<StateSnapshot, String> {
+    let (snapshot, result) = apply(&app, &shared, |state, _, _| state.tracker.move_task(&id, &day));
+    result.map(|_| snapshot)
+}
+
+/// The ▲▼ arrows (`delta` is +5 or -5).
+#[tauri::command]
+pub fn nudge_task_minutes(
+    id: String,
+    delta: i32,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> StateSnapshot {
+    let (snapshot, (finished, notify_on)) = apply(&app, &shared, |state, now, today| {
+        (
+            state.tracker.nudge_minutes(&id, delta, now, today),
+            state.config.notify_on_finish,
+        )
+    });
+    if notify_on {
+        if let Some(done) = finished {
+            notify_finished(&app, &done);
+        }
+    }
+    snapshot
 }
 
 #[tauri::command]
@@ -102,7 +142,7 @@ pub fn update_settings(
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> StateSnapshot {
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     let mut config = new_config.normalized();
     // The GitHub login and the gh switch belong to the GitHub commands; a
     // settings form holding an older copy must not overwrite them.
@@ -118,7 +158,7 @@ pub fn update_settings(
 pub async fn save_github_token(token: String, shared: State<'_, Shared>) -> Result<String, String> {
     let login = github::whoami(&token).await?;
     github::save_token(&token)?;
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     state.config.github_login = Some(login.clone());
     // Pasting a token is an explicit choice: use it instead of gh's login.
     state.config.github_use_gh = false;
@@ -140,7 +180,7 @@ pub async fn connect_github_with_gh(shared: State<'_, Shared>) -> Result<String,
         .await
         .ok_or("GitHub CLI não encontrado ou sem login — rode `gh auth login` num terminal e tente de novo")?;
     let login = github::whoami(&token).await?;
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     state.config.github_login = Some(login.clone());
     state.config.github_use_gh = true;
     let _ = config::save(&state.config);
@@ -152,7 +192,7 @@ pub fn clear_github_token(shared: State<'_, Shared>) -> Result<(), String> {
     // Only people who pasted a token have one in the keyring; for a gh login
     // there's nothing to delete, which is not an error.
     let _ = github::clear_token();
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     state.config.github_login = None;
     // Without this the next refresh would quietly reconnect through gh.
     state.config.github_use_gh = false;
@@ -173,7 +213,7 @@ pub async fn refresh_github(app: AppHandle) -> Result<StateSnapshot, String> {
 pub(crate) async fn refresh_github_now(app: &AppHandle) -> Result<StateSnapshot, String> {
     let shared = app.state::<Shared>();
     let (use_gh, login) = {
-        let state = shared.0.lock().unwrap();
+        let state = shared.lock();
         let login = state
             .config
             .github_login
@@ -186,7 +226,7 @@ pub(crate) async fn refresh_github_now(app: &AppHandle) -> Result<StateSnapshot,
     let gh = if use_gh { github::gh_token().await } else { None };
     let Some((token, source)) = github::pick_token(use_gh, gh, github::load_token()) else {
         let message = "sem token do GitHub — rode `gh auth login` num terminal ou cole um token na aba GitHub";
-        let mut state = shared.0.lock().unwrap();
+        let mut state = shared.lock();
         if state.fail_github_refresh(&login, message.into()) {
             sync_ui(app, &state);
         }
@@ -196,24 +236,32 @@ pub(crate) async fn refresh_github_now(app: &AppHandle) -> Result<StateSnapshot,
     let items = github::fetch_involved(&token, &login).await;
     let days = github::fetch_contribution_calendar(&token, &login).await;
 
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     if state.apply_github_refresh(&login, source, items, days) {
         sync_ui(app, &state);
     }
     Ok(StateSnapshot::from(&*state))
 }
 
+/// A PR/issue becomes a task on `day` (today when missing), linked to its
+/// page, with the repository's name as the project.
 #[tauri::command]
 pub fn import_github_item_as_task(
     title: String,
     note: Option<String>,
+    url: Option<String>,
+    repository: Option<String>,
+    day: Option<String>,
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> StateSnapshot {
-    apply(&app, &shared, |state, _, _| {
+    apply(&app, &shared, |state, _, today| {
         let minutes = state.config.default_minutes;
-        if let Some(mut task) = tasks::new_task(&title, TaskSource::Github, minutes) {
+        let day = day.filter(|d| tasks::is_valid_day(d)).unwrap_or_else(|| today.to_string());
+        if let Some(mut task) = tasks::new_task(&title, TaskSource::Github, minutes, &day) {
             task.note = note.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
+            task.url = url.filter(|u| u.starts_with("https://github.com/"));
+            task.project = repository.as_deref().and_then(tasks::project_from_repository);
             state.tracker.tasks.push(task);
         }
     })

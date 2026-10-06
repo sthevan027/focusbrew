@@ -4,9 +4,10 @@ use serde::Serialize;
 
 use crate::config::AppConfig;
 use crate::github::{GithubItem, TokenSource};
+use crate::tracker::activity::Session;
 use crate::tracker::tasks::{self, Task};
 use crate::tracker::timer::TimerView;
-use crate::tracker::{activity, now_ms, Tracker};
+use crate::tracker::{activity, now_ms, today_key, Tracker};
 
 pub struct AppState {
     pub config: AppConfig,
@@ -25,9 +26,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn load() -> Self {
+        let mut list = tasks::load();
+        tasks::fill_missing_days(&mut list, &today_key());
         Self {
             config: crate::config::load(),
-            tracker: Tracker::new(tasks::load(), activity::load()),
+            tracker: Tracker::new(list, activity::load()),
             last_tick_ms: now_ms(),
             github_items: Vec::new(),
             github_error: None,
@@ -86,12 +89,19 @@ impl AppState {
     }
 }
 
+/// How many days of block history the panel gets (its grid shows 5 weeks).
+pub const SNAPSHOT_SESSION_DAYS: i64 = 42;
+
 /// Snapshot sent to the frontend after every state change.
 #[derive(Debug, Clone, Serialize)]
 pub struct StateSnapshot {
     pub tasks: Vec<Task>,
     pub timer: TimerView,
     pub focus_secs_by_day: HashMap<String, u32>,
+    /// Blocks of the last `SNAPSHOT_SESSION_DAYS` days.
+    pub sessions: Vec<Session>,
+    /// The backend's local date, so both sides agree on when the day turns.
+    pub today: String,
     pub config: AppConfig,
     pub github_items: Vec<GithubItem>,
     pub github_error: Option<String>,
@@ -99,12 +109,21 @@ pub struct StateSnapshot {
     pub github_source: Option<TokenSource>,
 }
 
+fn days_before(day: &str, n: i64) -> String {
+    chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
+        .map(|d| (d - chrono::Duration::days(n)).format("%Y-%m-%d").to_string())
+        .unwrap_or_default()
+}
+
 impl From<&AppState> for StateSnapshot {
     fn from(state: &AppState) -> Self {
+        let today = today_key();
         Self {
             tasks: state.tracker.tasks.clone(),
             timer: state.tracker.timer.view(now_ms()),
             focus_secs_by_day: state.tracker.log.focus_secs_by_day.clone(),
+            sessions: state.tracker.log.sessions_since(&days_before(&today, SNAPSHOT_SESSION_DAYS)),
+            today,
             config: state.config.clone(),
             github_items: state.github_items.clone(),
             github_error: state.github_error.clone(),
@@ -127,6 +146,18 @@ impl AppState {
             github_days: HashMap::new(),
             github_source: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn days_before_counts_back_across_months() {
+        assert_eq!(days_before("2026-10-05", 42), "2026-08-24");
+        assert_eq!(days_before("2026-03-01", 1), "2026-02-28");
+        assert_eq!(days_before("garbage", 1), "");
     }
 }
 

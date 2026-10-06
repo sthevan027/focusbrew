@@ -5,7 +5,7 @@ mod state;
 mod tracker;
 mod widget;
 
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use tauri::menu::MenuBuilder;
@@ -22,6 +22,14 @@ const HOTKEY: &str = "CommandOrControl+Shift+Space";
 const TRAY_ICON: &[u8] = include_bytes!("../icons/tray/idle.png");
 
 pub struct Shared(pub Mutex<AppState>);
+
+impl Shared {
+    /// The state behind the lock. A panic somewhere while it was held must
+    /// not take every later command (and the save on exit) down with it.
+    pub fn lock(&self) -> MutexGuard<'_, AppState> {
+        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
 
 fn decode_icon(bytes: &[u8]) -> Image<'static> {
     let img = image::load_from_memory(bytes)
@@ -105,11 +113,11 @@ pub(crate) fn show_main_window(app: &AppHandle) {
 /// Ctrl+Shift+Space: pause/resume the active block, or start the first open task.
 fn hotkey_action(app: &AppHandle) {
     let shared = app.state::<Shared>();
-    let mut state = shared.0.lock().unwrap();
+    let mut state = shared.lock();
     let (now, today) = (now_ms(), today_key());
     if state.tracker.timer.status() != TimerStatus::Idle {
         state.tracker.toggle_pause(now);
-    } else if let Some(id) = state.tracker.first_open_task() {
+    } else if let Some(id) = state.tracker.first_open_task(&today) {
         let _ = state.tracker.start_task(&id, now, &today);
     } else {
         return;
@@ -129,7 +137,7 @@ fn spawn_tick_loop(app: AppHandle) {
             let mut to_notify: Option<Finished> = None;
             {
                 let shared = app.state::<Shared>();
-                let mut state = shared.0.lock().unwrap();
+                let mut state = shared.lock();
                 let last = state.last_tick_ms;
                 state.last_tick_ms = now;
                 let before = state.tracker.timer.clone();
@@ -163,7 +171,7 @@ fn spawn_github_refresh_loop(app: AppHandle) {
         loop {
             let connected = {
                 let shared = app.state::<Shared>();
-                let state = shared.0.lock().unwrap();
+                let state = shared.lock();
                 state.config.github_login.is_some()
             };
             if connected {
@@ -207,6 +215,8 @@ pub fn run() {
             commands::toggle_task,
             commands::remove_task,
             commands::update_task_minutes,
+            commands::nudge_task_minutes,
+            commands::move_task,
             commands::reorder_tasks,
             commands::start_task,
             commands::toggle_pause,
@@ -242,14 +252,14 @@ pub fn run() {
                     "quit" => app.exit(0),
                     "toggle_widget" => {
                         let shared = app.state::<Shared>();
-                        let mut state = shared.0.lock().unwrap();
+                        let mut state = shared.lock();
                         state.config.widget_visible = !state.config.widget_visible;
                         let _ = config::save(&state.config);
                         sync_ui(app, &state);
                     }
                     "pause" => {
                         let shared = app.state::<Shared>();
-                        let mut state = shared.0.lock().unwrap();
+                        let mut state = shared.lock();
                         state.tracker.toggle_pause(now_ms());
                         sync_ui(app, &state);
                     }
@@ -270,7 +280,7 @@ pub fn run() {
             widget::create(app.handle())?;
             {
                 let shared = handle.state::<Shared>();
-                let state = shared.0.lock().unwrap();
+                let state = shared.lock();
                 sync_ui(&handle, &state);
             }
             spawn_tick_loop(handle.clone());
@@ -292,7 +302,7 @@ pub fn run() {
             // goes away ("Sair" in the tray, or the OS shutting it down).
             if let tauri::RunEvent::Exit = event {
                 let shared = app_handle.state::<Shared>();
-                let mut state = shared.0.lock().unwrap();
+                let mut state = shared.lock();
                 state.tracker.stop(now_ms(), &today_key());
                 state.save_tracker();
             }
