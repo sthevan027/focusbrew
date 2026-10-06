@@ -1,0 +1,50 @@
+import type { StateSnapshot } from "../lib/types";
+import { formatDuration } from "../lib/activity";
+import { daySummary } from "../lib/summary";
+import { CheckIcon } from "./icons";
+
+interface Props {
+  state: StateSnapshot;
+  day: string;
+}
+
+/** What was done on a day: time per task, what was checked off, per project. */
+export default function DaySummaryView({ state, day }: Props) {
+  const summary = daySummary(state.sessions, state.tasks, day);
+  const max = Math.max(1, ...summary.rows.map((r) => r.secs));
+
+  if (summary.rows.length === 0) {
+    return (
+      <section className="summary">
+        <p className="empty">Nada registrado neste dia</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="summary">
+      <ul className="summary-rows">
+        {summary.rows.map((row) => (
+          <li key={row.taskId} className={row.done ? "summary-row done" : "summary-row"}>
+            <span className="summary-check">{row.done && <CheckIcon size={10} />}</span>
+            <span className="summary-title" title={row.title}>
+              {row.title}
+              {row.project && <span className="summary-project">{row.project}</span>}
+            </span>
+            <span className="summary-time">{row.secs > 0 ? formatDuration(row.secs) : "—"}</span>
+            <span className="summary-bar" style={{ width: `${(row.secs / max) * 100}%` }} />
+          </li>
+        ))}
+      </ul>
+      {summary.byProject.length > 1 && (
+        <p className="summary-projects">
+          {summary.byProject.map((p) => (
+            <span key={p.project ?? ""}>
+              {p.project ?? "sem projeto"} <strong>{formatDuration(p.secs)}</strong>
+            </span>
+          ))}
+        </p>
+      )}
+    </section>
+  );
+}

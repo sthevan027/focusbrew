@@ -14,7 +14,7 @@ export interface Size {
  */
 export const BAR: Size = { width: 140, height: 6 };
 export const BOX: Size = { width: 320, height: 44 };
-export const PANEL: Size = { width: 470, height: 230 };
+export const PANEL: Size = { width: 560, height: 300 };
 
 /** The strip over the bar that reacts to the mouse. */
 export const BAR_ZONE: Size = { width: 140, height: 14 };

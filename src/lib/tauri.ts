@@ -1,17 +1,27 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { AppConfig, StateSnapshot } from "./types";
+import type { AppConfig, GithubItem, StateSnapshot } from "./types";
 
 export const currentWindowLabel = () => getCurrentWindow().label;
 
 export const getState = () => invoke<StateSnapshot>("get_state");
 
-export const addTask = (title: string) => invoke<StateSnapshot>("add_task", { title });
+/**
+ * Runs a command from a click without awaiting it. A failure (a task that
+ * vanished between render and click, say) is logged instead of becoming an
+ * unhandled rejection; the next state-changed brings the UI back in line.
+ */
+export function fire(call: Promise<unknown>): void {
+  call.catch((err) => console.warn("focusbrew:", err));
+}
+
+export const addTask = (title: string, day: string) => invoke<StateSnapshot>("add_task", { title, day });
 export const toggleTask = (id: string) => invoke<StateSnapshot>("toggle_task", { id });
 export const removeTask = (id: string) => invoke<StateSnapshot>("remove_task", { id });
-export const updateTaskMinutes = (id: string, minutes: number) =>
-  invoke<StateSnapshot>("update_task_minutes", { id, minutes });
+export const nudgeTaskMinutes = (id: string, delta: number) =>
+  invoke<StateSnapshot>("nudge_task_minutes", { id, delta });
+export const moveTask = (id: string, day: string) => invoke<StateSnapshot>("move_task", { id, day });
 export const reorderTasks = (ids: string[]) => invoke<StateSnapshot>("reorder_tasks", { ids });
 
 export const startTask = (id: string) => invoke<StateSnapshot>("start_task", { id });
@@ -26,8 +36,14 @@ export const githubGhAvailable = () => invoke<boolean>("github_gh_available");
 export const connectGithubWithGh = () => invoke<string>("connect_github_with_gh");
 export const clearGithubToken = () => invoke<void>("clear_github_token");
 export const refreshGithub = () => invoke<StateSnapshot>("refresh_github");
-export const importGithubItemAsTask = (title: string, note: string) =>
-  invoke<StateSnapshot>("import_github_item_as_task", { title, note });
+export const importGithubItemAsTask = (item: GithubItem, day?: string) =>
+  invoke<StateSnapshot>("import_github_item_as_task", {
+    title: item.title,
+    note: `${item.repository} #${item.number}`,
+    url: item.html_url,
+    repository: item.repository,
+    day: day ?? null,
+  });
 
 export const setWidgetExpanded = (expanded: boolean) =>
   invoke<void>("set_widget_expanded", { expanded });

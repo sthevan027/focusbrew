@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGrid, cellTitle, dateKey, formatDuration, level, mondayOf } from "./activity";
+import { buildGrid, dateKey, formatDuration, level, mondayOf, streak, weekTotal } from "./activity";
 
 describe("level", () => {
   it("maps seconds to the five tones", () => {
@@ -22,46 +22,68 @@ describe("dates", () => {
   });
 
   it("finds the Monday of any weekday, including Sunday", () => {
-    expect(dateKey(mondayOf(new Date(2026, 9, 5)))).toBe("2026-10-05"); // Monday
-    expect(dateKey(mondayOf(new Date(2026, 9, 7)))).toBe("2026-10-05"); // Wednesday
-    expect(dateKey(mondayOf(new Date(2026, 9, 11)))).toBe("2026-10-05"); // Sunday
+    expect(mondayOf("2026-10-05")).toBe("2026-10-05"); // Monday
+    expect(mondayOf("2026-10-07")).toBe("2026-10-05"); // Wednesday
+    expect(mondayOf("2026-10-11")).toBe("2026-10-05"); // Sunday
   });
 });
 
 describe("buildGrid", () => {
-  it("has 4 weeks of 7 days, Monday first, ending in the current week", () => {
-    const grid = buildGrid({}, new Date(2026, 9, 5)); // a Monday
-    expect(grid).toHaveLength(28);
-    expect(grid[0]?.date).toBe("2026-09-14");
-    expect(grid[21]?.date).toBe("2026-10-05");
+  it("has 5 weeks, Monday first: 3 past ones, the current and the next", () => {
+    const grid = buildGrid({}, "2026-10-07", {}); // a Wednesday
+    expect(grid).toHaveLength(35);
+    expect(grid[0].date).toBe("2026-09-14");
+    expect(grid[21].date).toBe("2026-10-05");
+    expect(grid[34].date).toBe("2026-10-18");
   });
 
-  it("leaves the days after today empty", () => {
-    const grid = buildGrid({}, new Date(2026, 9, 5)); // Monday: the rest of the week is the future
-    expect(grid.slice(22)).toEqual([null, null, null, null, null, null]);
-
-    const wednesday = buildGrid({}, new Date(2026, 9, 7));
-    expect(wednesday[23]?.date).toBe("2026-10-07");
-    expect(wednesday.slice(24)).toEqual([null, null, null, null]);
-  });
-
-  it("fills the whole last row on a Sunday", () => {
-    const grid = buildGrid({}, new Date(2026, 9, 11));
-    expect(grid.slice(21).every((cell) => cell !== null)).toBe(true);
-    expect(grid[27]?.date).toBe("2026-10-11");
+  it("tells past, today and future apart", () => {
+    const grid = buildGrid({}, "2026-10-07", {});
+    expect(grid[22].when).toBe("past");
+    expect(grid[23].when).toBe("today");
+    expect(grid[24].when).toBe("future");
+    expect(grid[34].when).toBe("future");
   });
 
   it("crosses a month boundary correctly", () => {
-    const grid = buildGrid({}, new Date(2026, 2, 1)); // Sunday, 1 March 2026
-    expect(grid[0]?.date).toBe("2026-02-02");
-    expect(grid[27]?.date).toBe("2026-03-01");
+    const grid = buildGrid({}, "2026-03-01", {}); // Sunday, 1 March 2026
+    expect(grid[0].date).toBe("2026-02-02");
+    expect(grid[27].date).toBe("2026-03-01");
+    expect(grid[28].date).toBe("2026-03-02");
   });
 
-  it("applies the seconds of each day and their tone", () => {
-    const grid = buildGrid({ "2026-10-05": 50 * 60, "2026-09-14": 60 }, new Date(2026, 9, 5));
-    expect(grid[21]).toEqual({ date: "2026-10-05", secs: 3000, level: 3 });
-    expect(grid[0]).toEqual({ date: "2026-09-14", secs: 60, level: 1 });
-    expect(grid[1]?.level).toBe(0);
+  it("applies the seconds and tone of the past, and planned tasks of the future", () => {
+    const grid = buildGrid(
+      { "2026-10-05": 50 * 60, "2026-09-14": 60 },
+      "2026-10-05",
+      { "2026-10-09": 2 },
+    );
+    expect(grid[21]).toMatchObject({ date: "2026-10-05", secs: 3000, level: 3, when: "today" });
+    expect(grid[0]).toMatchObject({ secs: 60, level: 1 });
+    expect(grid[25]).toMatchObject({ date: "2026-10-09", planned: 2, level: 0 });
+    expect(grid[26].planned).toBe(0);
+  });
+});
+
+describe("streak", () => {
+  it("counts days in a row with focus, ending today", () => {
+    const secs = { "2026-10-05": 60, "2026-10-04": 60, "2026-10-03": 60, "2026-10-01": 60 };
+    expect(streak(secs, "2026-10-05")).toBe(3);
+  });
+
+  it("still counts from yesterday while today has nothing yet", () => {
+    expect(streak({ "2026-10-04": 60, "2026-10-03": 60 }, "2026-10-05")).toBe(2);
+  });
+
+  it("is zero when neither today nor yesterday had focus", () => {
+    expect(streak({ "2026-10-03": 60 }, "2026-10-05")).toBe(0);
+  });
+});
+
+describe("weekTotal", () => {
+  it("adds Monday up to today", () => {
+    const secs = { "2026-10-04": 999, "2026-10-05": 600, "2026-10-07": 1200, "2026-10-08": 50 };
+    expect(weekTotal(secs, "2026-10-07")).toBe(1800);
   });
 });
 
@@ -71,9 +93,5 @@ describe("durations", () => {
     expect(formatDuration(2700)).toBe("45min");
     expect(formatDuration(3600)).toBe("1h");
     expect(formatDuration(5100)).toBe("1h 25min");
-  });
-
-  it("builds the tooltip as dd/mm — duration", () => {
-    expect(cellTitle({ date: "2026-10-05", secs: 5100, level: 3 })).toBe("05/10 — 1h 25min");
   });
 });

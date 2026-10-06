@@ -36,6 +36,24 @@ export interface Task {
   created_at: string;
   source: TaskSource;
   spent_secs: number;
+  /** "AAAA-MM-DD" the task is planned for. */
+  day: string;
+  /** Epoch ms when it was checked off; null while open. */
+  done_at: number | null;
+  project: string | null;
+  /** The PR/issue it came from. */
+  url: string | null;
+}
+
+/** One block of work that ended (title/project as they were then). */
+export interface Session {
+  task_id: string;
+  title: string;
+  project: string | null;
+  /** Local date the block ended on. */
+  day: string;
+  ended_ms: number;
+  secs: number;
 }
 
 export interface GithubItem {
@@ -54,6 +72,10 @@ export interface StateSnapshot {
   timer: TimerView;
   /** "AAAA-MM-DD" -> seconds of focus that ended on that day. */
   focus_secs_by_day: Record<string, number>;
+  /** Blocks of the last 42 days. */
+  sessions: Session[];
+  /** The backend's local date, "AAAA-MM-DD". */
+  today: string;
   config: AppConfig;
   github_items: GithubItem[];
   github_error: string | null;

@@ -3,6 +3,7 @@ import type { GithubItem, StateSnapshot } from "../lib/types";
 import {
   clearGithubToken,
   connectGithubWithGh,
+  fire,
   githubGhAvailable,
   importGithubItemAsTask,
   refreshGithub,
@@ -127,7 +128,7 @@ function GithubRow({ item }: { item: GithubItem }) {
       </a>
       <div className="github-meta">
         <span>{item.repository}</span>
-        <button onClick={() => importGithubItemAsTask(item.title, `${item.repository} #${item.number}`)}>
+        <button onClick={() => fire(importGithubItemAsTask(item))}>
           + Tarefa
         </button>
       </div>

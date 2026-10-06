@@ -1,26 +1,41 @@
 import type { PointerEvent } from "react";
 import type { Task, TimerView } from "../lib/types";
-import { removeTask, startTask, toggleTask, toggleTimerPause, updateTaskMinutes } from "../lib/tauri";
+import {
+  fire,
+  moveTask,
+  nudgeTaskMinutes,
+  removeTask,
+  startTask,
+  toggleTask,
+  toggleTimerPause,
+} from "../lib/tauri";
 import { formatClock, remainingSecs } from "../lib/progress";
-import { CheckIcon, ClockIcon, GripIcon, PauseIcon, PlayIcon } from "./icons";
+import { addDays } from "../lib/day";
+import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, PauseIcon, PlayIcon } from "./icons";
 
 interface Props {
   task: Task;
   timer: TimerView;
   now: number;
+  /** The day the list is showing; "→" moves the task to the day after it. */
+  viewDay: string;
+  /** "02/10" when the task was left over from an earlier day. */
+  carried: string | null;
   dragging: boolean;
   /** Where the drop guide line is drawn relative to this row, if at all. */
   guide: "before" | "after" | null;
   rowRef: (el: HTMLDivElement | null) => void;
   onHandleDown: (e: PointerEvent<HTMLButtonElement>) => void;
   onHandleMove: (e: PointerEvent<HTMLButtonElement>) => void;
-  onHandleUp: () => void;
+  onHandleUp: (e: PointerEvent<HTMLButtonElement>) => void;
 }
 
 export default function TaskRow({
   task,
   timer,
   now,
+  viewDay,
+  carried,
   dragging,
   guide,
   rowRef,
@@ -39,13 +54,14 @@ export default function TaskRow({
   ]
     .filter(Boolean)
     .join(" ");
+  const details = [task.project, task.note, carried && `de ${carried}`].filter(Boolean).join(" · ");
 
   return (
     <div ref={rowRef} className={classes}>
       <button
         className="check"
         aria-label={task.done ? "Reabrir tarefa" : "Concluir tarefa"}
-        onClick={() => void toggleTask(task.id)}
+        onClick={() => fire(toggleTask(task.id))}
       >
         {task.done && <CheckIcon />}
       </button>
@@ -54,21 +70,29 @@ export default function TaskRow({
         <div className="task-title" title={task.title}>
           {task.title}
         </div>
-        {task.note && <div className="task-note">{task.note}</div>}
+        {details && <div className="task-note">{details}</div>}
       </div>
 
       {!task.done && (
         <>
+          <button
+            className="move"
+            aria-label="Mover pro dia seguinte"
+            title="Mover pro dia seguinte"
+            onClick={() => fire(moveTask(task.id, addDays(viewDay, 1)))}
+          >
+            <ArrowRightIcon />
+          </button>
           <div className="minutes">
             <ClockIcon />
             <span className="minutes-value">
               {active ? formatClock(remainingSecs(timer, now)) : task.minutes}
             </span>
             <span className="stepper">
-              <button aria-label="Mais 5 minutos" onClick={() => void updateTaskMinutes(task.id, task.minutes + 5)}>
+              <button aria-label="Mais 5 minutos" onClick={() => fire(nudgeTaskMinutes(task.id, 5))}>
                 ▲
               </button>
-              <button aria-label="Menos 5 minutos" onClick={() => void updateTaskMinutes(task.id, task.minutes - 5)}>
+              <button aria-label="Menos 5 minutos" onClick={() => fire(nudgeTaskMinutes(task.id, -5))}>
                 ▼
               </button>
             </span>
@@ -76,21 +100,21 @@ export default function TaskRow({
           <button
             className="play"
             aria-label={running ? "Pausar" : "Iniciar"}
-            onClick={() => void (running ? toggleTimerPause() : startTask(task.id))}
+            onClick={() => fire(running ? toggleTimerPause() : startTask(task.id))}
           >
             {running ? <PauseIcon /> : <PlayIcon />}
           </button>
         </>
       )}
 
-      <button className="remove" aria-label="Remover tarefa" onClick={() => void removeTask(task.id)}>
+      <button className="remove" aria-label="Remover tarefa" onClick={() => fire(removeTask(task.id))}>
         ×
       </button>
 
       {!task.done && (
         <button
           className="handle"
-          aria-label="Arrastar para reordenar"
+          aria-label="Arrastar para reordenar ou para um dia"
           onPointerDown={onHandleDown}
           onPointerMove={onHandleMove}
           onPointerUp={onHandleUp}

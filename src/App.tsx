@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { AppConfig, StateSnapshot } from "./lib/types";
-import { getState, onStateChanged, updateSettings } from "./lib/tauri";
+import { fire, getState, onStateChanged, updateSettings } from "./lib/tauri";
 import GithubPanel from "./components/GithubPanel";
 import FocusSection from "./settings/FocusSection";
 import GeneralSection from "./settings/GeneralSection";
@@ -20,10 +20,19 @@ const SECTIONS: { id: Section; label: string; glyph: string; color: string }[] =
 export default function App() {
   const [state, setState] = useState<StateSnapshot | null>(null);
   const [section, setSection] = useState<Section>("focus");
+  // The config as last sent. Two controls changed before the backend answers
+  // must both land: each patch goes on top of this, not of the last render.
+  const sent = useRef<AppConfig | null>(null);
+  const pending = useRef(0);
 
   useEffect(() => {
-    getState().then(setState);
-    const unlisten = onStateChanged(setState);
+    const receive = (snapshot: StateSnapshot) => {
+      // An answer to an older send must not roll back a newer one in flight.
+      if (pending.current === 0) sent.current = snapshot.config;
+      setState(snapshot);
+    };
+    getState().then(receive);
+    const unlisten = onStateChanged(receive);
     return () => {
       unlisten.then((f) => f());
     };
@@ -34,7 +43,10 @@ export default function App() {
   }
 
   const set = (patch: Partial<AppConfig>) => {
-    void updateSettings({ ...state.config, ...patch });
+    const next = { ...(sent.current ?? state.config), ...patch };
+    sent.current = next;
+    pending.current++;
+    fire(updateSettings(next).finally(() => pending.current--));
   };
   const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
 

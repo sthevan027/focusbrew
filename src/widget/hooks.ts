@@ -99,5 +99,16 @@ export function useHoverOpen(
       holding.current = value;
       schedule();
     },
+    /** Opens right away, no hover delay (a click on the bar). */
+    openNow: () => {
+      clear();
+      if (!openRef.current) apply(true);
+    },
+    /** Closes right away, whatever holds it (Esc, a click elsewhere). */
+    closeNow: () => {
+      clear();
+      holding.current = false;
+      if (openRef.current) apply(false);
+    },
   };
 }
