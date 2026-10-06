@@ -1,6 +1,9 @@
+mod alerts;
+mod autostart;
 mod commands;
 mod config;
 mod github;
+mod shortcuts;
 mod state;
 mod tracker;
 mod widget;
@@ -13,11 +16,12 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{image::Image, AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::ShortcutState;
 
+use alerts::{Alert, Moment};
+use chrono::Timelike;
 use state::{AppState, StateSnapshot};
 use tracker::timer::TimerStatus;
 use tracker::{now_ms, today_key, Finished};
 
-const HOTKEY: &str = "CommandOrControl+Shift+Space";
 
 const TRAY_ICON: &[u8] = include_bytes!("../icons/tray/idle.png");
 
@@ -82,6 +86,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
     };
     let window_layout = widget::window_layout(&state.config);
     let zone = widget::hot_zone(&state.config, state.tracker.timer.status());
+    let monitor = state.config.monitor.clone();
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if tooltip_changed {
@@ -89,7 +94,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
                 let _ = tray.set_tooltip(Some(tooltip));
             }
         }
-        widget::apply(&handle, window_layout, zone);
+        widget::apply(&handle, window_layout, zone, monitor.as_deref());
     });
     let _ = app.emit("state-changed", StateSnapshot::from(state));
 }
@@ -110,7 +115,62 @@ pub(crate) fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Ctrl+Shift+Space: pause/resume the active block, or start the first open task.
+/// The panel shortcut: the widget opens (pinned) or closes its panel, and
+/// gets the keyboard so Esc and typing work right away.
+fn panel_action(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("widget") {
+        let _ = window.set_focus();
+    }
+    let _ = app.emit_to("widget", "toggle-panel", ());
+}
+
+fn alert_text(alert: &Alert) -> (String, String) {
+    match alert {
+        Alert::BeforeEnd { title, mins } => (
+            format!("Falta{} {mins} min", if *mins > 1 { "m" } else { "" }),
+            title.clone(),
+        ),
+        Alert::GoalReached { mins } => (
+            "Meta do dia batida".to_string(),
+            format!("{} de foco hoje", tracker_duration(*mins)),
+        ),
+        Alert::IdleReminder { mins } => (
+            format!("Nada rodando há {mins} min"),
+            "Que tal começar a próxima tarefa?".to_string(),
+        ),
+    }
+}
+
+/// "2h", "1h 30min", "45min".
+fn tracker_duration(mins: u32) -> String {
+    match (mins / 60, mins % 60) {
+        (0, m) => format!("{m}min"),
+        (h, 0) => format!("{h}h"),
+        (h, m) => format!("{h}h {m}min"),
+    }
+}
+
+/// What the alerts look at, taken from the state at one tick.
+fn check_alerts(state: &mut AppState, now: i64, today: &str) -> Vec<Alert> {
+    let tracker = &state.tracker;
+    let block = tracker.timer.task_id().map(|id| {
+        let title = tracker.tasks.iter().find(|t| t.id == id).map(|t| t.title.clone()).unwrap_or_default();
+        (id.to_string(), tracker.timer.planned_secs(), tracker.timer.remaining_secs(now), title)
+    });
+    let recorded = tracker.log.focus_secs_by_day.get(today).copied().unwrap_or(0);
+    let moment = Moment {
+        now_ms: now,
+        today,
+        hour: chrono::Local::now().hour(),
+        status: tracker.timer.status(),
+        block: block.as_ref().map(|(id, planned, left, title)| (id.as_str(), *planned, *left, title.as_str())),
+        focus_today_secs: recorded.saturating_add(tracker.timer.elapsed_secs(now)),
+        has_tasks_today: tracker.tasks.iter().any(|t| !t.done && t.day.as_str() <= today),
+    };
+    state.alerts.check(&state.config, &moment)
+}
+
+/// Pause/resume the active block, or start the first open task of today.
 fn hotkey_action(app: &AppHandle) {
     let shared = app.state::<Shared>();
     let mut state = shared.lock();
@@ -135,6 +195,7 @@ fn spawn_tick_loop(app: AppHandle) {
             let now = now_ms();
             let today = today_key();
             let mut to_notify: Option<Finished> = None;
+            let alerts;
             {
                 let shared = app.state::<Shared>();
                 let mut state = shared.lock();
@@ -151,9 +212,14 @@ fn spawn_tick_loop(app: AppHandle) {
                 if finished.is_some() || state.tracker.timer != before {
                     sync_ui(&app, &state);
                 }
+                alerts = check_alerts(&mut state, now, &today);
             }
             if let Some(done) = to_notify {
                 notify_finished(&app, &done);
+            }
+            for alert in &alerts {
+                let (title, body) = alert_text(alert);
+                notify(&app, &title, &body);
             }
         }
     });
@@ -185,14 +251,19 @@ fn spawn_github_refresh_loop(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The shortcuts themselves come from the settings and are registered in
+    // `setup` (see `shortcuts::apply`); this only routes a press to its action.
     let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
-        .with_handler(|app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                hotkey_action(app);
+        .with_handler(|app, shortcut, event| {
+            if event.state != ShortcutState::Pressed {
+                return;
+            }
+            match shortcuts::action_for(shortcut) {
+                Some(shortcuts::Action::Toggle) => hotkey_action(app),
+                Some(shortcuts::Action::Panel) => panel_action(app),
+                None => {}
             }
         })
-        .with_shortcut(HOTKEY)
-        .expect("invalid global shortcut definition")
         .build();
 
     let mut builder = tauri::Builder::default();
@@ -218,6 +289,9 @@ pub fn run() {
             commands::move_task,
             commands::edit_task,
             commands::project_totals,
+            commands::set_shortcuts,
+            commands::set_launch_at_login,
+            commands::list_monitors,
             commands::reorder_tasks,
             commands::start_task,
             commands::toggle_pause,
@@ -281,7 +355,19 @@ pub fn run() {
             widget::create(app.handle())?;
             {
                 let shared = handle.state::<Shared>();
-                let state = shared.lock();
+                let mut state = shared.lock();
+                // A shortcut another app took since last time: fall back to the
+                // defaults rather than having none.
+                if shortcuts::apply(&handle, &state.config.shortcut_toggle, &state.config.shortcut_panel).is_err() {
+                    state.config.shortcut_toggle = config::DEFAULT_SHORTCUT_TOGGLE.to_string();
+                    state.config.shortcut_panel = config::DEFAULT_SHORTCUT_PANEL.to_string();
+                    let _ = shortcuts::apply(&handle, config::DEFAULT_SHORTCUT_TOGGLE, config::DEFAULT_SHORTCUT_PANEL);
+                }
+                // The Run key may have been removed by hand (or by another
+                // machine's settings file): make it match the setting.
+                if autostart::is_enabled() != state.config.launch_at_login {
+                    let _ = autostart::set(state.config.launch_at_login);
+                }
                 sync_ui(&handle, &state);
             }
             spawn_tick_loop(handle.clone());

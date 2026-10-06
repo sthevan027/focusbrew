@@ -67,7 +67,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 /// Pins the window to the very top of the primary monitor, centered, and
 /// records the mouse area for `zone`. Must run on the main thread (`sync_ui`
 /// posts it there).
-pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout) {
+pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout, monitor_name: Option<&str>) {
     let Some(window) = app.get_webview_window("widget") else {
         return;
     };
@@ -77,12 +77,21 @@ pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout) {
         let _ = window.hide();
         return;
     }
-    let place = |layout: &Layout| match window.primary_monitor() {
-        Ok(Some(monitor)) => {
+    // The chosen monitor if it's still plugged in, otherwise the primary one.
+    let chosen = monitor_name.and_then(|name| {
+        window
+            .available_monitors()
+            .ok()?
+            .into_iter()
+            .find(|m| m.name().map(String::as_str) == Some(name))
+    });
+    let monitor = chosen.or_else(|| window.primary_monitor().ok().flatten());
+    let place = |layout: &Layout| match &monitor {
+        Some(monitor) => {
             let pos = monitor.position();
             physical_bounds(pos.x, pos.y, monitor.size().width, monitor.scale_factor(), layout)
         }
-        _ => physical_bounds(0, 0, FALLBACK_MONITOR_WIDTH, 1.0, layout),
+        None => physical_bounds(0, 0, FALLBACK_MONITOR_WIDTH, 1.0, layout),
     };
     *ZONE.lock().unwrap() = Some(place(&zone));
     let bounds = place(&window_layout);
@@ -172,6 +181,34 @@ pub fn physical_bounds(mon_x: i32, mon_y: i32, mon_width: u32, scale: f64, layou
     let w = (layout.width * s).round() as i32;
     let h = (layout.height * s).round() as i32;
     (mon_x + (mon_width as i32 - w).div_euclid(2), mon_y, w, h)
+}
+
+/// A monitor the widget can sit on, as the settings list it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MonitorChoice {
+    /// What `AppConfig::monitor` stores.
+    pub name: String,
+    /// "Monitor 2 — 2560×1440 (principal)".
+    pub label: String,
+}
+
+pub fn monitors(app: &AppHandle) -> Vec<MonitorChoice> {
+    let Some(window) = app.get_webview_window("widget") else {
+        return Vec::new();
+    };
+    let primary = window.primary_monitor().ok().flatten().and_then(|m| m.name().cloned());
+    window
+        .available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, m)| {
+            let name = m.name()?.clone();
+            let size = m.size();
+            let main = if primary.as_deref() == Some(name.as_str()) { " (principal)" } else { "" };
+            Some(MonitorChoice { label: format!("Monitor {} — {}×{}{main}", i + 1, size.width, size.height), name })
+        })
+        .collect()
 }
 
 pub fn contains((x, y, w, h): Bounds, px: i32, py: i32) -> bool {

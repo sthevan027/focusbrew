@@ -7,6 +7,7 @@ use crate::tracker::activity::{self, ProjectTotal};
 use crate::tracker::tasks::{self, TaskSource};
 use crate::tracker::{now_ms, today_key};
 use crate::widget;
+use crate::{autostart, shortcuts};
 use crate::{notify_finished, sync_ui, Shared};
 
 #[tauri::command]
@@ -138,6 +139,44 @@ pub fn stop_timer(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
     apply(&app, &shared, |state, now, today| state.tracker.stop(now, today)).0
 }
 
+/// Swaps the two global shortcuts; an invalid or taken one is refused and
+/// the old ones stay.
+#[tauri::command]
+pub fn set_shortcuts(
+    toggle: String,
+    panel: String,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> Result<StateSnapshot, String> {
+    let (toggle, panel) = (toggle.trim().to_string(), panel.trim().to_string());
+    shortcuts::apply(&app, &toggle, &panel)?;
+    let mut state = shared.lock();
+    state.config.shortcut_toggle = toggle;
+    state.config.shortcut_panel = panel;
+    let _ = config::save(&state.config);
+    sync_ui(&app, &state);
+    Ok(StateSnapshot::from(&*state))
+}
+
+#[tauri::command]
+pub fn set_launch_at_login(
+    enabled: bool,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> Result<StateSnapshot, String> {
+    autostart::set(enabled)?;
+    let mut state = shared.lock();
+    state.config.launch_at_login = enabled;
+    let _ = config::save(&state.config);
+    sync_ui(&app, &state);
+    Ok(StateSnapshot::from(&*state))
+}
+
+#[tauri::command]
+pub fn list_monitors(app: AppHandle) -> Vec<widget::MonitorChoice> {
+    widget::monitors(&app)
+}
+
 #[tauri::command]
 pub fn update_settings(
     new_config: AppConfig,
@@ -146,10 +185,14 @@ pub fn update_settings(
 ) -> StateSnapshot {
     let mut state = shared.lock();
     let mut config = new_config.normalized();
-    // The GitHub login and the gh switch belong to the GitHub commands; a
+    // The GitHub login and the gh switch belong to the GitHub commands, and
+    // shortcuts and start-with-Windows to their own (they can fail); a
     // settings form holding an older copy must not overwrite them.
     config.github_login = state.config.github_login.clone();
     config.github_use_gh = state.config.github_use_gh;
+    config.shortcut_toggle = state.config.shortcut_toggle.clone();
+    config.shortcut_panel = state.config.shortcut_panel.clone();
+    config.launch_at_login = state.config.launch_at_login;
     state.config = config;
     let _ = config::save(&state.config);
     sync_ui(&app, &state);

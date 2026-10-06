@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
+use crate::alerts::Alerts;
 use crate::config::AppConfig;
 use crate::github::{GithubEvent, GithubItem, TokenSource};
 use crate::tracker::activity::Session;
@@ -11,6 +12,8 @@ use crate::tracker::{activity, now_ms, today_key, Tracker};
 
 pub struct AppState {
     pub config: AppConfig,
+    /// Heads-up, daily goal and idle reminder bookkeeping.
+    pub alerts: Alerts,
     /// The tasks, the running block and the per-day log.
     pub tracker: Tracker,
     /// When the 1 s loop last ran, to notice the computer sleeping.
@@ -32,6 +35,7 @@ impl AppState {
         tasks::fill_missing_days(&mut list, &today_key());
         Self {
             config: crate::config::load(),
+            alerts: Alerts::default(),
             tracker: Tracker::new(list, activity::load()),
             last_tick_ms: now_ms(),
             github_items: Vec::new(),
@@ -149,6 +153,7 @@ impl AppState {
     fn for_test() -> Self {
         Self {
             config: AppConfig::default(),
+            alerts: Alerts::default(),
             tracker: Tracker::new(Vec::new(), activity::ActivityLog::default()),
             last_tick_ms: 0,
             github_items: Vec::new(),
