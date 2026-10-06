@@ -1,6 +1,6 @@
 [package]
 name = "focusbrew"
-version = "0.1.1"
+version = "0.3.0"
 description = "Tray app that shows when you're deep in AI-assisted dev work and locks in focus mode"
 authors = ["Sthevan Santos"]
 edition = "2021"
@@ -24,7 +24,6 @@ tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sysinfo = "0.32"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "process"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 directories = "5"
@@ -33,12 +32,12 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 uuid = { version = "1", features = ["v4", "serde"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 
-[target.'cfg(windows)'.dependencies]
-winreg = "0.52"
-
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
 
+# Same version as tauri's own, so `WebviewWindow::hwnd()` hands us this crate's HWND.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

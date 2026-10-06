@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { GithubItem, StateSnapshot } from "../lib/types";
+import { dayLabel } from "../lib/day";
+import { linkedTask } from "../lib/github";
 import {
   clearGithubToken,
   connectGithubWithGh,
+  fire,
   githubGhAvailable,
   importGithubItemAsTask,
   refreshGithub,
@@ -108,7 +112,7 @@ export default function GithubPanel({ state }: { state: StateSnapshot }) {
 
       <ul className="github-list">
         {state.github_items.map((item) => (
-          <GithubRow key={`${item.repository}-${item.number}`} item={item} />
+          <GithubRow key={`${item.repository}-${item.number}`} item={item} state={state} />
         ))}
       </ul>
 
@@ -119,17 +123,29 @@ export default function GithubPanel({ state }: { state: StateSnapshot }) {
   );
 }
 
-function GithubRow({ item }: { item: GithubItem }) {
+function GithubRow({ item, state }: { item: GithubItem; state: StateSnapshot }) {
+  const task = linkedTask(item, state.tasks);
+  const planned = task && !task.done ? (task.day < state.today ? state.today : task.day) : null;
   return (
     <li className="github-row">
-      <a href={item.html_url} target="_blank" rel="noreferrer">
+      <a
+        href={item.html_url}
+        onClick={(e) => {
+          e.preventDefault();
+          if (item.html_url.startsWith("https://")) fire(openUrl(item.html_url));
+        }}
+      >
         {item.is_pull_request ? "PR" : "Issue"} #{item.number} — {item.title}
       </a>
       <div className="github-meta">
         <span>{item.repository}</span>
-        <button onClick={() => importGithubItemAsTask(`${item.repository} #${item.number} — ${item.title}`)}>
-          + Tarefa
-        </button>
+        {task ? (
+          <span className="github-linked">
+            {task.done ? "✓ tarefa feita" : `já é tarefa · ${dayLabel(planned!, state.today).toLowerCase()}`}
+          </span>
+        ) : (
+          <button onClick={() => fire(importGithubItemAsTask(item))}>+ Tarefa</button>
+        )}
       </div>
     </li>
   );

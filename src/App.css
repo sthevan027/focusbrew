@@ -1,740 +1,415 @@
-:root {
-  color-scheme: dark;
-  /* Espresso-dark palette — warm brown-black, not neutral gray, so the app
-     reads as "coffee at night" rather than generic dev-tool dark mode. */
-  --bg: #17130f;
-  --panel: #221b14;
-  --panel-2: #2b2118;
-  --border: rgba(243, 232, 214, 0.1);
-  --text: #f3e8d9;
-  --muted: #a6957f;
-  --brew: #d99a4e;
-  --brew-strong: #e8b06c;
-  --accent: #8fbf6f;
-  --focus: #e0604a;
-  --coffee: #b98650;
-
-  --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Noto Serif", serif;
-  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
-  font-family: "Segoe UI", system-ui, sans-serif;
+.settings {
+  --accent: #0a84ff;
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  background: #1c1c1e;
+  color: #f2f2f3;
+  font: 13px/1.4 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
-
-* {
+.settings *,
+.settings *::before,
+.settings *::after {
   box-sizing: border-box;
 }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
+.settings.loading {
+  display: grid;
+  place-items: center;
+  color: #8a8a90;
 }
 
-.container {
-  padding: 1.25rem 1.5rem 2rem;
-  max-width: 720px;
-  margin: 0 auto;
+/* ---- sidebar ---- */
+.settings .sidebar {
+  background: #161618;
+  border-right: 1px solid #2a2a2d;
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-
-.loading {
+.settings .brand {
+  padding: 2px 10px 14px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.settings .nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 100vh;
+  gap: 10px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #d6d6da;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.settings .nav-item:hover {
+  background: #232326;
+}
+.settings .nav-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+.settings .nav-glyph {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: #fff;
 }
 
-.app-header {
+/* ---- content ---- */
+.settings .content {
+  padding: 22px 28px;
+  overflow-y: auto;
+}
+.settings .content h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+.settings .lead {
+  margin: 0 0 18px;
+  color: #8a8a90;
+}
+
+.settings .lead code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #232326;
+  color: #f2f2f3;
+}
+
+.settings .group {
+  background: #232326;
+  border-radius: 12px;
+  margin: 0 0 16px;
+}
+
+.settings .projects {
+  width: 100%;
+  border-collapse: collapse;
+  background: #232326;
+  border-radius: 12px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.settings .projects th,
+.settings .projects td {
+  padding: 10px 14px;
+  text-align: right;
+}
+.settings .projects th:first-child,
+.settings .projects td:first-child {
+  text-align: left;
+}
+.settings .projects th {
+  color: #8a8a90;
+  font-size: 12px;
+  font-weight: 600;
+}
+.settings .projects tbody tr {
+  border-top: 1px solid #2e2e32;
+}
+.settings .projects .muted {
+  color: #8a8a90;
+}
+.settings .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
+  gap: 16px;
+  padding: 12px 14px;
+}
+.settings .row + .row {
+  border-top: 1px solid #2e2e32;
+}
+.settings .row-title {
+  font-weight: 600;
+}
+.settings .row-hint {
+  color: #8a8a90;
+  font-size: 12px;
+}
+.settings .version {
+  color: #8a8a90;
+  white-space: nowrap;
 }
 
-.app-header h1 {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 1.3rem;
-  margin: 0;
-  letter-spacing: 0.01em;
-  color: var(--brew-strong);
-}
-
-.tabs {
-  display: flex;
-  gap: 1.1rem;
-}
-
-.tabs button {
-  background: transparent;
+/* ---- controls ---- */
+.settings .switch {
+  flex: none;
+  width: 40px;
+  height: 24px;
+  padding: 2px;
   border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  padding: 0.3rem 0.05rem;
+  border-radius: 12px;
+  background: #3a3a3e;
   cursor: pointer;
-  font-size: 0.85rem;
-  border-radius: 0;
+  transition: background 0.15s;
+}
+.settings .switch span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.settings .switch.on {
+  background: var(--accent);
+}
+.settings .switch.on span {
+  transform: translateX(16px);
 }
 
-.tabs button.active {
-  color: var(--text);
-  border-bottom-color: var(--brew);
-}
-
-.actions {
+.settings .segmented {
   display: flex;
-  justify-content: center;
-}
-
-button {
-  background: var(--panel-2);
-  color: var(--text);
-  border: 1px solid var(--border);
+  padding: 2px;
   border-radius: 8px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-size: 0.9rem;
+  background: #2e2e32;
 }
-
-button:hover {
-  border-color: var(--brew);
-}
-
-button.secondary {
-  border-color: var(--focus);
-}
-
-.link-button {
-  background: transparent;
+.settings .segmented button {
+  padding: 5px 12px;
   border: none;
-  color: var(--brew-strong);
+  border-radius: 6px;
+  background: none;
+  color: #d6d6da;
+  font: inherit;
+  cursor: pointer;
+}
+.settings .segmented button[aria-checked="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.settings .swatches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings .swatch {
+  width: 22px;
+  height: 22px;
   padding: 0;
-  font-size: 0.8rem;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.settings .swatch[aria-checked="true"] {
+  border-color: #fff;
 }
 
-.link-button:hover {
-  text-decoration: underline;
+.settings input[type="text"],
+.settings input[type="number"],
+.settings input[type="password"] {
+  padding: 6px 10px;
+  border: 1px solid #3a3a3e;
+  border-radius: 8px;
+  background: #2e2e32;
+  color: inherit;
+  font: inherit;
+}
+.settings input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.settings .hex {
+  width: 92px;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.settings .minutes-input {
+  width: 76px;
 }
 
-/* --- Status "cup" — the signature element. A gradient rises from the
-   bottom like coffee filling the card as the current focus/break phase
-   progresses, tying the panel back to the tray icon and the app icon
-   (both a mug), not just a decorative border color. --- */
-.status-cup {
-  position: relative;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  margin-bottom: 1.25rem;
+.settings .select,
+.settings .shortcut {
+  min-width: 150px;
+  padding: 6px 10px;
+  border: 1px solid #3a3a3e;
+  border-radius: 8px;
+  background: #1c1c1e;
+  color: #f2f2f3;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
 }
-
-.status-cup-fill {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, var(--fill-color, var(--brew)) 0%, var(--fill-color, var(--brew)) 100%);
-  opacity: 0.16;
-  height: calc(var(--fill, 0) * 100%);
-  bottom: 0;
-  top: auto;
-  transition: height 0.6s ease;
+.settings .select:focus,
+.settings .shortcut:focus {
+  outline: none;
+  border-color: var(--accent);
 }
-
-.status-cup-body {
-  position: relative;
-  padding: 1.6rem 1.5rem;
-  text-align: center;
+.settings .shortcut {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
 }
-
-.status-cup.status-working {
-  --fill-color: var(--accent);
-}
-.status-cup.status-working .status-cup-body h2 {
+.settings .shortcut.recording {
+  border-color: var(--accent);
   color: var(--accent);
 }
 
-.status-cup.status-focus {
-  --fill-color: var(--focus);
-}
-.status-cup.status-focus .status-cup-body h2 {
-  color: var(--focus);
-}
-
-.status-cup.status-coffee {
-  --fill-color: var(--coffee);
-}
-.status-cup.status-coffee .status-cup-body h2 {
-  color: var(--coffee);
-}
-
-.status-cup h2 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  margin: 0 0 0.4rem;
-  font-size: 1.4rem;
-  color: var(--text);
-}
-
-.status-cup .timer {
-  font-family: var(--font-mono);
-  font-size: 2.75rem;
-  font-variant-numeric: tabular-nums;
-  margin: 0.1rem 0 0.3rem;
-}
-
-.status-cup .hint {
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin: 0 0 1.1rem;
-}
-
-.status-cup .actions {
-  margin: 0;
-}
-
-input {
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.9rem;
-}
-
-.task-form {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.task-form input {
-  flex: 1;
-}
-
-.task-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.task-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-}
-
-.task-row label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.task-row.done span {
-  text-decoration: line-through;
-  color: var(--muted);
-}
-
-.task-row .remove {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 1.1rem;
-  padding: 0 0.25rem;
-}
-
-.badge {
-  font-size: 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.1rem 0.5rem;
-  color: var(--muted);
-}
-
-.task-done {
-  margin-top: 1rem;
-  color: var(--muted);
-}
-
-.empty {
-  color: var(--muted);
-  text-align: center;
-  padding: 1rem 0;
-}
-
-.error {
-  color: var(--focus);
-  font-size: 0.85rem;
-}
-
-/* --- Ticket — the daily summary, styled like a coffee-shop receipt
-   instead of a row of generic big-number stat tiles. Dotted leaders
-   between label and value are the whole idea. --- */
-.ticket {
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.25rem 1.4rem;
-  margin-bottom: 1.25rem;
-}
-
-.ticket-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.9rem;
-}
-
-.ticket-header h3 {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
-  margin: 0;
-  font-size: 1.05rem;
-  color: var(--brew-strong);
-}
-
-.ticket-date {
-  font-family: var(--font-mono);
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.ticket-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.3rem 0;
-  font-size: 0.9rem;
-}
-
-.ticket-row .label {
-  white-space: nowrap;
-}
-
-.ticket-row .leader {
-  flex: 1;
-  border-bottom: 1px dotted var(--border);
-  margin-bottom: 0.3rem;
-}
-
-.ticket-row .value {
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.ticket-row-muted {
-  color: var(--muted);
-  font-size: 0.78rem;
-  margin-top: 0.2rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
-}
-
-.ticket-sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin: 1rem 0 0.6rem;
-}
-
-.app-usage-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.app-usage-row {
+/* ---- the Standard / Minimal cards ---- */
+.settings .cards {
   display: grid;
-  grid-template-columns: 1.4rem 6.5rem 1fr 3.5rem;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.8rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 6px;
 }
-
-.app-badge {
-  width: 1.4rem;
-  height: 1.4rem;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: #17130f;
-  letter-spacing: -0.02em;
+.settings .cards-hint {
+  margin: 0 0 16px;
 }
-
-.app-usage-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-usage-bar-track {
-  background: var(--panel);
-  border-radius: 999px;
-  height: 6px;
-  overflow: hidden;
-}
-
-.app-usage-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--brew);
-  border-radius: 999px;
-}
-
-.app-usage-time {
-  color: var(--muted);
-  text-align: right;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.75rem;
-}
-
-/* --- Compact GitHub card on the panel: a couple of open items + the
-   contribution streak. Full list/connect flow still lives in its own
-   tab. --- */
-.github-card .ticket-header h3 {
-  color: var(--brew-strong);
-}
-
-.github-mini-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 0.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.github-mini-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-}
-
-.github-mini-row a {
-  color: var(--text);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.github-mini-row a:hover {
-  text-decoration: underline;
-}
-
-.heat {
-  margin-top: 0.8rem;
-}
-
-.heat-scroll {
-  overflow-x: auto;
-}
-
-.heat-months {
-  display: flex;
-  margin-bottom: 0.25rem;
-}
-
-.heat-month {
-  width: 12px;
-  flex: 0 0 12px;
-  font-size: 0.6rem;
-  color: var(--muted);
-  overflow: visible;
-  white-space: nowrap;
-}
-
-.heat-grid {
-  display: flex;
-  gap: 3px;
-}
-
-.heat-dow {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-right: 2px;
-}
-
-.heat-dow-label {
-  height: 9px;
-  font-size: 0.55rem;
-  line-height: 9px;
-  color: var(--muted);
-}
-
-.heat-col {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.heat-cell {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  background: var(--panel);
-  display: block;
-}
-
-.heat-cell.lvl-1 {
-  background: color-mix(in srgb, var(--brew) 30%, var(--panel));
-}
-.heat-cell.lvl-2 {
-  background: color-mix(in srgb, var(--brew) 55%, var(--panel));
-}
-.heat-cell.lvl-3 {
-  background: color-mix(in srgb, var(--brew) 78%, var(--panel));
-}
-.heat-cell.lvl-4 {
-  background: var(--brew-strong);
-}
-
-.github-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.github-header div {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.github-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.github-row {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-}
-
-.github-row a {
-  color: var(--text);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.github-row a:hover {
-  text-decoration: underline;
-}
-
-.github-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 0.4rem;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.settings fieldset {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  padding: 0.9rem 1rem;
-}
-
-.settings legend {
-  padding: 0 0.4rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.settings label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.7rem;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.settings label.checkbox {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.settings input[type="checkbox"] {
-  width: auto;
-}
-
-.settings input[type="color"] {
-  width: 48px;
-  height: 32px;
-  padding: 2px;
-}
-
-.ring-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 0.7rem;
-}
-
-.ring-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.ring-swatch {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+.settings .notch-card {
+  padding: 10px;
   border: 2px solid transparent;
+  border-radius: 12px;
+  background: #232326;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
+}
+.settings .notch-card.selected {
+  border-color: var(--accent);
+}
+.settings .thumb {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 78px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2b2f6b, #4a2a6e 60%, #1d1633);
+}
+.settings .thumb-notch {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  width: 118px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 0 0 9px 9px;
+  background: #000;
+}
+.settings .thumb-notch.minimal {
   justify-content: center;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0;
-  overflow: hidden;
 }
-
-.ring-swatch.selected {
-  border-color: var(--text);
-  box-shadow: 0 0 0 2px var(--bg);
+.settings .t-clock {
+  width: 26px;
+  height: 5px;
+  border-radius: 3px;
+  background: #e5e5ea;
 }
-
-.ring-swatch-auto {
-  font-family: "Segoe UI", system-ui, sans-serif;
+.settings .t-title {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: #6a6a70;
 }
-
-.ring-swatch-custom {
-  background: var(--panel);
-  border: 1px dashed var(--border);
-  color: var(--muted);
-  font-size: 1rem;
-}
-
-.ring-swatch-custom input[type="color"] {
+.settings .t-line {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
+  border: 1.5px solid var(--accent);
+  border-top: none;
+  border-radius: 0 0 9px 9px;
+}
+
+/* ---- the GitHub section (components/GithubPanel.tsx keeps its own markup) ---- */
+.settings .github-panel p {
+  margin: 0 0 10px;
+}
+.settings .github-panel .hint {
+  margin-top: 18px;
+  color: #8a8a90;
+}
+.settings .github-panel code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #2e2e32;
+}
+.settings .github-panel a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.settings .github-panel button {
+  padding: 6px 12px;
   border: none;
-  opacity: 0;
+  border-radius: 8px;
+  background: #2e2e32;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
-
-.ring-picker-hint {
-  font-size: 0.75rem;
-  color: var(--muted);
+.settings .github-panel button:hover {
+  background: #38383c;
 }
-
-.chip-editor {
-  margin-bottom: 0.9rem;
+.settings .github-panel button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
-
-.chip-editor-label {
-  display: block;
-  font-size: 0.85rem;
-  color: var(--muted);
-  margin-bottom: 0.4rem;
+.settings .github-panel button.secondary {
+  background: none;
+  border: 1px solid #5c2b2b;
+  color: #ff6961;
 }
-
-.chip-list {
+.settings .task-form {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.5rem;
+  gap: 8px;
 }
-
-.chip-empty {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.25rem 0.4rem 0.25rem 0.7rem;
-  font-size: 0.8rem;
-  color: var(--text);
-}
-
-.chip-remove {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1;
-  padding: 0 0.2rem;
-  cursor: pointer;
-}
-
-.chip-remove:hover {
-  color: var(--focus);
-}
-
-.chip-add-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.chip-add-row input {
+.settings .task-form input {
   flex: 1;
 }
-
-.chip-suggestions {
+.settings .github-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
-
-.chip-suggestion {
-  background: transparent;
-  border: 1px dashed var(--border);
-  color: var(--muted);
-  border-radius: 999px;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.75rem;
-  cursor: pointer;
+.settings .github-header div {
+  display: flex;
+  gap: 8px;
 }
-
-.chip-suggestion:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.github-panel .hint {
-  color: var(--muted);
-  margin: 1.25rem 0 0.5rem;
-}
-
-.github-source {
-  color: var(--muted);
+.settings .github-source {
+  color: #8a8a90;
   font-weight: normal;
+}
+.settings .github-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings .github-row {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #232326;
+}
+.settings .github-row a {
+  color: #f2f2f3;
+  font-weight: 600;
+}
+.settings .github-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: #8a8a90;
+  font-size: 12px;
+}
+.settings .github-linked {
+  color: var(--accent);
+  font-weight: 600;
+}
+.settings .error {
+  color: #ff6961;
+}
+.settings .empty {
+  color: #8a8a90;
 }
