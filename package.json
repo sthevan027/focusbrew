@@ -1,7 +1,7 @@
 {
   "name": "focusbrew",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Tray app that shows when you're deep in AI-assisted dev work and locks in focus mode",
   "license": "MIT",
   "author": "Sthevan Santos",

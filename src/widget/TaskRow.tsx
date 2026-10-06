@@ -120,19 +120,22 @@ export default function TaskRow({
             {task.title}
           </div>
         )}
-        {details && !editing && <div className="task-note">{details}</div>}
+        {(details || task.url) && !editing && (
+          <div className="task-note">
+            {task.url && (
+              <button
+                className="link"
+                aria-label="Abrir no GitHub"
+                title="Abrir no GitHub"
+                onClick={() => fire(openUrl(task.url!))}
+              >
+                <LinkIcon size={10} />
+              </button>
+            )}
+            {details}
+          </div>
+        )}
       </div>
-
-      {task.url && (
-        <button
-          className="link"
-          aria-label="Abrir no GitHub"
-          title="Abrir no GitHub"
-          onClick={() => fire(openUrl(task.url!))}
-        >
-          <LinkIcon />
-        </button>
-      )}
 
       {!task.done && (
         <>
