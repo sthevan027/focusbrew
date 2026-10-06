@@ -22,8 +22,10 @@ function describe(cell: DayCell, state: StateSnapshot): string {
     return cell.planned > 0 ? `${label} — ${cell.planned} planejada${cell.planned > 1 ? "s" : ""}` : `${label} — nada planejado`;
   }
   const done = daySummary(state.sessions, state.tasks, cell.date).doneCount;
+  const contributions = state.github_days[cell.date] ?? 0;
   const parts = [formatDuration(cell.secs)];
   if (done > 0) parts.push(`${done} concluída${done > 1 ? "s" : ""}`);
+  if (contributions > 0) parts.push(`${contributions} no GitHub`);
   return `${label} — ${parts.join(" · ")}`;
 }
 
@@ -80,6 +82,7 @@ export default function ActivityPanel({ state, selected, onSelect, dropDay }: Pr
               onClick={() => onSelect(cell.date)}
             >
               {cell.when === "future" && cell.planned > 0 && <span className="dot" />}
+              {cell.when !== "future" && (state.github_days[cell.date] ?? 0) > 0 && <span className="gh-dot" />}
             </button>
           );
         })}
@@ -92,6 +95,11 @@ export default function ActivityPanel({ state, selected, onSelect, dropDay }: Pr
           <span key={l} className={`cell level-${l}`} />
         ))}
         mais
+        {state.config.github_login && (
+          <>
+            <span className="legend-gh" /> GitHub
+          </>
+        )}
       </div>
     </section>
   );

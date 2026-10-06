@@ -7,6 +7,7 @@ import type { PanelTab } from "../lib/day";
 import { daySummary } from "../lib/summary";
 import ActivityPanel from "./ActivityPanel";
 import DaySummaryView from "./DaySummaryView";
+import GithubTab from "./GithubTab";
 import { ChevronIcon, PinIcon } from "./icons";
 import TaskList from "./TaskList";
 
@@ -26,7 +27,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
   const { today } = state;
   const [wanted, setWanted] = useState<PanelTab>("tasks");
   const [dropDay, setDropDay] = useState<string | null>(null);
-  const tabs = tabsFor(day, today, false);
+  const tabs = tabsFor(day, today, Boolean(state.config.github_login));
   const tab = tabs.includes(wanted) ? wanted : tabs[0];
 
   let stats: string;
@@ -96,11 +97,11 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
       </header>
 
       <div className="panel-body">
-        {tab === "tasks" ? (
+        {tab === "tasks" && (
           <TaskList state={state} day={day} now={now} onHold={onHold} onDropDay={setDropDay} />
-        ) : (
-          <DaySummaryView state={state} day={day} />
         )}
+        {tab === "summary" && <DaySummaryView state={state} day={day} />}
+        {tab === "github" && <GithubTab state={state} day={day} />}
         <div className="divider" />
         <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} />
       </div>

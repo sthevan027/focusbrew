@@ -340,6 +340,10 @@
   color: #8a8a90;
   font-size: 12px;
 }
+.settings .github-linked {
+  color: var(--accent);
+  font-weight: 600;
+}
 .settings .error {
   color: #ff6961;
 }

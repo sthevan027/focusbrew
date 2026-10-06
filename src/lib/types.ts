@@ -65,6 +65,19 @@ export interface GithubItem {
   updated_at: string;
 }
 
+/** Something done on GitHub, on a local day. */
+export interface GithubEvent {
+  day: string;
+  /** "push", "pr_opened", "pr_merged", "pr_closed", "pr_reopened",
+   *  "issue_opened", "issue_closed", "issue_reopened" or "review". */
+  kind: string;
+  repo: string;
+  number: number | null;
+  title: string | null;
+  count: number;
+  at: string;
+}
+
 export type GithubTokenSource = "gh" | "manual";
 
 export interface StateSnapshot {
@@ -80,5 +93,6 @@ export interface StateSnapshot {
   github_items: GithubItem[];
   github_error: string | null;
   github_days: Record<string, number>;
+  github_events: GithubEvent[];
   github_source: GithubTokenSource | null;
 }

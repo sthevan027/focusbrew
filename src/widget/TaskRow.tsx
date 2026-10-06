@@ -1,4 +1,5 @@
 import type { PointerEvent } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Task, TimerView } from "../lib/types";
 import {
   fire,
@@ -11,7 +12,7 @@ import {
 } from "../lib/tauri";
 import { formatClock, remainingSecs } from "../lib/progress";
 import { addDays } from "../lib/day";
-import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, PauseIcon, PlayIcon } from "./icons";
+import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, LinkIcon, PauseIcon, PlayIcon } from "./icons";
 
 interface Props {
   task: Task;
@@ -54,7 +55,8 @@ export default function TaskRow({
   ]
     .filter(Boolean)
     .join(" ");
-  const details = [task.project, task.note, carried && `de ${carried}`].filter(Boolean).join(" · ");
+  // A GitHub task's note ("dono/repo #N") already names its project.
+  const details = [task.note ?? task.project, carried && `de ${carried}`].filter(Boolean).join(" · ");
 
   return (
     <div ref={rowRef} className={classes}>
@@ -72,6 +74,17 @@ export default function TaskRow({
         </div>
         {details && <div className="task-note">{details}</div>}
       </div>
+
+      {task.url && (
+        <button
+          className="link"
+          aria-label="Abrir no GitHub"
+          title="Abrir no GitHub"
+          onClick={() => fire(openUrl(task.url!))}
+        >
+          <LinkIcon />
+        </button>
+      )}
 
       {!task.done && (
         <>

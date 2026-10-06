@@ -56,7 +56,13 @@ export const ArrowRightIcon = ({ size = 12 }: IconProps) => (
   </svg>
 );
 
-export const PinIcon = ({ size = 12 }: IconProps) => (
+export const LinkIcon = ({ size = 12 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" {...stroke}>
+    <path d="M9.5 2.5h4v4M13.3 2.7L7.5 8.5M12 9.5V13a.5.5 0 0 1-.5.5h-8A.5.5 0 0 1 3 13V5a.5.5 0 0 1 .5-.5H7" />
+  </svg>
+);
+
+export const PinIcon =({ size = 12 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
     <path d="M9.8 1.6a.8.8 0 0 0-1.3.3L7.4 4.6 4.6 5.8a.8.8 0 0 0-.3 1.3l1.8 1.8L2.3 12.7a.7.7 0 0 0 1 1l3.8-3.8 1.8 1.8a.8.8 0 0 0 1.3-.3l1.2-2.8 2.7-1.1a.8.8 0 0 0 .3-1.3z" />
   </svg>

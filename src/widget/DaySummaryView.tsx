@@ -1,6 +1,7 @@
 import type { StateSnapshot } from "../lib/types";
 import { formatDuration } from "../lib/activity";
 import { daySummary } from "../lib/summary";
+import { githubForDay, knownTitles } from "../lib/github";
 import { CheckIcon } from "./icons";
 
 interface Props {
@@ -12,8 +13,9 @@ interface Props {
 export default function DaySummaryView({ state, day }: Props) {
   const summary = daySummary(state.sessions, state.tasks, day);
   const max = Math.max(1, ...summary.rows.map((r) => r.secs));
+  const github = githubForDay(state.github_events, day, knownTitles(state.github_items, state.tasks));
 
-  if (summary.rows.length === 0) {
+  if (summary.rows.length === 0 && github.length === 0) {
     return (
       <section className="summary">
         <p className="empty">Nada registrado neste dia</p>
@@ -36,6 +38,16 @@ export default function DaySummaryView({ state, day }: Props) {
           </li>
         ))}
       </ul>
+      {github.length > 0 && (
+        <>
+          <h3 className="summary-heading">GitHub</h3>
+          <ul className="summary-github">
+            {github.map((line) => (
+              <li key={line.key}>{line.text}</li>
+            ))}
+          </ul>
+        </>
+      )}
       {summary.byProject.length > 1 && (
         <p className="summary-projects">
           {summary.byProject.map((p) => (
