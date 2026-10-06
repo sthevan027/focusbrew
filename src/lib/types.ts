@@ -65,6 +65,17 @@ export interface GithubItem {
   updated_at: string;
 }
 
+/** Seconds per project (`null` = no project) over a few spans. */
+export interface ProjectTotal {
+  project: string | null;
+  today: number;
+  /** Today and the 6 days before. */
+  week: number;
+  /** Today and the 29 days before. */
+  month: number;
+  total: number;
+}
+
 /** Something done on GitHub, on a local day. */
 export interface GithubEvent {
   day: string;

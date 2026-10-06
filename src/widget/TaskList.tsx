@@ -34,6 +34,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
 
   const [draft, setDraft] = useState("");
   const [typing, setTyping] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [dropDay, setDropDay] = useState<string | null>(null);
   const rows = useRef(new Map<string, HTMLDivElement>());
@@ -44,8 +45,8 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
   const holdRef = useRef(onHold);
   holdRef.current = onHold;
   useEffect(() => {
-    holdRef.current(typing || drag !== null);
-  }, [typing, drag]);
+    holdRef.current(typing || editing || drag !== null);
+  }, [typing, editing, drag]);
   useEffect(() => () => holdRef.current(false), []);
 
   const dropRef = useRef(onDropDay);
@@ -130,6 +131,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
             onHandleDown={(e) => onHandleDown(e, i)}
             onHandleMove={onHandleMove}
             onHandleUp={onHandleUp}
+            onEditing={setEditing}
           />
         ))}
         {done.map((task) => (
@@ -146,6 +148,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
             onHandleDown={() => {}}
             onHandleMove={() => {}}
             onHandleUp={() => {}}
+            onEditing={setEditing}
           />
         ))}
       </div>
@@ -153,7 +156,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
         <input
           value={draft}
           maxLength={200}
-          placeholder={day === today ? "Add a task" : "Planejar uma tarefa"}
+          placeholder={day === today ? "Add a task  (#projeto no fim)" : "Planejar uma tarefa  (#projeto no fim)"}
           onChange={(e) => setDraft(e.currentTarget.value)}
           onFocus={() => setTyping(true)}
           onBlur={() => setTyping(false)}

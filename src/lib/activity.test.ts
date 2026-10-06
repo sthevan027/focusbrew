@@ -94,4 +94,10 @@ describe("durations", () => {
     expect(formatDuration(3600)).toBe("1h");
     expect(formatDuration(5100)).toBe("1h 25min");
   });
+
+  it("says less than a minute instead of zero for a few seconds", () => {
+    expect(formatDuration(3)).toBe("<1min");
+    expect(formatDuration(29)).toBe("<1min");
+    expect(formatDuration(30)).toBe("1min");
+  });
 });

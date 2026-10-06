@@ -1,7 +1,9 @@
+import { useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Task, TimerView } from "../lib/types";
 import {
+  editTask,
   fire,
   moveTask,
   nudgeTaskMinutes,
@@ -29,6 +31,8 @@ interface Props {
   onHandleDown: (e: PointerEvent<HTMLButtonElement>) => void;
   onHandleMove: (e: PointerEvent<HTMLButtonElement>) => void;
   onHandleUp: (e: PointerEvent<HTMLButtonElement>) => void;
+  /** The title is being edited (keeps the panel open). */
+  onEditing: (editing: boolean) => void;
 }
 
 export default function TaskRow({
@@ -43,6 +47,7 @@ export default function TaskRow({
   onHandleDown,
   onHandleMove,
   onHandleUp,
+  onEditing,
 }: Props) {
   const active = timer.task_id === task.id && timer.status !== "idle";
   const running = active && timer.status === "running";
@@ -55,6 +60,30 @@ export default function TaskRow({
   ]
     .filter(Boolean)
     .join(" ");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  // Enter saves and unmounts the field, which also fires blur: save once.
+  const open = useRef(false);
+  const startEditing = () => {
+    setDraft(task.project ? `${task.title} #${task.project}` : task.title);
+    open.current = true;
+    setEditing(true);
+    onEditing(true);
+  };
+  const stopEditing = () => {
+    open.current = false;
+    setEditing(false);
+    onEditing(false);
+  };
+  const save = () => {
+    if (!open.current) return;
+    const text = draft.trim();
+    if (text && text !== (task.project ? `${task.title} #${task.project}` : task.title)) {
+      fire(editTask(task.id, text));
+    }
+    stopEditing();
+  };
+
   // A GitHub task's note ("dono/repo #N") already names its project.
   const details = [task.note ?? task.project, carried && `de ${carried}`].filter(Boolean).join(" · ");
 
@@ -69,10 +98,29 @@ export default function TaskRow({
       </button>
 
       <div className="task-main">
-        <div className="task-title" title={task.title}>
-          {task.title}
-        </div>
-        {details && <div className="task-note">{details}</div>}
+        {editing ? (
+          <input
+            className="task-edit"
+            autoFocus
+            value={draft}
+            maxLength={240}
+            aria-label="Editar tarefa (título #projeto)"
+            onChange={(e) => setDraft(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") {
+                e.stopPropagation(); // Esc here cancels the edit, not the pinned panel
+                stopEditing();
+              }
+            }}
+            onBlur={save}
+          />
+        ) : (
+          <div className="task-title" title="Duplo clique pra editar" onDoubleClick={startEditing}>
+            {task.title}
+          </div>
+        )}
+        {details && !editing && <div className="task-note">{details}</div>}
       </div>
 
       {task.url && (

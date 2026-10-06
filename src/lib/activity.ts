@@ -76,9 +76,10 @@ export function weekTotal(secsByDay: Record<string, number>, today: string): num
   return total;
 }
 
-/** "1h 25min", "45min", "1h", "0min". */
+/** "1h 25min", "45min", "1h", "<1min" (a few seconds), "0min". */
 export function formatDuration(secs: number): string {
   const totalMinutes = Math.round(secs / 60);
+  if (totalMinutes === 0 && secs > 0) return "<1min";
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   if (hours === 0) return `${minutes}min`;
