@@ -58,6 +58,28 @@ pub fn is_valid_day(day: &str) -> bool {
     day.len() == 10 && chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").is_ok()
 }
 
+/// "Corrigir login #virex" -> ("Corrigir login", Some("virex")). Only a
+/// last word that starts with `#` after a space and has at least one letter
+/// counts ("#12" is an issue number, "C#" a language); anything else is
+/// left in the text.
+pub fn split_project(text: &str) -> (String, Option<String>) {
+    let trimmed = text.trim();
+    let (head, last) = match trimmed.rsplit_once(char::is_whitespace) {
+        Some((head, last)) => (head, last),
+        None => ("", trimmed),
+    };
+    let Some(tag) = last.strip_prefix('#') else {
+        return (trimmed.to_string(), None);
+    };
+    let valid = !tag.is_empty()
+        && tag.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        && tag.chars().any(char::is_alphabetic);
+    if !valid {
+        return (trimmed.to_string(), None);
+    }
+    (head.trim_end().to_string(), Some(tag.to_string()))
+}
+
 /// "dono/repo" -> "repo".
 pub fn project_from_repository(repository: &str) -> Option<String> {
     let name = repository.rsplit('/').next()?.trim();
@@ -260,6 +282,36 @@ mod tests {
     fn a_new_task_is_planned_for_the_given_day() {
         let t = new_task("x", TaskSource::Manual, 25, "2026-10-08").unwrap();
         assert_eq!(t.day, "2026-10-08");
+    }
+
+    fn split(text: &str) -> (String, Option<String>) {
+        let (t, p) = split_project(text);
+        (t, p)
+    }
+
+    #[test]
+    fn a_trailing_hashtag_is_the_project() {
+        assert_eq!(split("Corrigir login #virex"), ("Corrigir login".into(), Some("virex".into())));
+        assert_eq!(split("  Deploy   #focus-brew  "), ("Deploy".into(), Some("focus-brew".into())));
+        assert_eq!(split("Relatório #Obra_Vale2"), ("Relatório".into(), Some("Obra_Vale2".into())));
+        assert_eq!(split("Ajustar #ação"), ("Ajustar".into(), Some("ação".into())));
+    }
+
+    #[test]
+    fn hashtags_that_are_not_projects_stay_in_the_title() {
+        // an issue number has no letter
+        assert_eq!(split("Revisar PR #12"), ("Revisar PR #12".into(), None));
+        // not at the end
+        assert_eq!(split("#virex corrigir login"), ("#virex corrigir login".into(), None));
+        // glued to a word, or alone
+        assert_eq!(split("Aprender C#"), ("Aprender C#".into(), None));
+        assert_eq!(split("Algo #"), ("Algo #".into(), None));
+        assert_eq!(split("tag#virex"), ("tag#virex".into(), None));
+    }
+
+    #[test]
+    fn only_a_hashtag_leaves_no_title() {
+        assert_eq!(split("#virex"), ("".into(), Some("virex".into())));
     }
 
     #[test]

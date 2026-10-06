@@ -3,6 +3,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::config::{self, AppConfig};
 use crate::github;
 use crate::state::{AppState, StateSnapshot};
+use crate::tracker::activity::{self, ProjectTotal};
 use crate::tracker::tasks::{self, TaskSource};
 use crate::tracker::{now_ms, today_key};
 use crate::widget;
@@ -39,11 +40,32 @@ pub fn add_task(
     apply(&app, &shared, |state, _, today| {
         let minutes = state.config.default_minutes;
         let day = day.filter(|d| tasks::is_valid_day(d)).unwrap_or_else(|| today.to_string());
-        if let Some(task) = tasks::new_task(&title, TaskSource::Manual, minutes, &day) {
+        let (title, project) = tasks::split_project(&title);
+        if let Some(mut task) = tasks::new_task(&title, TaskSource::Manual, minutes, &day) {
+            task.project = project;
             state.tracker.tasks.push(task);
         }
     })
     .0
+}
+
+/// Renames a task from "título #projeto" text.
+#[tauri::command]
+pub fn edit_task(
+    id: String,
+    text: String,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> Result<StateSnapshot, String> {
+    let (snapshot, result) = apply(&app, &shared, |state, _, _| state.tracker.edit_task(&id, &text));
+    result.map(|_| snapshot)
+}
+
+/// Time per project over the whole history (the settings' Projetos section).
+#[tauri::command]
+pub fn project_totals(shared: State<'_, Shared>) -> Vec<ProjectTotal> {
+    let state = shared.lock();
+    activity::project_totals(&state.tracker.log.sessions, &today_key())
 }
 
 #[tauri::command]

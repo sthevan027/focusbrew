@@ -107,6 +107,20 @@ impl Tracker {
         Ok(())
     }
 
+    /// Renames a task from "título #projeto" text (no tag = no project).
+    pub fn edit_task(&mut self, id: &str, text: &str) -> Result<(), String> {
+        let (raw_title, project) = tasks::split_project(text);
+        let title = tasks::clean_title(&raw_title).ok_or_else(|| "o título não pode ficar vazio".to_string())?;
+        let task = self
+            .tasks
+            .iter_mut()
+            .find(|t| t.id == id)
+            .ok_or_else(|| "tarefa não encontrada".to_string())?;
+        task.title = title;
+        task.project = project;
+        Ok(())
+    }
+
     /// The ▲▼ arrows: adds `delta` minutes to the task's current value here,
     /// so two quick clicks never compute from the same stale number.
     pub fn nudge_minutes(&mut self, id: &str, delta: i32, now_ms: i64, today: &str) -> Option<Finished> {
@@ -543,6 +557,25 @@ mod tests {
         assert!(tr.move_task("a", "2026-13-01").is_err());
         assert!(tr.move_task("ghost", "2026-10-09").is_err());
         assert_eq!(tr.tasks[0].day, "2026-10-09");
+    }
+
+    #[test]
+    fn editing_sets_the_title_and_the_project() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.edit_task("a", "  Novo título #virex ").unwrap();
+        assert_eq!(tr.tasks[0].title, "Novo título");
+        assert_eq!(tr.tasks[0].project.as_deref(), Some("virex"));
+        tr.edit_task("a", "Sem projeto").unwrap();
+        assert_eq!(tr.tasks[0].project, None);
+    }
+
+    #[test]
+    fn editing_to_a_blank_title_is_refused() {
+        let mut tr = tracker(&[("a", 25)]);
+        assert!(tr.edit_task("a", "   ").is_err());
+        assert!(tr.edit_task("a", "#virex").is_err());
+        assert!(tr.edit_task("ghost", "x").is_err());
+        assert_eq!(tr.tasks[0].title, "a");
     }
 
     #[test]
