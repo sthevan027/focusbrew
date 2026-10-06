@@ -13,7 +13,7 @@ describe("hitSize", () => {
   });
 
   it("is the whole panel when open", () => {
-    expect(hitSize("idle", "open")).toEqual({ width: 470, height: 230 });
+    expect(hitSize("idle", "open")).toEqual({ width: 560, height: 300 });
   });
 });
 
@@ -29,7 +29,7 @@ describe("shellSize", () => {
 
   it("is the panel when open, whatever the timer does", () => {
     for (const status of ["idle", "running", "paused"] as const) {
-      expect(shellSize(status, "open")).toEqual({ width: 470, height: 230 });
+      expect(shellSize(status, "open")).toEqual({ width: 560, height: 300 });
     }
   });
 

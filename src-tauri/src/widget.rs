@@ -14,7 +14,7 @@ const FALLBACK_MONITOR_WIDTH: u32 = 1280;
 /// The window never changes size while you use it: resizing a WebView makes
 /// it skip ~100 ms of frames. It is always as big as the open panel, lets the
 /// mouse pass through, and only catches it inside the visible shape's area.
-pub const OPEN_SIZE: (f64, f64) = (470.0, 230.0);
+pub const OPEN_SIZE: (f64, f64) = (560.0, 300.0);
 /// Parked: the area over the flat bar that reacts to the mouse (the bar is 6 px).
 pub const IDLE_ZONE: (f64, f64) = (140.0, 14.0);
 /// A block is running or paused: the box with the progress line around it.
@@ -67,7 +67,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 /// Pins the window to the very top of the primary monitor, centered, and
 /// records the mouse area for `zone`. Must run on the main thread (`sync_ui`
 /// posts it there).
-pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout) {
+pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout, monitor_name: Option<&str>) {
     let Some(window) = app.get_webview_window("widget") else {
         return;
     };
@@ -77,12 +77,21 @@ pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout) {
         let _ = window.hide();
         return;
     }
-    let place = |layout: &Layout| match window.primary_monitor() {
-        Ok(Some(monitor)) => {
+    // The chosen monitor if it's still plugged in, otherwise the primary one.
+    let chosen = monitor_name.and_then(|name| {
+        window
+            .available_monitors()
+            .ok()?
+            .into_iter()
+            .find(|m| m.name().map(String::as_str) == Some(name))
+    });
+    let monitor = chosen.or_else(|| window.primary_monitor().ok().flatten());
+    let place = |layout: &Layout| match &monitor {
+        Some(monitor) => {
             let pos = monitor.position();
             physical_bounds(pos.x, pos.y, monitor.size().width, monitor.scale_factor(), layout)
         }
-        _ => physical_bounds(0, 0, FALLBACK_MONITOR_WIDTH, 1.0, layout),
+        None => physical_bounds(0, 0, FALLBACK_MONITOR_WIDTH, 1.0, layout),
     };
     *ZONE.lock().unwrap() = Some(place(&zone));
     let bounds = place(&window_layout);
@@ -174,6 +183,34 @@ pub fn physical_bounds(mon_x: i32, mon_y: i32, mon_width: u32, scale: f64, layou
     (mon_x + (mon_width as i32 - w).div_euclid(2), mon_y, w, h)
 }
 
+/// A monitor the widget can sit on, as the settings list it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MonitorChoice {
+    /// What `AppConfig::monitor` stores.
+    pub name: String,
+    /// "Monitor 2 — 2560×1440 (principal)".
+    pub label: String,
+}
+
+pub fn monitors(app: &AppHandle) -> Vec<MonitorChoice> {
+    let Some(window) = app.get_webview_window("widget") else {
+        return Vec::new();
+    };
+    let primary = window.primary_monitor().ok().flatten().and_then(|m| m.name().cloned());
+    window
+        .available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, m)| {
+            let name = m.name()?.clone();
+            let size = m.size();
+            let main = if primary.as_deref() == Some(name.as_str()) { " (principal)" } else { "" };
+            Some(MonitorChoice { label: format!("Monitor {} — {}×{}{main}", i + 1, size.width, size.height), name })
+        })
+        .collect()
+}
+
 pub fn contains((x, y, w, h): Bounds, px: i32, py: i32) -> bool {
     px >= x && px < x + w && py >= y && py < y + h
 }
@@ -219,9 +256,9 @@ mod layout_tests {
 
     #[test]
     fn the_window_is_always_the_panel_size() {
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (470.0, 230.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (400.0, 196.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (588.0, 288.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (560.0, 300.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (476.0, 255.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (700.0, 375.0));
     }
 
     #[test]
@@ -251,7 +288,7 @@ mod layout_tests {
         let c = cfg(WidgetScale::Medium);
         let window = physical_bounds(0, 0, 1920, 1.0, &window_layout(&c));
         let zone = physical_bounds(0, 0, 1920, 1.0, &hot_zone(&c, TimerStatus::Running));
-        assert_eq!(window, (725, 0, 470, 230));
+        assert_eq!(window, (680, 0, 560, 300));
         assert_eq!(zone, (800, 0, 320, 44));
     }
 

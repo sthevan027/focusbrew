@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
-import { getState, onStateChanged, setWidgetExpanded } from "./lib/tauri";
+import { fire, getState, onStateChanged, onTogglePanel, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
 import { hitSize, shellSize } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import Notch from "./widget/Notch";
+import Panel from "./widget/Panel";
 import ProgressLine from "./widget/ProgressLine";
-import TodoPanel from "./widget/TodoPanel";
 import { useHoverOpen, useNow } from "./widget/hooks";
 import "./Widget.css";
 
@@ -17,6 +17,9 @@ const CLOSE_MS = 200;
 export default function Widget() {
   const [state, setState] = useState<StateSnapshot | null>(null);
   const [phase, setPhase] = useState<PanelPhase>("closed");
+  const [pinned, setPinned] = useState(false);
+  const [day, setDay] = useState<string | null>(null);
+  const childHold = useRef(false);
   const seq = useRef(0);
 
   // The window is always panel-sized and never resizes; every change is the
@@ -25,13 +28,16 @@ export default function Widget() {
   const hover = useHoverOpen(
     (open) => {
       const id = ++seq.current;
-      void setWidgetExpanded(open);
+      fire(setWidgetExpanded(open));
       if (open) {
         setPhase("open");
       } else {
+        setPinned(false);
         setPhase("closing");
         window.setTimeout(() => {
-          if (seq.current === id) setPhase("closed");
+          if (seq.current !== id) return;
+          setPhase("closed");
+          setDay(null); // the next open starts on today
         }, CLOSE_MS);
       }
     },
@@ -39,6 +45,17 @@ export default function Widget() {
     160,
   );
   const now = useNow(state?.timer.status === "running", state?.timer.deadline_ms ?? 0);
+
+  // Typing, dragging (from the list) or a pin keep the panel open.
+  const holdFromList = (hold: boolean) => {
+    childHold.current = hold;
+    hover.setHolding(hold || pinned);
+  };
+  const pin = (value: boolean) => {
+    setPinned(value);
+    hover.setHolding(value || childHold.current);
+    if (value) hover.openNow();
+  };
 
   useEffect(() => {
     // Inline and in this window only (the settings window shares the bundle):
@@ -56,6 +73,35 @@ export default function Widget() {
       unlisten.then((f) => f());
     };
   }, []);
+
+  // The panel shortcut opens it pinned, or closes it.
+  const togglePanel = useRef(() => {});
+  togglePanel.current = () => (phase === "closed" ? pin(true) : hover.closeNow());
+  useEffect(() => {
+    const unlisten = onTogglePanel(() => togglePanel.current());
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
+  // A pinned panel lets go with Esc or a click anywhere outside the widget
+  // (the window loses focus). `hover` is a new object every render, so the
+  // listeners reach it through a ref instead of re-subscribing each second.
+  const closeNow = useRef(hover.closeNow);
+  closeNow.current = hover.closeNow;
+  useEffect(() => {
+    if (!pinned) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeNow.current();
+    };
+    const onBlur = () => closeNow.current();
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [pinned]);
 
   if (!state) return null;
 
@@ -75,6 +121,7 @@ export default function Widget() {
           style={{ width: hit.width, height: hit.height }}
           onMouseEnter={hover.onMouseEnter}
           onMouseLeave={hover.onMouseLeave}
+          onClick={phase === "closed" ? () => pin(true) : undefined}
         >
           <div
             className={`shell ${phase} ${timer.status}`}
@@ -83,7 +130,15 @@ export default function Widget() {
             {phase === "closed" ? (
               <Notch state={state} now={now} />
             ) : (
-              <TodoPanel state={state} now={now} onHold={hover.setHolding} />
+              <Panel
+                state={state}
+                now={now}
+                day={day ?? state.today}
+                onDay={setDay}
+                pinned={pinned}
+                onTogglePin={() => pin(!pinned)}
+                onHold={holdFromList}
+              />
             )}
             <ProgressLine
               timer={timer}

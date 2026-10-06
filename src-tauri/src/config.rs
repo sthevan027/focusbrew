@@ -26,7 +26,28 @@ pub struct AppConfig {
     pub accent_color: String,
     pub widget_scale: WidgetScale,
     pub widget_visible: bool,
+    /// Name of the monitor the widget sits on; `None` or not found = primary.
+    pub monitor: Option<String>,
+    /// Heads-up this many minutes before a block ends (0 = off; 1, 2 or 5).
+    pub notify_before_end_mins: u32,
+    /// Nudge after this many minutes with no block running while there are
+    /// tasks for today (0 = off; 15, 30 or 60). Only 08h–20h.
+    pub idle_reminder_mins: u32,
+    /// Minutes of focus to aim for each day (0 = no goal; at most 12 h).
+    pub daily_goal_mins: u32,
+    /// Pause/resume or start the first task.
+    pub shortcut_toggle: String,
+    /// Open/close the panel, pinned.
+    pub shortcut_panel: String,
+    /// Start focusbrew when Windows starts.
+    pub launch_at_login: bool,
 }
+
+pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
+pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
+pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
+pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
+pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
 
 fn default_true() -> bool {
     true
@@ -86,8 +107,20 @@ impl Default for AppConfig {
             accent_color: DEFAULT_ACCENT.to_string(),
             widget_scale: WidgetScale::default(),
             widget_visible: true,
+            monitor: None,
+            notify_before_end_mins: 0,
+            idle_reminder_mins: 0,
+            daily_goal_mins: 0,
+            shortcut_toggle: DEFAULT_SHORTCUT_TOGGLE.to_string(),
+            shortcut_panel: DEFAULT_SHORTCUT_PANEL.to_string(),
+            launch_at_login: false,
         }
     }
+}
+
+fn or_default(value: String, default: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() { default.to_string() } else { trimmed.to_string() }
 }
 
 impl AppConfig {
@@ -97,6 +130,16 @@ impl AppConfig {
         self.default_minutes = clamp_minutes(self.default_minutes);
         self.accent_color =
             normalize_hex(&self.accent_color).unwrap_or_else(|| DEFAULT_ACCENT.to_string());
+        if !BEFORE_END_CHOICES.contains(&self.notify_before_end_mins) {
+            self.notify_before_end_mins = 0;
+        }
+        if !IDLE_REMINDER_CHOICES.contains(&self.idle_reminder_mins) {
+            self.idle_reminder_mins = 0;
+        }
+        self.daily_goal_mins = self.daily_goal_mins.min(MAX_DAILY_GOAL_MINS);
+        self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
+        self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
+        self.monitor = self.monitor.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
         self
     }
 }
@@ -220,6 +263,53 @@ mod tests {
         assert_eq!(WidgetScale::Small.factor(), 0.85);
         assert_eq!(WidgetScale::Medium.factor(), 1.0);
         assert_eq!(WidgetScale::Large.factor(), 1.25);
+    }
+
+    #[test]
+    fn the_v0_3_settings_have_safe_defaults() {
+        let c = AppConfig::default();
+        assert_eq!(c.monitor, None);
+        assert_eq!(c.notify_before_end_mins, 0);
+        assert_eq!(c.idle_reminder_mins, 0);
+        assert_eq!(c.daily_goal_mins, 0);
+        assert_eq!(c.shortcut_toggle, "CommandOrControl+Shift+Space");
+        assert_eq!(c.shortcut_panel, "CommandOrControl+Shift+Alt+Space");
+        assert!(!c.launch_at_login);
+        // a 0.2 file has none of them
+        let old = parse(r##"{"accent_color":"#112233"}"##);
+        assert_eq!(old.shortcut_toggle, "CommandOrControl+Shift+Space");
+        assert_eq!(old.daily_goal_mins, 0);
+    }
+
+    #[test]
+    fn alert_settings_snap_to_the_offered_choices() {
+        let c = AppConfig {
+            notify_before_end_mins: 3,
+            idle_reminder_mins: 45,
+            daily_goal_mins: 5000,
+            ..AppConfig::default()
+        }
+        .normalized();
+        assert_eq!(c.notify_before_end_mins, 0, "3 is not offered");
+        assert_eq!(c.idle_reminder_mins, 0, "45 is not offered");
+        assert_eq!(c.daily_goal_mins, 720, "at most 12 h");
+        let ok = AppConfig { notify_before_end_mins: 5, idle_reminder_mins: 30, daily_goal_mins: 240, ..AppConfig::default() }
+            .normalized();
+        assert_eq!((ok.notify_before_end_mins, ok.idle_reminder_mins, ok.daily_goal_mins), (5, 30, 240));
+    }
+
+    #[test]
+    fn blank_shortcuts_and_monitor_fall_back() {
+        let c = AppConfig {
+            shortcut_toggle: "  ".into(),
+            shortcut_panel: String::new(),
+            monitor: Some(" ".into()),
+            ..AppConfig::default()
+        }
+        .normalized();
+        assert_eq!(c.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
+        assert_eq!(c.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
+        assert_eq!(c.monitor, None);
     }
 
     #[test]
