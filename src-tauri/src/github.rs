@@ -275,10 +275,187 @@ pub async fn fetch_contribution_calendar(
     Ok(days)
 }
 
+/// Something you did on GitHub, on a local day.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GithubEvent {
+    /// Local date, "AAAA-MM-DD".
+    pub day: String,
+    /// "push", "pr_opened", "pr_merged", "pr_closed", "pr_reopened",
+    /// "issue_opened", "issue_closed", "issue_reopened" or "review".
+    pub kind: String,
+    /// "dono/repo".
+    pub repo: String,
+    pub number: Option<u64>,
+    pub title: Option<String>,
+    /// Commits in a push; 1 otherwise.
+    pub count: u32,
+    /// When it happened (RFC 3339, UTC), newest first in the list.
+    pub at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawEvent {
+    #[serde(rename = "type")]
+    kind: String,
+    repo: RawRepo,
+    payload: serde_json::Value,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawRepo {
+    name: String,
+}
+
+fn number_and_title(item: &serde_json::Value) -> (Option<u64>, Option<String>) {
+    (item["number"].as_u64(), item["title"].as_str().map(str::to_string))
+}
+
+/// Turns the `/users/{login}/events` JSON into the events the day summary
+/// shows, with the date in `tz`. Unknown event types and broken entries are
+/// skipped; garbage gives an empty list.
+pub fn parse_events<Tz: chrono::TimeZone>(raw: &str, tz: &Tz) -> Vec<GithubEvent>
+where
+    Tz::Offset: std::fmt::Display,
+{
+    let Ok(events) = serde_json::from_str::<Vec<serde_json::Value>>(raw) else {
+        return Vec::new();
+    };
+    events
+        .into_iter()
+        .filter_map(|value| serde_json::from_value::<RawEvent>(value).ok())
+        .filter_map(|e| {
+            let at = chrono::DateTime::parse_from_rfc3339(&e.created_at).ok()?;
+            let day = at.with_timezone(tz).format("%Y-%m-%d").to_string();
+            let p = &e.payload;
+            let action = p["action"].as_str().unwrap_or("");
+            let (kind, number, title, count) = match e.kind.as_str() {
+                "PushEvent" => {
+                    let commits = p["size"]
+                        .as_u64()
+                        .or_else(|| p["commits"].as_array().map(|c| c.len() as u64))
+                        .unwrap_or(0);
+                    if commits == 0 {
+                        return None;
+                    }
+                    ("push".to_string(), None, None, commits as u32)
+                }
+                "PullRequestEvent" => {
+                    let pr = &p["pull_request"];
+                    let kind = match action {
+                        "opened" => "pr_opened",
+                        "closed" if pr["merged"].as_bool() == Some(true) => "pr_merged",
+                        "closed" => "pr_closed",
+                        "reopened" => "pr_reopened",
+                        _ => return None,
+                    };
+                    let (n, t) = number_and_title(pr);
+                    (kind.to_string(), n.or(p["number"].as_u64()), t, 1)
+                }
+                "IssuesEvent" => {
+                    let kind = match action {
+                        "opened" => "issue_opened",
+                        "closed" => "issue_closed",
+                        "reopened" => "issue_reopened",
+                        _ => return None,
+                    };
+                    let (n, t) = number_and_title(&p["issue"]);
+                    (kind.to_string(), n, t, 1)
+                }
+                "PullRequestReviewEvent" => {
+                    let (n, t) = number_and_title(&p["pull_request"]);
+                    ("review".to_string(), n, t, 1)
+                }
+                _ => return None,
+            };
+            Some(GithubEvent { day, kind, repo: e.repo.name, number, title, count, at: e.created_at })
+        })
+        .collect()
+}
+
+/// The user's recent public and private activity (GitHub keeps ~90 days,
+/// at most 300 events), in local dates.
+pub async fn fetch_events(token: &str, login: &str) -> Result<Vec<GithubEvent>, String> {
+    let client = client(token)?;
+    let mut all = Vec::new();
+    for page in 1..=3 {
+        let resp = client
+            .get(format!("https://api.github.com/users/{login}/events"))
+            .query(&[("per_page", "100"), ("page", &page.to_string())])
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        if !resp.status().is_success() {
+            return Err(format!("GitHub events failed (HTTP {})", resp.status()));
+        }
+        let raw = resp.text().await.map_err(|e| e.to_string())?;
+        let count = serde_json::from_str::<Vec<serde_json::Value>>(&raw).map(|v| v.len()).unwrap_or(0);
+        all.extend(parse_events(&raw, &chrono::Local));
+        if count < 100 {
+            break;
+        }
+    }
+    Ok(all)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    const EVENTS: &str = r#"[
+      {"type":"PushEvent","repo":{"name":"me/focusbrew"},"created_at":"2026-10-05T02:30:00Z",
+       "payload":{"size":3,"commits":[{},{},{}]}},
+      {"type":"PullRequestEvent","repo":{"name":"me/focusbrew"},"created_at":"2026-10-05T15:00:00Z",
+       "payload":{"action":"closed","number":5,"pull_request":{"number":5,"title":"Daily notch","merged":true}}},
+      {"type":"PullRequestEvent","repo":{"name":"me/x"},"created_at":"2026-10-05T15:00:00Z",
+       "payload":{"action":"closed","pull_request":{"number":7,"title":"Nope","merged":false}}},
+      {"type":"PullRequestEvent","repo":{"name":"me/x"},"created_at":"2026-10-05T15:00:00Z",
+       "payload":{"action":"labeled","pull_request":{"number":7,"title":"Nope"}}},
+      {"type":"IssuesEvent","repo":{"name":"me/x"},"created_at":"2026-10-04T12:00:00Z",
+       "payload":{"action":"opened","issue":{"number":9,"title":"Bug"}}},
+      {"type":"PullRequestReviewEvent","repo":{"name":"org/y"},"created_at":"2026-10-04T12:00:00Z",
+       "payload":{"action":"created","pull_request":{"number":2,"title":"Feature"}}},
+      {"type":"WatchEvent","repo":{"name":"a/b"},"created_at":"2026-10-04T12:00:00Z","payload":{}},
+      {"type":"PushEvent","repo":{"name":"me/empty"},"created_at":"2026-10-04T12:00:00Z","payload":{"size":0}},
+      {"type":"PushEvent","created_at":"broken"}
+    ]"#;
+
+    fn brt() -> chrono::FixedOffset {
+        chrono::FixedOffset::west_opt(3 * 3600).unwrap()
+    }
+
+    #[test]
+    fn events_become_the_kinds_the_summary_shows() {
+        let events = parse_events(EVENTS, &brt());
+        let kinds: Vec<_> = events.iter().map(|e| (e.kind.as_str(), e.number, e.count)).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                ("push", None, 3),
+                ("pr_merged", Some(5), 1),
+                ("pr_closed", Some(7), 1),
+                ("issue_opened", Some(9), 1),
+                ("review", Some(2), 1),
+            ]
+        );
+        assert_eq!(events[1].title.as_deref(), Some("Daily notch"));
+        assert_eq!(events[1].repo, "me/focusbrew");
+    }
+
+    // 02:30 UTC is still the evening before in Brasília.
+    #[test]
+    fn the_day_is_the_local_date() {
+        let events = parse_events(EVENTS, &brt());
+        assert_eq!(events[0].day, "2026-10-04");
+        assert_eq!(events[1].day, "2026-10-05");
+    }
+
+    #[test]
+    fn garbage_gives_no_events() {
+        assert!(parse_events("", &brt()).is_empty());
+        assert!(parse_events("{\"message\":\"Not Found\"}", &brt()).is_empty());
+    }
 
     #[test]
     fn gh_output_is_trimmed() {

@@ -179,6 +179,7 @@ pub fn clear_github_token(shared: State<'_, Shared>) -> Result<(), String> {
     state.github_source = None;
     state.github_items.clear();
     state.github_days.clear();
+    state.github_events.clear();
     let _ = config::save(&state.config);
     Ok(())
 }
@@ -215,9 +216,10 @@ pub(crate) async fn refresh_github_now(app: &AppHandle) -> Result<StateSnapshot,
 
     let items = github::fetch_involved(&token, &login).await;
     let days = github::fetch_contribution_calendar(&token, &login).await;
+    let events = github::fetch_events(&token, &login).await;
 
     let mut state = shared.lock();
-    if state.apply_github_refresh(&login, source, items, days) {
+    if state.apply_github_refresh(&login, source, items, days, events) {
         sync_ui(app, &state);
     }
     Ok(StateSnapshot::from(&*state))

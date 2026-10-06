@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::config::AppConfig;
-use crate::github::{GithubItem, TokenSource};
+use crate::github::{GithubEvent, GithubItem, TokenSource};
 use crate::tracker::activity::Session;
 use crate::tracker::tasks::{self, Task};
 use crate::tracker::timer::TimerView;
@@ -20,6 +20,8 @@ pub struct AppState {
     /// Real GitHub contribution calendar ("YYYY-MM-DD" -> count), fetched
     /// alongside PRs/issues. Kept for stage 2 (GitHub inside the day).
     pub github_days: HashMap<String, u32>,
+    /// What you did on GitHub lately (pushes, PRs, issues, reviews).
+    pub github_events: Vec<GithubEvent>,
     /// Where the last successful GitHub token came from (gh CLI or a saved PAT).
     pub github_source: Option<TokenSource>,
 }
@@ -35,6 +37,7 @@ impl AppState {
             github_items: Vec::new(),
             github_error: None,
             github_days: HashMap::new(),
+            github_events: Vec::new(),
             github_source: None,
         }
     }
@@ -57,6 +60,7 @@ impl AppState {
         source: crate::github::TokenSource,
         items: Result<Vec<crate::github::GithubItem>, String>,
         days: Result<HashMap<String, u32>, String>,
+        events: Result<Vec<GithubEvent>, String>,
     ) -> bool {
         if self.config.github_login.as_deref() != Some(login) {
             return false;
@@ -74,6 +78,10 @@ impl AppState {
         // heatmap or surface as an error.
         if let Ok(days) = days {
             self.github_days = days;
+        }
+        // Same for the activity feed: the summary just keeps the last one.
+        if let Ok(events) = events {
+            self.github_events = events;
         }
         true
     }
@@ -106,6 +114,7 @@ pub struct StateSnapshot {
     pub github_items: Vec<GithubItem>,
     pub github_error: Option<String>,
     pub github_days: HashMap<String, u32>,
+    pub github_events: Vec<GithubEvent>,
     pub github_source: Option<TokenSource>,
 }
 
@@ -128,6 +137,7 @@ impl From<&AppState> for StateSnapshot {
             github_items: state.github_items.clone(),
             github_error: state.github_error.clone(),
             github_days: state.github_days.clone(),
+            github_events: state.github_events.clone(),
             github_source: state.github_source,
         }
     }
@@ -144,6 +154,7 @@ impl AppState {
             github_items: Vec::new(),
             github_error: None,
             github_days: HashMap::new(),
+            github_events: Vec::new(),
             github_source: None,
         }
     }
@@ -191,7 +202,7 @@ mod github_refresh_tests {
     fn a_finished_refresh_fills_the_lists() {
         let mut state = connected("me");
         let applied =
-            state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1), item(2)]), Ok(days(5)));
+            state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1), item(2)]), Ok(days(5)), Ok(vec![]));
         assert!(applied);
         assert_eq!(state.github_items.len(), 2);
         assert_eq!(state.github_days, days(5));
@@ -203,7 +214,7 @@ mod github_refresh_tests {
     #[test]
     fn a_refresh_finishing_after_disconnect_is_discarded() {
         let mut state = AppState::for_test(); // github_login is None
-        let applied = state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1)]), Ok(days(5)));
+        let applied = state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1)]), Ok(days(5)), Ok(vec![]));
         assert!(!applied);
         assert!(state.github_items.is_empty());
         assert!(state.github_days.is_empty());
@@ -213,7 +224,7 @@ mod github_refresh_tests {
     #[test]
     fn a_refresh_for_another_account_is_discarded() {
         let mut state = connected("someone-else");
-        let applied = state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1)]), Ok(days(5)));
+        let applied = state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1)]), Ok(days(5)), Ok(vec![]));
         assert!(!applied);
         assert!(state.github_items.is_empty());
     }
@@ -223,7 +234,7 @@ mod github_refresh_tests {
         let mut state = connected("me");
         state.github_items = vec![item(1)];
         let applied =
-            state.apply_github_refresh("me", TokenSource::Gh, Err("HTTP 502".into()), Ok(days(3)));
+            state.apply_github_refresh("me", TokenSource::Gh, Err("HTTP 502".into()), Ok(days(3)), Ok(vec![]));
         assert!(applied);
         assert_eq!(state.github_items.len(), 1, "last good list stays");
         assert_eq!(state.github_error.as_deref(), Some("HTTP 502"));
@@ -233,17 +244,36 @@ mod github_refresh_tests {
     fn a_failed_calendar_keeps_the_last_heatmap() {
         let mut state = connected("me");
         state.github_days = days(9);
-        state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1)]), Err("boom".into()));
+        state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![item(1)]), Err("boom".into()), Ok(vec![]));
         assert_eq!(state.github_days, days(9));
         assert_eq!(state.github_items.len(), 1);
         assert_eq!(state.github_error, None, "calendar errors stay silent");
     }
 
     #[test]
+    fn events_are_stored_and_a_failed_feed_keeps_the_last_ones() {
+        let event = GithubEvent {
+            day: "2026-10-05".into(),
+            kind: "push".into(),
+            repo: "me/repo".into(),
+            number: None,
+            title: None,
+            count: 2,
+            at: String::new(),
+        };
+        let mut state = connected("me");
+        state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![]), Ok(days(1)), Ok(vec![event.clone()]));
+        assert_eq!(state.github_events, vec![event.clone()]);
+        state.apply_github_refresh("me", TokenSource::Gh, Ok(vec![]), Ok(days(1)), Err("HTTP 500".into()));
+        assert_eq!(state.github_events, vec![event]);
+        assert_eq!(state.github_error, None, "the feed is best-effort");
+    }
+
+    #[test]
     fn a_later_good_refresh_clears_the_error() {
         let mut state = connected("me");
         state.github_error = Some("old".into());
-        state.apply_github_refresh("me", TokenSource::Manual, Ok(vec![]), Ok(days(1)));
+        state.apply_github_refresh("me", TokenSource::Manual, Ok(vec![]), Ok(days(1)), Ok(vec![]));
         assert_eq!(state.github_error, None);
         assert_eq!(state.github_source, Some(TokenSource::Manual));
     }
