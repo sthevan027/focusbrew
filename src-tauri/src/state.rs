@@ -14,6 +14,8 @@ pub struct AppState {
     pub config: AppConfig,
     /// Heads-up, daily goal and idle reminder bookkeeping.
     pub alerts: Alerts,
+    /// A configured shortcut that couldn't be registered (another app has it).
+    pub shortcut_warning: Option<String>,
     /// The tasks, the running block and the per-day log.
     pub tracker: Tracker,
     /// When the 1 s loop last ran, to notice the computer sleeping.
@@ -36,6 +38,7 @@ impl AppState {
         Self {
             config: crate::config::load(),
             alerts: Alerts::default(),
+            shortcut_warning: None,
             tracker: Tracker::new(list, activity::load()),
             last_tick_ms: now_ms(),
             github_items: Vec::new(),
@@ -120,6 +123,7 @@ pub struct StateSnapshot {
     pub github_days: HashMap<String, u32>,
     pub github_events: Vec<GithubEvent>,
     pub github_source: Option<TokenSource>,
+    pub shortcut_warning: Option<String>,
 }
 
 fn days_before(day: &str, n: i64) -> String {
@@ -143,6 +147,7 @@ impl From<&AppState> for StateSnapshot {
             github_days: state.github_days.clone(),
             github_events: state.github_events.clone(),
             github_source: state.github_source,
+            shortcut_warning: state.shortcut_warning.clone(),
         }
     }
 }
@@ -154,6 +159,7 @@ impl AppState {
         Self {
             config: AppConfig::default(),
             alerts: Alerts::default(),
+            shortcut_warning: None,
             tracker: Tracker::new(Vec::new(), activity::ActivityLog::default()),
             last_tick_ms: 0,
             github_items: Vec::new(),

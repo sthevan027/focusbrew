@@ -44,7 +44,7 @@ pub struct AppConfig {
 }
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
-pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Alt+Space";
+pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
 pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
 pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
 pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
@@ -273,7 +273,7 @@ mod tests {
         assert_eq!(c.idle_reminder_mins, 0);
         assert_eq!(c.daily_goal_mins, 0);
         assert_eq!(c.shortcut_toggle, "CommandOrControl+Shift+Space");
-        assert_eq!(c.shortcut_panel, "CommandOrControl+Alt+Space");
+        assert_eq!(c.shortcut_panel, "CommandOrControl+Shift+Alt+Space");
         assert!(!c.launch_at_login);
         // a 0.2 file has none of them
         let old = parse(r##"{"accent_color":"#112233"}"##);

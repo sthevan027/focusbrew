@@ -139,20 +139,29 @@ pub fn stop_timer(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
     apply(&app, &shared, |state, now, today| state.tracker.stop(now, today)).0
 }
 
-/// Swaps the two global shortcuts; an invalid or taken one is refused and
-/// the old ones stay.
+/// Changes one global shortcut (`which` is "toggle" or "panel"). An invalid
+/// one, the other action's one, or one another app holds is refused and the
+/// old one stays.
 #[tauri::command]
-pub fn set_shortcuts(
-    toggle: String,
-    panel: String,
+pub fn set_shortcut(
+    which: String,
+    text: String,
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> Result<StateSnapshot, String> {
-    let (toggle, panel) = (toggle.trim().to_string(), panel.trim().to_string());
-    shortcuts::apply(&app, &toggle, &panel)?;
+    let action = match which.as_str() {
+        "toggle" => shortcuts::Action::Toggle,
+        "panel" => shortcuts::Action::Panel,
+        _ => return Err(format!("atalho desconhecido: {which}")),
+    };
+    let text = text.trim().to_string();
+    shortcuts::set(&app, action, &text)?;
     let mut state = shared.lock();
-    state.config.shortcut_toggle = toggle;
-    state.config.shortcut_panel = panel;
+    match action {
+        shortcuts::Action::Toggle => state.config.shortcut_toggle = text,
+        shortcuts::Action::Panel => state.config.shortcut_panel = text,
+    }
+    state.shortcut_warning = None;
     let _ = config::save(&state.config);
     sync_ui(&app, &state);
     Ok(StateSnapshot::from(&*state))

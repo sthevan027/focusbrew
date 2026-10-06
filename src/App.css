@@ -226,6 +226,33 @@
   width: 76px;
 }
 
+.settings .select,
+.settings .shortcut {
+  min-width: 150px;
+  padding: 6px 10px;
+  border: 1px solid #3a3a3e;
+  border-radius: 8px;
+  background: #1c1c1e;
+  color: #f2f2f3;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.settings .select:focus,
+.settings .shortcut:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.settings .shortcut {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.settings .shortcut.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ---- the Standard / Minimal cards ---- */
 .settings .cards {
   display: grid;

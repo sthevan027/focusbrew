@@ -37,7 +37,12 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
   } else {
     const done = daySummary(state.sessions, state.tasks, day).doneCount;
     const secs = state.focus_secs_by_day[day] ?? 0;
-    stats = secs === 0 && done === 0 ? "nada ainda" : `${formatDuration(secs)} · ${done} ✓`;
+    const goal = state.config.daily_goal_mins;
+    if (day === today && goal > 0) {
+      stats = `${formatDuration(secs)} / ${formatDuration(goal * 60)}${secs >= goal * 60 ? " ✓ meta" : ""} · ${done} ✓`;
+    } else {
+      stats = secs === 0 && done === 0 ? "nada ainda" : `${formatDuration(secs)} · ${done} ✓`;
+    }
   }
 
   // A click on the bare header pins/unpins; its buttons don't.

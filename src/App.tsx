@@ -75,7 +75,9 @@ export default function App() {
         {section === "focus" && <FocusSection config={state.config} set={set} />}
         {section === "projects" && <ProjectsSection state={state} />}
         {section === "notch" && <NotchSection config={state.config} set={set} />}
-        {section === "general" && <GeneralSection config={state.config} set={set} />}
+        {section === "general" && (
+          <GeneralSection config={state.config} set={set} shortcutWarning={state.shortcut_warning} />
+        )}
         {section === "github" && <GithubPanel state={state} />}
       </main>
     </div>

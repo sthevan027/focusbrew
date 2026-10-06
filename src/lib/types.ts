@@ -12,6 +12,22 @@ export interface AppConfig {
   accent_color: string;
   widget_scale: WidgetScale;
   widget_visible: boolean;
+  /** Monitor name; null = primary. */
+  monitor: string | null;
+  /** 0 = off; 1, 2 or 5. */
+  notify_before_end_mins: number;
+  /** 0 = off; 15, 30 or 60. */
+  idle_reminder_mins: number;
+  /** 0 = no goal. */
+  daily_goal_mins: number;
+  shortcut_toggle: string;
+  shortcut_panel: string;
+  launch_at_login: boolean;
+}
+
+export interface MonitorChoice {
+  name: string;
+  label: string;
 }
 
 export type TimerStatus = "idle" | "running" | "paused";
@@ -106,4 +122,6 @@ export interface StateSnapshot {
   github_days: Record<string, number>;
   github_events: GithubEvent[];
   github_source: GithubTokenSource | null;
+  /** A configured shortcut another app holds (so it is not active). */
+  shortcut_warning: string | null;
 }

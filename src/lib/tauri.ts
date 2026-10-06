@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { AppConfig, GithubItem, ProjectTotal, StateSnapshot } from "./types";
+import type { AppConfig, GithubItem, MonitorChoice, ProjectTotal, StateSnapshot } from "./types";
 
 export const currentWindowLabel = () => getCurrentWindow().label;
 
@@ -47,6 +47,14 @@ export const importGithubItemAsTask = (item: GithubItem, day?: string) =>
     repository: item.repository,
     day: day ?? null,
   });
+
+export const setShortcut = (which: "toggle" | "panel", text: string) =>
+  invoke<StateSnapshot>("set_shortcut", { which, text });
+export const setLaunchAtLogin = (enabled: boolean) => invoke<StateSnapshot>("set_launch_at_login", { enabled });
+export const listMonitors = () => invoke<MonitorChoice[]>("list_monitors");
+
+/** The panel shortcut was pressed. */
+export const onTogglePanel = (cb: () => void) => listen("toggle-panel", () => cb());
 
 export const setWidgetExpanded = (expanded: boolean) =>
   invoke<void>("set_widget_expanded", { expanded });

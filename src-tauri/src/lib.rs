@@ -289,7 +289,7 @@ pub fn run() {
             commands::move_task,
             commands::edit_task,
             commands::project_totals,
-            commands::set_shortcuts,
+            commands::set_shortcut,
             commands::set_launch_at_login,
             commands::list_monitors,
             commands::reorder_tasks,
@@ -356,13 +356,17 @@ pub fn run() {
             {
                 let shared = handle.state::<Shared>();
                 let mut state = shared.lock();
-                // A shortcut another app took since last time: fall back to the
-                // defaults rather than having none.
-                if shortcuts::apply(&handle, &state.config.shortcut_toggle, &state.config.shortcut_panel).is_err() {
-                    state.config.shortcut_toggle = config::DEFAULT_SHORTCUT_TOGGLE.to_string();
-                    state.config.shortcut_panel = config::DEFAULT_SHORTCUT_PANEL.to_string();
-                    let _ = shortcuts::apply(&handle, config::DEFAULT_SHORTCUT_TOGGLE, config::DEFAULT_SHORTCUT_PANEL);
-                }
+                // Each on its own: one taken by another app leaves the other
+                // working, and the settings say which one needs changing.
+                let wanted = [
+                    (shortcuts::Action::Toggle, state.config.shortcut_toggle.clone()),
+                    (shortcuts::Action::Panel, state.config.shortcut_panel.clone()),
+                ];
+                let problems: Vec<String> = wanted
+                    .iter()
+                    .filter_map(|(action, text)| shortcuts::set(&handle, *action, text).err())
+                    .collect();
+                state.shortcut_warning = (!problems.is_empty()).then(|| problems.join(" · "));
                 // The Run key may have been removed by hand (or by another
                 // machine's settings file): make it match the setting.
                 if autostart::is_enabled() != state.config.launch_at_login {

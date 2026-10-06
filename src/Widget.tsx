@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
-import { fire, getState, onStateChanged, setWidgetExpanded } from "./lib/tauri";
+import { fire, getState, onStateChanged, onTogglePanel, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
 import { hitSize, shellSize } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
@@ -69,6 +69,16 @@ export default function Widget() {
     }
     getState().then(setState);
     const unlisten = onStateChanged(setState);
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+
+  // The panel shortcut opens it pinned, or closes it.
+  const togglePanel = useRef(() => {});
+  togglePanel.current = () => (phase === "closed" ? pin(true) : hover.closeNow());
+  useEffect(() => {
+    const unlisten = onTogglePanel(() => togglePanel.current());
     return () => {
       unlisten.then((f) => f());
     };
