@@ -101,6 +101,10 @@ describe("githubForDay", () => {
     expect(lines[0].text).toBe("PR #5 aberto — Daily notch");
   });
 
+  it("leaves out a missing number instead of writing #null", () => {
+    expect(githubForDay([ev("pr_merged", { number: null })], "2026-10-05")[0].text).toBe("PR mesclado");
+  });
+
   it("is empty on a day with nothing", () => {
     expect(githubForDay([ev("push")], "2026-10-01")).toEqual([]);
   });

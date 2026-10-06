@@ -16,9 +16,14 @@ export default function DaySummaryView({ state, day }: Props) {
   const github = githubForDay(state.github_events, day, knownTitles(state.github_items, state.tasks));
 
   if (summary.rows.length === 0 && github.length === 0) {
+    // Focus from before the block history (v0.3) or older than the 42 days
+    // the panel gets: the total is known, the per-task detail isn't.
+    const focus = state.focus_secs_by_day[day] ?? 0;
     return (
       <section className="summary">
-        <p className="empty">Nada registrado neste dia</p>
+        <p className="empty">
+          {focus > 0 ? `${formatDuration(focus)} de foco — sem detalhe por tarefa neste dia` : "Nada registrado neste dia"}
+        </p>
       </section>
     );
   }

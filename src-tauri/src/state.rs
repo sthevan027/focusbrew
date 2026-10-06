@@ -18,6 +18,8 @@ pub struct AppState {
     pub shortcut_warning: Option<String>,
     /// The tasks, the running block and the per-day log.
     pub tracker: Tracker,
+    /// The local day the 1 s loop last saw, to publish the change at midnight.
+    pub last_day: String,
     /// When the 1 s loop last ran, to notice the computer sleeping.
     pub last_tick_ms: i64,
     pub github_items: Vec<GithubItem>,
@@ -41,6 +43,7 @@ impl AppState {
             shortcut_warning: None,
             tracker: Tracker::new(list, activity::load()),
             last_tick_ms: now_ms(),
+            last_day: today_key(),
             github_items: Vec::new(),
             github_error: None,
             github_days: HashMap::new(),
@@ -162,6 +165,7 @@ impl AppState {
             shortcut_warning: None,
             tracker: Tracker::new(Vec::new(), activity::ActivityLog::default()),
             last_tick_ms: 0,
+            last_day: String::new(),
             github_items: Vec::new(),
             github_error: None,
             github_days: HashMap::new(),

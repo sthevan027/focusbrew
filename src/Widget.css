@@ -417,6 +417,16 @@
   font: inherit;
   font-weight: 600;
 }
+.task-edit.invalid,
+.todo input.invalid {
+  border-color: #ff453a;
+  box-shadow: 0 0 0 1px #ff453a;
+}
+.field-hint {
+  margin: 2px 2px 0;
+  font-size: 11px;
+  color: #ff6961;
+}
 .task-note {
   font-size: 11px;
   color: #8a8a90;
@@ -807,6 +817,17 @@
   background: color-mix(in srgb, var(--accent) 45%, transparent);
   outline: 1.5px dashed var(--accent);
   outline-offset: 1px;
+}
+.cell.flash {
+  animation: flash 900ms ease-out;
+}
+@keyframes flash {
+  0%,
+  40% {
+    background: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 }
 .cell .dot {
   position: absolute;

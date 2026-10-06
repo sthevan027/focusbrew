@@ -209,7 +209,13 @@ fn spawn_tick_loop(app: AppHandle) {
                         to_notify = finished.clone();
                     }
                 }
-                if finished.is_some() || state.tracker.timer != before {
+                // Midnight (or waking up the next morning) changes "today" for
+                // the panel even when nothing else changed.
+                let new_day = state.last_day != today;
+                if new_day {
+                    state.last_day = today.clone();
+                }
+                if finished.is_some() || state.tracker.timer != before || new_day {
                     sync_ui(&app, &state);
                 }
                 alerts = check_alerts(&mut state, now, &today);
@@ -367,10 +373,13 @@ pub fn run() {
                     .filter_map(|(action, text)| shortcuts::set(&handle, *action, text).err())
                     .collect();
                 state.shortcut_warning = (!problems.is_empty()).then(|| problems.join(" · "));
-                // The Run key may have been removed by hand (or by another
-                // machine's settings file): make it match the setting.
-                if autostart::is_enabled() != state.config.launch_at_login {
-                    let _ = autostart::set(state.config.launch_at_login);
+                // Make the Run key match the setting. When on, always rewrite
+                // it: it must point at *this* executable (the app may have moved,
+                // or a dev build may have written it).
+                if state.config.launch_at_login {
+                    let _ = autostart::set(true);
+                } else if autostart::is_enabled() {
+                    let _ = autostart::set(false);
                 }
                 sync_ui(&handle, &state);
             }

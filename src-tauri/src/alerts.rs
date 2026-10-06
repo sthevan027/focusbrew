@@ -66,17 +66,19 @@ impl Alerts {
             out.push(Alert::GoalReached { mins: goal });
         }
 
-        // Nothing running for a while, with tasks waiting.
-        if m.status != TimerStatus::Idle {
+        // Nothing running (a paused block forgotten counts too) for a while,
+        // with tasks waiting. The count starts with working hours, so turning
+        // the PC on at 7h doesn't nag at 8h00.
+        let working_hours = (REMINDER_FROM_HOUR..REMINDER_UNTIL_HOUR).contains(&m.hour);
+        if m.status == TimerStatus::Running || !working_hours {
             self.idle_since_ms = None;
         } else {
             let since = *self.idle_since_ms.get_or_insert(m.now_ms);
             let mins = config.idle_reminder_mins;
             let every = mins as i64 * 60_000;
-            let working_hours = (REMINDER_FROM_HOUR..REMINDER_UNTIL_HOUR).contains(&m.hour);
             let due = m.now_ms - since >= every
                 && self.last_reminder_ms.map_or(true, |last| m.now_ms - last >= every);
-            if mins > 0 && working_hours && m.has_tasks_today && due {
+            if mins > 0 && m.has_tasks_today && due {
                 self.last_reminder_ms = Some(m.now_ms);
                 out.push(Alert::IdleReminder { mins });
             }
@@ -192,12 +194,29 @@ mod tests {
     fn no_reminder_outside_working_hours_or_without_tasks() {
         let config = cfg(0, 15, 0);
         let mut a = Alerts::default();
-        a.check(&config, &idle(T0, 21));
-        assert!(a.check(&config, &idle(T0 + 20 * MIN, 21)).is_empty());
-        assert!(a.check(&config, &idle(T0 + 20 * MIN, 7)).is_empty());
+        a.check(&config, &idle(T0, 10));
         let mut free = idle(T0 + 20 * MIN, 10);
         free.has_tasks_today = false;
         assert!(a.check(&config, &free).is_empty());
         assert_eq!(a.check(&config, &idle(T0 + 20 * MIN, 10)).len(), 1);
+        assert!(a.check(&config, &idle(T0 + 60 * MIN, 21)).is_empty());
+    }
+
+    #[test]
+    fn the_idle_count_starts_with_working_hours() {
+        let config = cfg(0, 30, 0);
+        let mut a = Alerts::default();
+        a.check(&config, &idle(T0, 7)); // PC on at 7h
+        assert!(a.check(&config, &idle(T0 + 60 * MIN, 8)).is_empty(), "not right at 8h");
+        assert_eq!(a.check(&config, &idle(T0 + 90 * MIN, 8)).len(), 1);
+    }
+
+    #[test]
+    fn a_forgotten_paused_block_also_gets_a_reminder() {
+        let config = cfg(0, 30, 0);
+        let mut a = Alerts::default();
+        let paused = |t| Moment { status: TimerStatus::Paused, ..running(t, 600) };
+        a.check(&config, &paused(T0));
+        assert_eq!(a.check(&config, &paused(T0 + 30 * MIN)), vec![Alert::IdleReminder { mins: 30 }]);
     }
 }

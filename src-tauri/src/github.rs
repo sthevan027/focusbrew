@@ -373,22 +373,45 @@ where
         .collect()
 }
 
+/// GitHub logins: letters, digits and single hyphens, at most 39 characters.
+pub fn is_valid_login(login: &str) -> bool {
+    !login.is_empty()
+        && login.len() <= 39
+        && login.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !login.starts_with('-')
+}
+
 /// The user's recent public and private activity (GitHub keeps ~90 days,
 /// at most 300 events), in local dates.
 pub async fn fetch_events(token: &str, login: &str) -> Result<Vec<GithubEvent>, String> {
+    // The login comes from settings.json, which can be edited by hand: it
+    // goes into the URL path, so only a real GitHub login is accepted.
+    if !is_valid_login(login) {
+        return Err(format!("login do GitHub inválido: {login}"));
+    }
     let client = client(token)?;
     let mut all = Vec::new();
     for page in 1..=3 {
-        let resp = client
+        let fetched = client
             .get(format!("https://api.github.com/users/{login}/events"))
             .query(&[("per_page", "100"), ("page", &page.to_string())])
             .send()
             .await
-            .map_err(|e| e.to_string())?;
-        if !resp.status().is_success() {
-            return Err(format!("GitHub events failed (HTTP {})", resp.status()));
-        }
-        let raw = resp.text().await.map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())
+            .and_then(|resp| {
+                if resp.status().is_success() {
+                    Ok(resp)
+                } else {
+                    Err(format!("GitHub events failed (HTTP {})", resp.status()))
+                }
+            });
+        // A later page failing keeps what the earlier ones brought.
+        let resp = match fetched {
+            Ok(resp) => resp,
+            Err(_) if page > 1 => break,
+            Err(e) => return Err(e),
+        };
+        let Ok(raw) = resp.text().await else { break };
         let count = serde_json::from_str::<Vec<serde_json::Value>>(&raw).map(|v| v.len()).unwrap_or(0);
         all.extend(parse_events(&raw, &chrono::Local));
         if count < 100 {
@@ -449,6 +472,17 @@ mod tests {
         let events = parse_events(EVENTS, &brt());
         assert_eq!(events[0].day, "2026-10-04");
         assert_eq!(events[1].day, "2026-10-05");
+    }
+
+    #[test]
+    fn only_real_logins_go_into_the_url() {
+        assert!(is_valid_login("sthevan027"));
+        assert!(is_valid_login("some-user"));
+        assert!(!is_valid_login(""));
+        assert!(!is_valid_login("../repos"));
+        assert!(!is_valid_login("a/b"));
+        assert!(!is_valid_login("-x"));
+        assert!(!is_valid_login(&"a".repeat(40)));
     }
 
     #[test]

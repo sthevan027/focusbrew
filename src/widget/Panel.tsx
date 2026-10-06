@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import type { StateSnapshot } from "../lib/types";
 import { formatDuration } from "../lib/activity";
+import { remainingSecs } from "../lib/progress";
 import { addDays, dayLabel, tabsFor, tasksForDay } from "../lib/day";
 import type { PanelTab } from "../lib/day";
 import { daySummary } from "../lib/summary";
@@ -27,7 +28,16 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
   const { today } = state;
   const [wanted, setWanted] = useState<PanelTab>("tasks");
   const [dropDay, setDropDay] = useState<string | null>(null);
-  const tabs = tabsFor(day, today, Boolean(state.config.github_login));
+  // The square a task was just moved to blinks once, so it doesn't just vanish.
+  const [flashDay, setFlashDay] = useState<string | null>(null);
+  const flashTimer = useRef(0);
+  const onMoved = (target: string) => {
+    window.clearTimeout(flashTimer.current);
+    setFlashDay(target);
+    flashTimer.current = window.setTimeout(() => setFlashDay(null), 900);
+  };
+  useEffect(() => () => window.clearTimeout(flashTimer.current), []);
+  const tabs =tabsFor(day, today, Boolean(state.config.github_login));
   const tab = tabs.includes(wanted) ? wanted : tabs[0];
 
   let stats: string;
@@ -36,7 +46,10 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
     stats = planned === 0 ? "nada planejado" : `${planned} planejada${planned > 1 ? "s" : ""}`;
   } else {
     const done = daySummary(state.sessions, state.tasks, day).doneCount;
-    const secs = state.focus_secs_by_day[day] ?? 0;
+    // Today also counts the block that is running, like the goal notification.
+    const { timer } = state;
+    const running = day === today && timer.status !== "idle" ? timer.planned_secs - remainingSecs(timer, now) : 0;
+    const secs = (state.focus_secs_by_day[day] ?? 0) + Math.max(0, running);
     const goal = state.config.daily_goal_mins;
     if (day === today && goal > 0) {
       stats = `${formatDuration(secs)} / ${formatDuration(goal * 60)}${secs >= goal * 60 ? " ✓ meta" : ""} · ${done} ✓`;
@@ -103,12 +116,12 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
 
       <div className="panel-body">
         {tab === "tasks" && (
-          <TaskList state={state} day={day} now={now} onHold={onHold} onDropDay={setDropDay} />
+          <TaskList state={state} day={day} now={now} onHold={onHold} onDropDay={setDropDay} onMoved={onMoved} />
         )}
         {tab === "summary" && <DaySummaryView state={state} day={day} />}
         {tab === "github" && <GithubTab state={state} day={day} />}
         <div className="divider" />
-        <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} />
+        <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} flashDay={flashDay} />
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
 } from "../lib/tauri";
 import { formatClock, remainingSecs } from "../lib/progress";
 import { addDays } from "../lib/day";
+import { titleWithoutProject } from "../lib/project";
 import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, LinkIcon, PauseIcon, PlayIcon } from "./icons";
 
 interface Props {
@@ -33,6 +34,8 @@ interface Props {
   onHandleUp: (e: PointerEvent<HTMLButtonElement>) => void;
   /** The title is being edited (keeps the panel open). */
   onEditing: (editing: boolean) => void;
+  /** The task was moved to `day` (the grid flashes that square). */
+  onMoved: (day: string) => void;
 }
 
 export default function TaskRow({
@@ -48,6 +51,7 @@ export default function TaskRow({
   onHandleMove,
   onHandleUp,
   onEditing,
+  onMoved,
 }: Props) {
   const active = timer.task_id === task.id && timer.status !== "idle";
   const running = active && timer.status === "running";
@@ -62,6 +66,7 @@ export default function TaskRow({
     .join(" ");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
   // Enter saves and unmounts the field, which also fires blur: save once.
   const open = useRef(false);
   const startEditing = () => {
@@ -72,12 +77,18 @@ export default function TaskRow({
   };
   const stopEditing = () => {
     open.current = false;
+    setInvalid(false);
     setEditing(false);
     onEditing(false);
   };
   const save = () => {
     if (!open.current) return;
     const text = draft.trim();
+    // Only a "#tag" would leave no title: keep the field open, marked.
+    if (text && !titleWithoutProject(text)) {
+      setInvalid(true);
+      return;
+    }
     if (text && text !== (task.project ? `${task.title} #${task.project}` : task.title)) {
       fire(editTask(task.id, text));
     }
@@ -100,12 +111,17 @@ export default function TaskRow({
       <div className="task-main">
         {editing ? (
           <input
-            className="task-edit"
+            className={invalid ? "task-edit invalid" : "task-edit"}
             autoFocus
             value={draft}
             maxLength={240}
             aria-label="Editar tarefa (título #projeto)"
-            onChange={(e) => setDraft(e.currentTarget.value)}
+            aria-invalid={invalid}
+            title={invalid ? "Escreva um título antes do #projeto" : undefined}
+            onChange={(e) => {
+              setDraft(e.currentTarget.value);
+              setInvalid(false);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") save();
               if (e.key === "Escape") {
@@ -143,7 +159,11 @@ export default function TaskRow({
             className="move"
             aria-label="Mover pro dia seguinte"
             title="Mover pro dia seguinte"
-            onClick={() => fire(moveTask(task.id, addDays(viewDay, 1)))}
+            onClick={() => {
+              const next = addDays(viewDay, 1);
+              fire(moveTask(task.id, next));
+              onMoved(next);
+            }}
           >
             <ArrowRightIcon />
           </button>

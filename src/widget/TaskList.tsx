@@ -3,6 +3,7 @@ import type { PointerEvent } from "react";
 import type { StateSnapshot } from "../lib/types";
 import { addTask, fire, moveTask, reorderTasks } from "../lib/tauri";
 import { carriedFrom, tasksForDay } from "../lib/day";
+import { titleWithoutProject } from "../lib/project";
 import { dropIndex, moveItem } from "../lib/reorder";
 import TaskRow from "./TaskRow";
 
@@ -14,6 +15,8 @@ interface Props {
   onHold: (hold: boolean) => void;
   /** The grid square under a dragged task (`null` when none). */
   onDropDay: (day: string | null) => void;
+  /** A task was moved to another day. */
+  onMoved: (day: string) => void;
 }
 
 interface Drag {
@@ -28,11 +31,12 @@ function dayUnder(x: number, y: number, today: string): string | null {
   return day && day >= today ? day : null;
 }
 
-export default function TaskList({ state, day, now, onHold, onDropDay }: Props) {
+export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }: Props) {
   const { timer, today } = state;
   const { open, done } = tasksForDay(state.tasks, day, today);
 
   const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
   const [typing, setTyping] = useState(false);
   const [editing, setEditing] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -59,6 +63,11 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
     e.preventDefault();
     const title = draft.trim();
     if (!title) return;
+    // Only a "#tag" would create nothing: say so instead of eating the text.
+    if (!titleWithoutProject(title)) {
+      setInvalid(true);
+      return;
+    }
     fire(addTask(title, day));
     setDraft("");
   };
@@ -90,6 +99,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
     const task = open[drag.from];
     if (target && task && target !== task.day) {
       fire(moveTask(task.id, target));
+      onMoved(target);
     } else if (!target && drag.over !== drag.from) {
       fire(reorderTasks(moveItem(open.map((t) => t.id), drag.from, drag.over)));
     }
@@ -132,6 +142,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
             onHandleMove={onHandleMove}
             onHandleUp={onHandleUp}
             onEditing={setEditing}
+            onMoved={onMoved}
           />
         ))}
         {done.map((task) => (
@@ -149,18 +160,25 @@ export default function TaskList({ state, day, now, onHold, onDropDay }: Props) 
             onHandleMove={() => {}}
             onHandleUp={() => {}}
             onEditing={setEditing}
+            onMoved={onMoved}
           />
         ))}
       </div>
       <form onSubmit={submit}>
         <input
+          className={invalid ? "invalid" : undefined}
           value={draft}
           maxLength={200}
-          placeholder={day === today ? "Add a task  (#projeto no fim)" : "Planejar uma tarefa  (#projeto no fim)"}
-          onChange={(e) => setDraft(e.currentTarget.value)}
+          aria-invalid={invalid}
+          placeholder={day === today ? "Adicionar tarefa — #projeto no fim" : "Planejar uma tarefa — #projeto no fim"}
+          onChange={(e) => {
+            setDraft(e.currentTarget.value);
+            setInvalid(false);
+          }}
           onFocus={() => setTyping(true)}
           onBlur={() => setTyping(false)}
         />
+        {invalid && <p className="field-hint">Escreva um título antes do #projeto</p>}
       </form>
     </section>
   );

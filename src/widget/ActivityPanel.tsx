@@ -10,6 +10,8 @@ interface Props {
   state: StateSnapshot;
   selected: string;
   onSelect: (day: string) => void;
+  /** Square a task was just moved to (blinks once). */
+  flashDay: string | null;
   /** Square a task is being dragged over. */
   dropDay: string | null;
 }
@@ -25,7 +27,7 @@ function describe(cell: DayCell, state: StateSnapshot): string {
   const contributions = state.github_days[cell.date] ?? 0;
   const parts = [formatDuration(cell.secs)];
   if (done > 0) parts.push(`${done} concluída${done > 1 ? "s" : ""}`);
-  if (contributions > 0) parts.push(`${contributions} no GitHub`);
+  if (contributions > 0) parts.push(`${contributions} contribuiç${contributions > 1 ? "ões" : "ão"}`);
   return `${label} — ${parts.join(" · ")}`;
 }
 
@@ -33,7 +35,7 @@ function describe(cell: DayCell, state: StateSnapshot): string {
  * Focus per day: 3 past weeks, this one and the next. A square is a day —
  * click to open it; drop a task on today or a future square to plan it there.
  */
-export default function ActivityPanel({ state, selected, onSelect, dropDay }: Props) {
+export default function ActivityPanel({ state, selected, onSelect, dropDay, flashDay }: Props) {
   const { focus_secs_by_day: secs, today } = state;
   const cells = buildGrid(secs, today, plannedByDay(state.tasks, today));
   const [hovered, setHovered] = useState<DayCell | null>(null);
@@ -68,6 +70,7 @@ export default function ActivityPanel({ state, selected, onSelect, dropDay }: Pr
             cell.when,
             cell.date === selected ? "selected" : "",
             cell.date === dropDay ? "drop" : "",
+            cell.date === flashDay ? "flash" : "",
           ]
             .filter(Boolean)
             .join(" ");

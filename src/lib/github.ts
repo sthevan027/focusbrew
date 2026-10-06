@@ -41,9 +41,10 @@ export function knownTitles(items: GithubItem[], tasks: Task[]): Record<string, 
 function describe(e: GithubEvent, titles: Record<string, string>): string {
   const known = e.title ?? titles[`${e.repo}#${e.number}`];
   const title = known ? ` — ${known}` : "";
-  if (e.kind === "review") return `Review no PR #${e.number}${title}`;
+  const num = e.number !== null ? ` #${e.number}` : "";
+  if (e.kind === "review") return `Review no PR${num}${title}`;
   const what = e.kind.startsWith("pr_") ? "PR" : "Issue";
-  return `${what} #${e.number} ${LABEL[e.kind] ?? ""}${title}`;
+  return `${what}${num} ${LABEL[e.kind] ?? ""}${title}`;
 }
 
 /** What happened on GitHub that day: pushes summed per repo, then the rest. */
