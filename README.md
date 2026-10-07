@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="src-tauri/icons/128x128.png" alt="Ícone do app: um grão de café sobre fundo âmbar" width="96">
+  &nbsp;&nbsp;&nbsp;
+  <img src="src-tauri/icons/tray/idle.png" alt="Ícone da bandeja: o grão de café" width="48">
+</p>
+
 # focusbrew
 
 Um tracker do dia pra quem programa, num widget colado no topo da tela. Você
