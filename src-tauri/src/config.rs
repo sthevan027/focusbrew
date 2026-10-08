@@ -26,6 +26,8 @@ pub struct AppConfig {
     pub accent_color: String,
     pub widget_scale: WidgetScale,
     pub widget_visible: bool,
+    /// The screen edge the widget is glued to.
+    pub widget_edge: WidgetEdge,
     /// Name of the monitor the widget sits on; `None` or not found = primary.
     pub monitor: Option<String>,
     /// Heads-up this many minutes before a block ends (0 = off; 1, 2 or 5).
@@ -82,6 +84,19 @@ impl WidgetScale {
     }
 }
 
+/// Which screen edge the widget is glued to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WidgetEdge {
+    /// Top of the screen, centered (the original placement).
+    #[default]
+    Top,
+    /// Left edge, centered in height.
+    Left,
+    /// Right edge, centered in height.
+    Right,
+}
+
 pub const DEFAULT_ACCENT: &str = "#0A84FF";
 
 /// "#rrggbb" in any case (and surrounding spaces) -> "#RRGGBB"; anything else -> `None`.
@@ -107,6 +122,7 @@ impl Default for AppConfig {
             accent_color: DEFAULT_ACCENT.to_string(),
             widget_scale: WidgetScale::default(),
             widget_visible: true,
+            widget_edge: WidgetEdge::default(),
             monitor: None,
             notify_before_end_mins: 0,
             idle_reminder_mins: 0,
@@ -316,5 +332,31 @@ mod tests {
     fn the_enums_are_written_in_lower_case() {
         assert_eq!(serde_json::to_string(&NotchStyle::Minimal).unwrap(), "\"minimal\"");
         assert_eq!(serde_json::to_string(&WidgetScale::Large).unwrap(), "\"large\"");
+    }
+
+    #[test]
+    fn the_widget_defaults_to_the_top_edge() {
+        assert_eq!(AppConfig::default().widget_edge, WidgetEdge::Top);
+    }
+
+    // Review focus: a file written before this setting existed.
+    #[test]
+    fn a_file_without_widget_edge_opens_on_the_top_and_keeps_the_rest() {
+        let c = parse(r##"{"accent_color":"#112233","daily_goal_mins":90}"##);
+        assert_eq!(c.widget_edge, WidgetEdge::Top);
+        assert_eq!(c.accent_color, "#112233");
+        assert_eq!(c.daily_goal_mins, 90);
+    }
+
+    #[test]
+    fn the_edge_is_written_in_lower_case_and_read_back() {
+        for (edge, text) in
+            [(WidgetEdge::Top, "top"), (WidgetEdge::Left, "left"), (WidgetEdge::Right, "right")]
+        {
+            let raw = format!(r#"{{"widget_edge":"{text}"}}"#);
+            assert_eq!(parse(&raw).widget_edge, edge);
+            let json = serde_json::to_string(&AppConfig { widget_edge: edge, ..AppConfig::default() }).unwrap();
+            assert!(json.contains(&format!("\"widget_edge\":\"{text}\"")), "{json}");
+        }
     }
 }
