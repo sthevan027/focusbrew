@@ -15,7 +15,7 @@ type Section = "focus" | "projects" | "notch" | "general" | "github";
 const SECTIONS: { id: Section; label: string; color: string }[] = [
   { id: "focus", label: "Foco", color: "#ff9f0a" },
   { id: "projects", label: "Projetos", color: "#bf5af2" },
-  { id: "notch", label: "Notch", color: "#5e5ce6" },
+  { id: "notch", label: "Notch", color: "#ff375f" },
   { id: "general", label: "Geral", color: "#8e8e93" },
   { id: "github", label: "GitHub", color: "#30d158" },
 ];
