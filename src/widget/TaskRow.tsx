@@ -27,8 +27,8 @@ interface Props {
   /** "02/10" when the task was left over from an earlier day. */
   carried: string | null;
   dragging: boolean;
-  /** Where the drop guide line is drawn relative to this row, if at all. */
-  guide: "before" | "after" | null;
+  /** Px this row slides to make room for the row being dragged (0 = in place). */
+  shift: number;
   rowRef: (el: HTMLDivElement | null) => void;
   onHandleDown: (e: PointerEvent<HTMLButtonElement>) => void;
   onHandleMove: (e: PointerEvent<HTMLButtonElement>) => void;
@@ -46,7 +46,7 @@ export default function TaskRow({
   viewDay,
   carried,
   dragging,
-  guide,
+  shift,
   rowRef,
   onHandleDown,
   onHandleMove,
@@ -61,7 +61,6 @@ export default function TaskRow({
     active ? "active" : "",
     task.done ? "done" : "",
     dragging ? "dragging" : "",
-    guide ? `guide-${guide}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -123,7 +122,11 @@ export default function TaskRow({
   const details = [task.note ?? task.project, carried && `de ${carried}`].filter(Boolean).join(" · ");
 
   return (
-    <div ref={rowRef} className={classes}>
+    <div
+      ref={rowRef}
+      className={classes}
+      style={shift ? { transform: `translate3d(0, ${shift}px, 0)` } : undefined}
+    >
       <button
         className="check"
         aria-label={task.done ? "Reabrir tarefa" : "Concluir tarefa"}
@@ -175,22 +178,31 @@ export default function TaskRow({
             {details}
           </div>
         )}
+        {/* Over the end of the title, faded in on hover: nothing here takes
+            room in the row, so hovering never reflows the titles. */}
+        <div className="row-actions">
+          {!task.done && (
+            <button
+              className="move"
+              aria-label="Mover pro dia seguinte"
+              title="Mover pro dia seguinte"
+              onClick={() => {
+                const next = addDays(viewDay, 1);
+                fire(moveTask(task.id, next));
+                onMoved(next);
+              }}
+            >
+              <ArrowRightIcon />
+            </button>
+          )}
+          <button className="remove" aria-label="Remover tarefa" onClick={() => fire(removeTask(task.id))}>
+            ×
+          </button>
+        </div>
       </div>
 
       {!task.done && (
         <>
-          <button
-            className="move"
-            aria-label="Mover pro dia seguinte"
-            title="Mover pro dia seguinte"
-            onClick={() => {
-              const next = addDays(viewDay, 1);
-              fire(moveTask(task.id, next));
-              onMoved(next);
-            }}
-          >
-            <ArrowRightIcon />
-          </button>
           <div className={timeEditing ? "minutes editing" : "minutes"}>
             <ClockIcon />
             {timeEditing ? (
@@ -232,10 +244,6 @@ export default function TaskRow({
           </button>
         </>
       )}
-
-      <button className="remove" aria-label="Remover tarefa" onClick={() => fire(removeTask(task.id))}>
-        ×
-      </button>
 
       {!task.done && (
         <button

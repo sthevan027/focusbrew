@@ -1,5 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { dropIndex, moveItem } from "./reorder";
+import { dropIndex, jumpDistance, moveItem, rowShift } from "./reorder";
+
+describe("rowShift", () => {
+  const step = 40;
+
+  it("moves the rows the dragged one jumps over out of its way: up when it goes down", () => {
+    // 4 rows, row 1 is dragged down to slot 3: rows 2 and 3 slide up
+    expect(rowShift(0, 1, 3, step)).toBe(0);
+    expect(rowShift(2, 1, 3, step)).toBe(-40);
+    expect(rowShift(3, 1, 3, step)).toBe(-40);
+  });
+
+  it("slides them down when the dragged one goes up", () => {
+    // row 3 is dragged up to slot 1: rows 1 and 2 slide down
+    expect(rowShift(0, 3, 1, step)).toBe(0);
+    expect(rowShift(1, 3, 1, step)).toBe(40);
+    expect(rowShift(2, 3, 1, step)).toBe(40);
+  });
+
+  it("shifts nothing while the dragged row stays in its slot, and never the dragged row", () => {
+    for (let i = 0; i < 4; i++) expect(rowShift(i, 2, 2, step)).toBe(0);
+    expect(rowShift(1, 1, 3, step)).toBe(0);
+  });
+});
+
+describe("jumpDistance", () => {
+  const heights = [32, 50, 32, 32];
+
+  it("is the room of the rows it jumps over (height plus gap), down is positive", () => {
+    expect(jumpDistance(heights, 0, 2, 6)).toBe(50 + 6 + 32 + 6);
+    expect(jumpDistance(heights, 0, 1, 6)).toBe(50 + 6);
+  });
+
+  it("is negative going up and zero when it does not move", () => {
+    expect(jumpDistance(heights, 3, 1, 6)).toBe(-(50 + 6 + 32 + 6));
+    expect(jumpDistance(heights, 2, 2, 6)).toBe(0);
+  });
+});
 
 describe("moveItem", () => {
   it("moves down and up", () => {
