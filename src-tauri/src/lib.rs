@@ -87,6 +87,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
     let window_layout = widget::window_layout(&state.config);
     let zone = widget::hot_zone(&state.config, state.tracker.timer.status());
     let monitor = state.config.monitor.clone();
+    let edge = state.config.widget_edge;
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if tooltip_changed {
@@ -94,7 +95,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
                 let _ = tray.set_tooltip(Some(tooltip));
             }
         }
-        widget::apply(&handle, window_layout, zone, monitor.as_deref());
+        widget::apply(&handle, window_layout, zone, monitor.as_deref(), edge);
     });
     let _ = app.emit("state-changed", StateSnapshot::from(state));
 }
