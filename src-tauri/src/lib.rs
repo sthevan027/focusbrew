@@ -3,6 +3,7 @@ mod autostart;
 mod commands;
 mod config;
 mod github;
+mod note_window;
 mod notes;
 mod shortcuts;
 mod state;
@@ -126,8 +127,19 @@ fn panel_action(app: &AppHandle) {
     let _ = app.emit_to("widget", "toggle-panel", ());
 }
 
-/// The note shortcut. (The real work arrives with the note window.)
-fn note_action(_app: &AppHandle) {}
+/// The note shortcut: a new note, or — with one already open — bring it forward and blink.
+fn note_action(app: &AppHandle) {
+    if note_window::is_open(app) {
+        note_window::focus_and_flash(app);
+        return;
+    }
+    let (placement, visible) = {
+        let shared = app.state::<Shared>();
+        let state = shared.lock();
+        (state.config.note_placement, state.config.widget_visible)
+    };
+    note_window::open(app, None, note_window::wants_window(placement, visible));
+}
 
 fn alert_text(alert: &Alert) -> (String, String) {
     match alert {
@@ -292,6 +304,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(global_shortcut_plugin)
         .manage(Shared(Mutex::new(AppState::load())))
+        .manage(notes::NotesShared(Mutex::new(notes::load())))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::add_task,
@@ -316,6 +329,15 @@ pub fn run() {
             commands::import_github_item_as_task,
             commands::set_widget_expanded,
             commands::open_settings_window,
+            commands::list_notes,
+            commands::save_note,
+            commands::delete_note,
+            commands::save_note_image,
+            commands::read_note_image,
+            commands::read_image_file,
+            commands::open_note,
+            commands::close_note_window,
+            commands::set_note_overlay_open,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -392,6 +414,12 @@ pub fn run() {
             spawn_tick_loop(handle.clone());
             widget::spawn_hover_loop(handle.clone());
             spawn_github_refresh_loop(handle);
+            // Nothing is being edited yet: free the images no note uses.
+            {
+                let notes = app.state::<notes::NotesShared>();
+                let in_use = notes.lock().images_in_use();
+                notes::prune_images(&in_use);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

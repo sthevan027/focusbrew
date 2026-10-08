@@ -1,7 +1,10 @@
-use tauri::{AppHandle, Manager, State};
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::config::{self, AppConfig};
 use crate::github;
+use crate::note_window;
+use crate::notes::{self, Note, NotesShared};
 use crate::state::{AppState, StateSnapshot};
 use crate::tracker::tasks::{self, TaskSource};
 use crate::tracker::{now_ms, today_key};
@@ -329,4 +332,90 @@ pub fn set_widget_expanded(expanded: bool) {
 #[tauri::command]
 pub fn open_settings_window(app: AppHandle) {
     crate::show_main_window(&app);
+}
+
+#[tauri::command]
+pub fn list_notes(notes: State<'_, NotesShared>) -> Vec<Note> {
+    notes.lock().notes.clone()
+}
+
+#[tauri::command]
+pub fn save_note(note: Note, app: AppHandle, notes: State<'_, NotesShared>) -> Result<(), String> {
+    let mut store = notes.lock();
+    store.upsert(note, now_ms())?;
+    notes::save(&store).map_err(|e| e.to_string())?;
+    drop(store);
+    let _ = app.emit("notes-changed", ());
+    Ok(())
+}
+
+/// Deleting a note also deletes the images no other note uses.
+#[tauri::command]
+pub fn delete_note(id: String, app: AppHandle, notes: State<'_, NotesShared>) -> Result<(), String> {
+    let mut store = notes.lock();
+    store.remove(&id);
+    notes::save(&store).map_err(|e| e.to_string())?;
+    let in_use = store.images_in_use();
+    drop(store);
+    notes::prune_images(&in_use);
+    let _ = app.emit("notes-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn save_note_image(data_base64: String, ext: String) -> Result<String, String> {
+    let bytes = B64.decode(data_base64.trim()).map_err(|_| "imagem inválida".to_string())?;
+    notes::store_image(&bytes, &ext)
+}
+
+/// A stored image as a `data:` URL, ready for an `<image>`/`<img>`.
+#[tauri::command]
+pub fn read_note_image(file: String) -> Result<String, String> {
+    let bytes = notes::read_image(&file)?;
+    Ok(format!("data:{};base64,{}", notes::mime_for(&file), B64.encode(bytes)))
+}
+
+#[derive(serde::Serialize)]
+pub struct ImagePayload {
+    pub ext: String,
+    pub data_base64: String,
+}
+
+/// An image file dropped on the note (the path comes from the OS drag-and-drop).
+#[tauri::command]
+pub fn read_image_file(path: String) -> Result<ImagePayload, String> {
+    let path = std::path::PathBuf::from(path);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
+        .ok_or_else(|| "formato de imagem não suportado".to_string())?;
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() || meta.len() > 20 * 1024 * 1024 {
+        return Err("arquivo grande demais".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(ImagePayload { ext, data_base64: B64.encode(bytes) })
+}
+
+/// Opens a note (`None` = new) where the settings say.
+#[tauri::command]
+pub fn open_note(id: Option<String>, app: AppHandle, shared: State<'_, Shared>) {
+    let (placement, visible) = {
+        let state = shared.lock();
+        (state.config.note_placement, state.config.widget_visible)
+    };
+    note_window::open(&app, id, note_window::wants_window(placement, visible));
+}
+
+#[tauri::command]
+pub fn close_note_window(app: AppHandle) {
+    note_window::close_window(&app);
+}
+
+/// The front-end says the note is (or is no longer) open over the widget.
+#[tauri::command]
+pub fn set_note_overlay_open(open: bool) {
+    note_window::set_overlay_open(open);
 }

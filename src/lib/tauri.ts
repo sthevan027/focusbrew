@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { Note } from "./note";
 import type { AppConfig, GithubItem, MonitorChoice, StateSnapshot } from "./types";
 
 export const currentWindowLabel = () => getCurrentWindow().label;
@@ -62,3 +63,20 @@ export const openSettingsWindow = () => invoke<void>("open_settings_window");
 
 export const onStateChanged = (cb: (snapshot: StateSnapshot) => void) =>
   listen<StateSnapshot>("state-changed", (event) => cb(event.payload));
+
+export const listNotes = () => invoke<Note[]>("list_notes");
+export const saveNote = (note: Note) => invoke<void>("save_note", { note });
+export const deleteNote = (id: string) => invoke<void>("delete_note", { id });
+export const saveNoteImage = (dataBase64: string, ext: string) => invoke<string>("save_note_image", { dataBase64, ext });
+/** A stored image as a data: URL. */
+export const readNoteImage = (file: string) => invoke<string>("read_note_image", { file });
+export const readImageFile = (path: string) => invoke<{ ext: string; data_base64: string }>("read_image_file", { path });
+/** `null` opens a new note, where the settings say (over the panel or in a window). */
+export const openNote = (id: string | null) => invoke<void>("open_note", { id });
+export const closeNoteWindow = () => invoke<void>("close_note_window");
+export const setNoteOverlayOpen = (open: boolean) => invoke<void>("set_note_overlay_open", { open });
+
+export const onNotesChanged = (cb: () => void) => listen("notes-changed", () => cb());
+/** Show this note (`null` = a new one). */
+export const onOpenNote = (cb: (id: string | null) => void) => listen<string | null>("open-note", (e) => cb(e.payload));
+export const onNoteFlash = (cb: () => void) => listen("note-flash", () => cb());
