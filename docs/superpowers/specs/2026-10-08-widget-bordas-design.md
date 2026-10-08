@@ -91,7 +91,8 @@ status do timer). A forma exibida é derivada, sem estado novo.
 `shellSize`/`hitSize`. Ordem:
 
 1. widget escondido (`widget_visible` desligado) → nada
-2. painel aberto, fixado ou fechando → painel
+2. painel aberto (fixado ou não) → painel; ao fechar, a forma já encolhe
+   para a caixa ou a barra, como hoje (`phase === "closing"` cai nos degraus 3/4)
 3. timer rodando ou pausado → caixa
 4. senão → barra
 
