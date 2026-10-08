@@ -43,6 +43,10 @@ pub struct AppConfig {
     pub shortcut_toggle: String,
     /// Open/close the panel, pinned.
     pub shortcut_panel: String,
+    /// Open a new quick note.
+    pub shortcut_note: String,
+    /// Where a note opens: over the panel or in its own window.
+    pub note_placement: NotePlacement,
     /// Start focusbrew when Windows starts.
     pub launch_at_login: bool,
     /// A pinned panel closes by itself after this many seconds without any
@@ -52,6 +56,7 @@ pub struct AppConfig {
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
 pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
+pub const DEFAULT_SHORTCUT_NOTE: &str = "CommandOrControl+Alt+KeyN";
 pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
 pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
 pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
@@ -59,6 +64,17 @@ pub const AUTOCLOSE_CHOICES: [u32; 4] = [0, 15, 30, 60];
 
 fn default_true() -> bool {
     true
+}
+
+/// Where a quick note opens.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotePlacement {
+    /// Over the widget's panel, hanging from the screen edge.
+    #[default]
+    Overlay,
+    /// In its own window, centered on the monitor.
+    Window,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,6 +163,8 @@ impl Default for AppConfig {
             daily_goal_mins: 0,
             shortcut_toggle: DEFAULT_SHORTCUT_TOGGLE.to_string(),
             shortcut_panel: DEFAULT_SHORTCUT_PANEL.to_string(),
+            shortcut_note: DEFAULT_SHORTCUT_NOTE.to_string(),
+            note_placement: NotePlacement::default(),
             launch_at_login: false,
             panel_autoclose_secs: 0,
         }
@@ -177,6 +195,7 @@ impl AppConfig {
         }
         self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
         self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
+        self.shortcut_note = or_default(self.shortcut_note, DEFAULT_SHORTCUT_NOTE);
         self.monitor = self.monitor.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
         self
     }
@@ -417,5 +436,31 @@ mod tests {
             let json = serde_json::to_string(&AppConfig { widget_edge: edge, ..AppConfig::default() }).unwrap();
             assert!(json.contains(&format!("\"widget_edge\":\"{text}\"")), "{json}");
         }
+    }
+
+    #[test]
+    fn the_note_settings_have_safe_defaults_and_old_files_get_them() {
+        let c = AppConfig::default();
+        assert_eq!(c.shortcut_note, "CommandOrControl+Alt+KeyN");
+        assert_eq!(c.note_placement, NotePlacement::Overlay);
+        let old = parse(r##"{"accent_color":"#112233"}"##);
+        assert_eq!(old.shortcut_note, DEFAULT_SHORTCUT_NOTE);
+        assert_eq!(old.note_placement, NotePlacement::Overlay);
+    }
+
+    #[test]
+    fn the_note_placement_is_written_in_lower_case_and_read_back() {
+        for (placement, text) in [(NotePlacement::Overlay, "overlay"), (NotePlacement::Window, "window")] {
+            let raw = format!(r#"{{"note_placement":"{text}"}}"#);
+            assert_eq!(parse(&raw).note_placement, placement);
+            let json = serde_json::to_string(&AppConfig { note_placement: placement, ..AppConfig::default() }).unwrap();
+            assert!(json.contains(&format!("\"note_placement\":\"{text}\"")), "{json}");
+        }
+    }
+
+    #[test]
+    fn a_blank_note_shortcut_falls_back_to_the_default() {
+        let c = AppConfig { shortcut_note: "  ".into(), ..AppConfig::default() }.normalized();
+        assert_eq!(c.shortcut_note, DEFAULT_SHORTCUT_NOTE);
     }
 }

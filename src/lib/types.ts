@@ -3,6 +3,8 @@ export type WidgetEdge = "top" | "left" | "right";
 export type SideCountStyle = "stacked" | "inline";
 export type NotchStyle = "standard" | "minimal";
 export type WidgetScale = "small" | "medium" | "large";
+/** Where a quick note opens: over the panel or in its own window. */
+export type NotePlacement = "overlay" | "window";
 
 export interface AppConfig {
   github_login: string | null;
@@ -29,6 +31,9 @@ export interface AppConfig {
   daily_goal_mins: number;
   shortcut_toggle: string;
   shortcut_panel: string;
+  shortcut_note: string;
+  /** Where a quick note opens. */
+  note_placement: NotePlacement;
   launch_at_login: boolean;
   /** A pinned panel closes by itself after this many idle seconds; 0 = never (15, 30 or 60). */
   panel_autoclose_secs: number;

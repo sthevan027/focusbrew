@@ -193,6 +193,7 @@ pub fn update_settings(
     config.github_use_gh = state.config.github_use_gh;
     config.shortcut_toggle = state.config.shortcut_toggle.clone();
     config.shortcut_panel = state.config.shortcut_panel.clone();
+    config.shortcut_note = state.config.shortcut_note.clone();
     config.launch_at_login = state.config.launch_at_login;
     state.config = config;
     let _ = config::save(&state.config);
