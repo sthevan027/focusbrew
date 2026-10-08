@@ -3,6 +3,7 @@ mod autostart;
 mod commands;
 mod config;
 mod github;
+mod notes;
 mod shortcuts;
 mod state;
 mod tracker;
