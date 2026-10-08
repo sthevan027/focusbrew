@@ -94,6 +94,59 @@
 .shell-frame.open {
   --shell-bg: #0b0b0d;
 }
+
+/* ---- notch "ears": concave curves where the box or panel meets the screen
+   edge. Pure CSS: a transparent quarter circle (radius 14) cut out of a
+   square painted in the shell's color. Not shown on the parked bar. ---- */
+.shell-frame::before,
+.shell-frame::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  transition: opacity 160ms;
+}
+.shell-frame[data-kind="bar"]::before,
+.shell-frame[data-kind="bar"]::after {
+  opacity: 0;
+}
+
+/* top edge: one ear on each side of the shape, at the top */
+.widget-root[data-edge="top"] .shell-frame::before {
+  top: 0;
+  right: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+.widget-root[data-edge="top"] .shell-frame::after {
+  top: 0;
+  left: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+
+/* left edge: one ear above and one below the shape */
+.widget-root[data-edge="left"] .shell-frame::before {
+  left: 0;
+  bottom: 100%;
+  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--shell-bg) 14px);
+}
+.widget-root[data-edge="left"] .shell-frame::after {
+  left: 0;
+  top: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+
+/* right edge: one ear above and one below the shape */
+.widget-root[data-edge="right"] .shell-frame::before {
+  right: 0;
+  bottom: 100%;
+  background: radial-gradient(circle at 0 0, transparent 13.5px, var(--shell-bg) 14px);
+}
+.widget-root[data-edge="right"] .shell-frame::after {
+  right: 0;
+  top: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
 /* Must match CLOSE_MS in Widget.tsx. */
 .shell-frame.closing,
 .shell.closing {

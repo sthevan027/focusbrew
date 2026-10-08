@@ -131,6 +131,7 @@ export default function Widget() {
         >
           <div
             className={`shell-frame ${phase} ${timer.status}`}
+            data-kind={shape.kind}
             style={{ width: shape.shell.width, height: shape.shell.height }}
           >
             <div className={`shell ${phase} ${timer.status}`}>
