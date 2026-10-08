@@ -292,7 +292,7 @@ pub fn run() {
             commands::add_task,
             commands::toggle_task,
             commands::remove_task,
-            commands::nudge_task_minutes,
+            commands::set_task_minutes,
             commands::move_task,
             commands::edit_task,
             commands::project_totals,

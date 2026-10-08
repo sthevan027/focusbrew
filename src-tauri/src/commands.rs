@@ -80,17 +80,17 @@ pub fn move_task(
     result.map(|_| snapshot)
 }
 
-/// The ▲▼ arrows (`delta` is +5 or -5).
+/// The minutes typed into a task's time field (the tracker clamps to 5..=180).
 #[tauri::command]
-pub fn nudge_task_minutes(
+pub fn set_task_minutes(
     id: String,
-    delta: i32,
+    minutes: u32,
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> StateSnapshot {
     let (snapshot, (finished, notify_on)) = apply(&app, &shared, |state, now, today| {
         (
-            state.tracker.nudge_minutes(&id, delta, now, today),
+            state.tracker.set_minutes(&id, minutes, now, today),
             state.config.notify_on_finish,
         )
     });

@@ -19,8 +19,9 @@ export function fire(call: Promise<unknown>): void {
 export const addTask = (title: string, day: string) => invoke<StateSnapshot>("add_task", { title, day });
 export const toggleTask = (id: string) => invoke<StateSnapshot>("toggle_task", { id });
 export const removeTask = (id: string) => invoke<StateSnapshot>("remove_task", { id });
-export const nudgeTaskMinutes = (id: string, delta: number) =>
-  invoke<StateSnapshot>("nudge_task_minutes", { id, delta });
+/** The minutes typed into the task's time field; the backend clamps to 5..=180. */
+export const setTaskMinutes = (id: string, minutes: number) =>
+  invoke<StateSnapshot>("set_task_minutes", { id, minutes });
 export const moveTask = (id: string, day: string) => invoke<StateSnapshot>("move_task", { id, day });
 /** `text` is "título #projeto"; no tag clears the project. */
 export const editTask = (id: string, text: string) => invoke<StateSnapshot>("edit_task", { id, text });

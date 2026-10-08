@@ -6,14 +6,15 @@ import {
   editTask,
   fire,
   moveTask,
-  nudgeTaskMinutes,
   removeTask,
+  setTaskMinutes,
   startTask,
   toggleTask,
   toggleTimerPause,
 } from "../lib/tauri";
 import { formatClock, remainingSecs } from "../lib/progress";
 import { addDays } from "../lib/day";
+import { parseMinutes } from "../lib/minutes";
 import { titleWithoutProject } from "../lib/project";
 import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, LinkIcon, PauseIcon, PlayIcon } from "./icons";
 
@@ -95,6 +96,29 @@ export default function TaskRow({
     stopEditing();
   };
 
+  // The time field: click the number, type the minutes. Same save-once guard
+  // as the title (Enter unmounts the field, which also fires blur).
+  const [timeEditing, setTimeEditing] = useState(false);
+  const [timeDraft, setTimeDraft] = useState("");
+  const timeOpen = useRef(false);
+  const startTimeEdit = () => {
+    setTimeDraft(String(task.minutes));
+    timeOpen.current = true;
+    setTimeEditing(true);
+    onEditing(true);
+  };
+  const stopTimeEdit = () => {
+    timeOpen.current = false;
+    setTimeEditing(false);
+    onEditing(false);
+  };
+  const saveTime = () => {
+    if (!timeOpen.current) return;
+    const minutes = parseMinutes(timeDraft);
+    if (minutes !== null && minutes !== task.minutes) fire(setTaskMinutes(task.id, minutes));
+    stopTimeEdit();
+  };
+
   // A GitHub task's note ("dono/repo #N") already names its project.
   const details = [task.note ?? task.project, carried && `de ${carried}`].filter(Boolean).join(" · ");
 
@@ -167,19 +191,37 @@ export default function TaskRow({
           >
             <ArrowRightIcon />
           </button>
-          <div className="minutes">
+          <div className={timeEditing ? "minutes editing" : "minutes"}>
             <ClockIcon />
-            <span className="minutes-value">
-              {active ? formatClock(remainingSecs(timer, now)) : task.minutes}
-            </span>
-            <span className="stepper">
-              <button aria-label="Mais 5 minutos" onClick={() => fire(nudgeTaskMinutes(task.id, 5))}>
-                ▲
+            {timeEditing ? (
+              <input
+                className="minutes-edit"
+                autoFocus
+                inputMode="numeric"
+                maxLength={3}
+                value={timeDraft}
+                aria-label="Minutos da atividade (5 a 180)"
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setTimeDraft(e.currentTarget.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTime();
+                  if (e.key === "Escape") {
+                    e.stopPropagation(); // Esc here cancels the edit, not the pinned panel
+                    stopTimeEdit();
+                  }
+                }}
+                onBlur={saveTime}
+              />
+            ) : (
+              <button
+                className="minutes-value"
+                aria-label="Mudar o tempo da atividade"
+                title="Clique pra digitar os minutos"
+                onClick={startTimeEdit}
+              >
+                {active ? formatClock(remainingSecs(timer, now)) : task.minutes}
               </button>
-              <button aria-label="Menos 5 minutos" onClick={() => fire(nudgeTaskMinutes(task.id, -5))}>
-                ▼
-              </button>
-            </span>
+            )}
           </div>
           <button
             className="play"
