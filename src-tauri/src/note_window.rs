@@ -17,6 +17,11 @@ pub fn set_overlay_open(open: bool) {
     OVERLAY_OPEN.store(open, Ordering::Relaxed);
 }
 
+/// Whether a note is open over the widget (the widget takes its whole window then).
+pub fn overlay_open() -> bool {
+    OVERLAY_OPEN.load(Ordering::Relaxed)
+}
+
 fn window_visible(app: &AppHandle) -> bool {
     app.get_webview_window("note").and_then(|w| w.is_visible().ok()).unwrap_or(false)
 }

@@ -17,6 +17,8 @@ const FALLBACK_MONITOR_HEIGHT: u32 = 720;
 /// quick note, 560×380; the panel is 300 tall inside it), lets the
 /// mouse pass through, and only catches it inside the visible shape's area.
 pub const OPEN_SIZE: (f64, f64) = (560.0, 380.0);
+/// The open panel inside that window: what takes the mouse unless a note is open.
+pub const PANEL_SIZE: (f64, f64) = (560.0, 300.0);
 /// Parked: the area over the flat bar that reacts to the mouse (the bar is 6 px).
 pub const IDLE_ZONE: (f64, f64) = (140.0, 14.0);
 /// A block is running or paused: the box with the progress line around it.
@@ -38,6 +40,8 @@ static EXPANDED: AtomicBool = AtomicBool::new(false);
 static LAST_BOUNDS: Mutex<Option<Bounds>> = Mutex::new(None);
 /// Physical area that catches the mouse while closed; `None` when hidden.
 static ZONE: Mutex<Option<Bounds>> = Mutex::new(None);
+/// Physical area of the open panel (300 tall, inside the 380 tall window).
+static PANEL_ZONE: Mutex<Option<Bounds>> = Mutex::new(None);
 /// Whether the window currently lets the mouse pass through.
 static PASS_THROUGH: AtomicBool = AtomicBool::new(true);
 
@@ -77,6 +81,7 @@ pub fn apply(
     app: &AppHandle,
     window_layout: Layout,
     zone: Layout,
+    panel: Layout,
     monitor_name: Option<&str>,
     edge: WidgetEdge,
 ) {
@@ -86,6 +91,7 @@ pub fn apply(
     if !window_layout.visible {
         *LAST_BOUNDS.lock().unwrap() = None;
         *ZONE.lock().unwrap() = None;
+        *PANEL_ZONE.lock().unwrap() = None;
         let _ = window.hide();
         return;
     }
@@ -122,6 +128,7 @@ pub fn apply(
         physical_bounds(area, layout, edge)
     };
     *ZONE.lock().unwrap() = Some(place(&zone));
+    *PANEL_ZONE.lock().unwrap() = Some(place(&panel));
     let bounds = place(&window_layout);
     let visible = window.is_visible().unwrap_or(false);
     {
@@ -146,9 +153,15 @@ pub fn spawn_hover_loop(app: AppHandle) {
         loop {
             tokio::time::sleep(HOVER_POLL).await;
             let zone = *ZONE.lock().unwrap();
+            let panel = *PANEL_ZONE.lock().unwrap();
             let pass_through = match zone {
                 None => true,
-                Some(_) if EXPANDED.load(Ordering::Relaxed) => false,
+                // A note over the widget takes the whole window; the panel only its own 300 px.
+                Some(_) if EXPANDED.load(Ordering::Relaxed) && crate::note_window::overlay_open() => false,
+                Some(_) if EXPANDED.load(Ordering::Relaxed) => match (panel, cursor_position(&app)) {
+                    (Some(panel), Some((x, y))) => !contains(panel, x, y),
+                    _ => true,
+                },
                 Some(zone) => match cursor_position(&app) {
                     Some((x, y)) => !contains(zone, x, y),
                     None => true,
@@ -281,6 +294,12 @@ pub fn window_layout(config: &AppConfig) -> Layout {
     scaled(config, OPEN_SIZE)
 }
 
+/// The open panel (logical px, already scaled): the part of the window that
+/// takes the mouse while the panel is open and no note is.
+pub fn panel_zone(config: &AppConfig) -> Layout {
+    scaled(config, PANEL_SIZE)
+}
+
 /// The area that catches the mouse while the panel is closed. On the side
 /// edges everything stands up: the parked bar is 14 wide and 140 tall, and a
 /// running block is the standing countdown bar (size by `side_count_style`).
@@ -333,6 +352,26 @@ mod layout_tests {
         assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (560.0, 380.0));
         assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (476.0, 323.0));
         assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (700.0, 475.0));
+    }
+
+    // Review fix I1: with the panel open (not the note) the 80 px under it must stay click-through.
+    #[test]
+    fn the_open_panel_zone_is_the_panel_not_the_whole_note_sized_window() {
+        let c = cfg(WidgetScale::Medium);
+        let a = area(0, 0, 1920, 1080, 1.0);
+        let window = physical_bounds(a, &window_layout(&c), WidgetEdge::Top);
+        let panel = physical_bounds(a, &panel_zone(&c), WidgetEdge::Top);
+        assert_eq!(panel, (680, 0, 560, 300));
+        assert!(inside(window, panel));
+        assert!(!contains(panel, 700, 320), "the strip under the panel is not the panel");
+        for edge in [WidgetEdge::Left, WidgetEdge::Right] {
+            let c = cfg_edge(edge);
+            let window = physical_bounds(a, &window_layout(&c), edge);
+            let panel = physical_bounds(a, &panel_zone(&c), edge);
+            assert!(inside(window, panel), "{edge:?}");
+            assert_eq!(panel.3, 300);
+            assert_eq!(panel.1, 390, "centered in height like the window");
+        }
     }
 
     #[test]
