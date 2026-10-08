@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Note } from "./note";
 import type { AppConfig, GithubItem, MonitorChoice, StateSnapshot } from "./types";
@@ -77,6 +78,9 @@ export const closeNoteWindow = () => invoke<void>("close_note_window");
 export const setNoteOverlayOpen = (open: boolean) => invoke<void>("set_note_overlay_open", { open });
 
 export const onNotesChanged = (cb: () => void) => listen("notes-changed", () => cb());
+// The backend sends these to one window ("widget" or "note"). A plain `listen`
+// hears every window's events, so both would open the same note: listen on this window only.
 /** Show this note (`null` = a new one). */
-export const onOpenNote = (cb: (id: string | null) => void) => listen<string | null>("open-note", (e) => cb(e.payload));
-export const onNoteFlash = (cb: () => void) => listen("note-flash", () => cb());
+export const onOpenNote = (cb: (id: string | null) => void) =>
+  getCurrentWebviewWindow().listen<string | null>("open-note", (e) => cb(e.payload));
+export const onNoteFlash = (cb: () => void) => getCurrentWebviewWindow().listen("note-flash", () => cb());
