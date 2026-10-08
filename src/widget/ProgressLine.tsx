@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { TimerView } from "../lib/types";
+import type { TimerView, WidgetEdge } from "../lib/types";
 import { progressFraction, uLength, uPath } from "../lib/progress";
 import { useElementSize } from "./hooks";
 
@@ -10,6 +10,8 @@ interface Props {
   rgb: boolean;
   /** False hides it (the "Progress timeline" switch, or no block running). */
   visible: boolean;
+  /** The screen edge the widget touches; the line leaves that side open. */
+  edge: WidgetEdge;
 }
 
 const STROKE = 2;
@@ -17,11 +19,11 @@ const RADIUS = 14;
 const RAINBOW = ["#ff2d55", "#ff9f0a", "#ffd60a", "#30d158", "#0a84ff", "#bf5af2", "#ff2d55"];
 
 /**
- * A thin line that follows the box's left, bottom and right edges (never the
- * top) and fills as the block runs. Sized by measuring its parent, so it fits
- * the notch box and the open panel alike.
+ * A thin line that follows three sides of the box (never the one touching the
+ * screen edge) and fills as the block runs. Sized by measuring its parent, so
+ * it fits the notch box and the open panel alike.
  */
-export default function ProgressLine({ timer, now, rgb, visible }: Props) {
+export default function ProgressLine({ timer, now, rgb, visible, edge }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const { width, height } = useElementSize(ref);
 
@@ -29,8 +31,8 @@ export default function ProgressLine({ timer, now, rgb, visible }: Props) {
 
   const shape = { width, height, radius: RADIUS, inset: STROKE / 2 };
   const ready = width > 0 && height > 0;
-  const length = ready ? uLength(shape) : 0;
-  const path = ready ? uPath(shape) : "";
+  const length = ready ? uLength(shape, edge) : 0;
+  const path = ready ? uPath(shape, edge) : "";
   const fraction = progressFraction(timer, now);
 
   return (

@@ -1,3 +1,4 @@
+export type WidgetEdge = "top" | "left" | "right";
 export type NotchStyle = "standard" | "minimal";
 export type WidgetScale = "small" | "medium" | "large";
 
@@ -12,6 +13,8 @@ export interface AppConfig {
   accent_color: string;
   widget_scale: WidgetScale;
   widget_visible: boolean;
+  /** The screen edge the widget is glued to. */
+  widget_edge: WidgetEdge;
   /** Monitor name; null = primary. */
   monitor: string | null;
   /** 0 = off; 1, 2 or 5. */

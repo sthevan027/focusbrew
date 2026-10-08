@@ -99,4 +99,37 @@ describe("the U-shaped progress line", () => {
     expect(Number.isFinite(length)).toBe(true);
     expect(length).toBeGreaterThanOrEqual(0);
   });
+
+  it("opens to the left on the left edge: along the top, down the right side, back along the bottom", () => {
+    expect(uPath(shape, "left")).toBe(
+      "M 0 1 L 305 1 A 14 14 0 0 1 319 15 L 319 29 A 14 14 0 0 1 305 43 L 0 43",
+    );
+  });
+
+  it("opens to the right on the right edge: along the top, down the left side, back along the bottom", () => {
+    expect(uPath(shape, "right")).toBe(
+      "M 320 1 L 15 1 A 14 14 0 0 0 1 15 L 1 29 A 14 14 0 0 0 15 43 L 320 43",
+    );
+  });
+
+  it("measures the side edges: two long arms, the short base and two quarter circles", () => {
+    expect(uLength(shape, "left")).toBeCloseTo(2 * 305 + 14 + Math.PI * 14, 5);
+    expect(uLength(shape, "right")).toBeCloseTo(2 * 305 + 14 + Math.PI * 14, 5);
+  });
+
+  it("keeps the top edge exactly as before when no edge is given", () => {
+    expect(uPath(shape)).toBe(uPath(shape, "top"));
+    expect(uLength(shape)).toBe(uLength(shape, "top"));
+  });
+
+  // Review focus: a tiny box on any edge must never produce NaN.
+  it("never breaks on a tiny box, whatever the edge", () => {
+    const tiny = { width: 20, height: 10, radius: 14, inset: 1 };
+    for (const edge of ["top", "left", "right"] as const) {
+      expect(uPath(tiny, edge)).not.toContain("NaN");
+      const length = uLength(tiny, edge);
+      expect(Number.isFinite(length)).toBe(true);
+      expect(length).toBeGreaterThanOrEqual(0);
+    }
+  });
 });
