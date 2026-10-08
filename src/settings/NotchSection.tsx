@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { NotchStyle, WidgetScale } from "../lib/types";
+import type { NotchStyle, WidgetEdge, WidgetScale } from "../lib/types";
 import { ACCENT_PRESETS, normalizeHex } from "./colors";
 import Row from "./Row";
 import type { SectionProps } from "./Row";
@@ -14,6 +14,12 @@ const SCALES: { id: WidgetScale; label: string }[] = [
   { id: "small", label: "Pequeno" },
   { id: "medium", label: "Médio" },
   { id: "large", label: "Grande" },
+];
+
+const EDGES: { id: WidgetEdge; label: string }[] = [
+  { id: "top", label: "Topo" },
+  { id: "left", label: "Esquerda" },
+  { id: "right", label: "Direita" },
 ];
 
 /** A little drawing of the notch in each style. */
@@ -48,7 +54,7 @@ export default function NotchSection({ config, set }: SectionProps) {
 
   return (
     <>
-      <p className="lead">O que o widget mostra no topo da tela enquanto um bloco roda.</p>
+      <p className="lead">O que o widget mostra enquanto um bloco roda.</p>
 
       <div className="cards" role="radiogroup" aria-label="Estilo do notch">
         {STYLES.map((style) => (
@@ -123,6 +129,21 @@ export default function NotchSection({ config, set }: SectionProps) {
                 onClick={() => set({ widget_scale: scale.id })}
               >
                 {scale.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row title="Posição" hint="Em qual borda da tela o widget fica colado. Nas laterais a barra fica em pé.">
+          <div className="segmented" role="radiogroup" aria-label="Posição do widget">
+            {EDGES.map((edge) => (
+              <button
+                key={edge.id}
+                type="button"
+                role="radio"
+                aria-checked={config.widget_edge === edge.id}
+                onClick={() => set({ widget_edge: edge.id })}
+              >
+                {edge.label}
               </button>
             ))}
           </div>

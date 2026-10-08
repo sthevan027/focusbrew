@@ -32,6 +32,10 @@ A barra, a caixa e o painel são uma forma só que se transforma; a janela nunca
 muda de tamanho, então nada pisca nem trava. Fora da forma, o mouse passa direto
 pro que está embaixo.
 
+Dá pra colar o widget em outra borda: em **Configurações → Notch → Posição**,
+escolha Topo, Esquerda ou Direita. Nas laterais a barra fica em pé, centralizada
+na altura da tela, e a caixa e o painel saem da borda pra dentro da tela.
+
 <p align="center">
   <img src="docs/screenshots/widget-parado.png" alt="Barra parada" width="260">
   <img src="docs/screenshots/widget-minimal.png" alt="Modo minimal" width="260">
