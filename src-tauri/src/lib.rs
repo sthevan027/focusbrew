@@ -295,7 +295,6 @@ pub fn run() {
             commands::set_task_minutes,
             commands::move_task,
             commands::edit_task,
-            commands::project_totals,
             commands::set_shortcut,
             commands::set_launch_at_login,
             commands::list_monitors,

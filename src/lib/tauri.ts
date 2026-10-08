@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { AppConfig, GithubItem, MonitorChoice, ProjectTotal, StateSnapshot } from "./types";
+import type { AppConfig, GithubItem, MonitorChoice, StateSnapshot } from "./types";
 
 export const currentWindowLabel = () => getCurrentWindow().label;
 
@@ -25,7 +25,6 @@ export const setTaskMinutes = (id: string, minutes: number) =>
 export const moveTask = (id: string, day: string) => invoke<StateSnapshot>("move_task", { id, day });
 /** `text` is "título #projeto"; no tag clears the project. */
 export const editTask = (id: string, text: string) => invoke<StateSnapshot>("edit_task", { id, text });
-export const projectTotals = () => invoke<ProjectTotal[]>("project_totals");
 export const reorderTasks = (ids: string[]) => invoke<StateSnapshot>("reorder_tasks", { ids });
 
 export const startTask = (id: string) => invoke<StateSnapshot>("start_task", { id });

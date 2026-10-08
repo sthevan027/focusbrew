@@ -33,11 +33,6 @@ export const SECTION_ICONS = {
       <path d="M9.5 3h5" />
     </Icon>
   ),
-  projects: () => (
-    <Icon>
-      <path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
-    </Icon>
-  ),
   notch: () => (
     <Icon>
       <rect x="3" y="4" width="18" height="16" rx="3" />

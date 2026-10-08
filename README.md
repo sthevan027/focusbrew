@@ -129,7 +129,6 @@ Clique no ícone da bandeja (ou **Abrir configurações** no menu dele).
 | Seção | O que muda |
 |---|---|
 | **Foco** | minutos de uma tarefa nova; aviso no fim do bloco e **antes do fim**; **meta do dia**; **lembrete se ficar parado** (só das 8h às 20h) |
-| **Projetos** | tempo por projeto: hoje, 7 dias, 30 dias e total |
 | **Notch** | estilo Standard ou Minimal; linha de progresso; linha RGB; cor de destaque; tamanho |
 | **Geral** | mostrar o widget; **monitor** do widget; **iniciar com o Windows**; os atalhos |
 | **GitHub** | conectar pelo login do `gh` (ou um token) |
