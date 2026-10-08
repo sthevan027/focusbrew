@@ -249,6 +249,91 @@ pub fn save(store: &NotesStore) -> io::Result<()> {
     save_to(&notes_path(), store)
 }
 
+pub const MAX_IMAGE_BYTES: usize = 8 * 1024 * 1024;
+
+/// FNV-1a, 64 bits: a stable name from the bytes (std's hasher may change).
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+/// "<16 hex>.<ext>" for these bytes; `ext` may come with a dot or in capitals.
+pub fn image_file_name(bytes: &[u8], ext: &str) -> Result<String, String> {
+    let ext = match ext.trim().trim_start_matches('.').to_ascii_lowercase().as_str() {
+        "png" => "png",
+        "jpg" | "jpeg" => "jpg",
+        "webp" => "webp",
+        "gif" => "gif",
+        _ => return Err("formato de imagem não suportado".into()),
+    };
+    if bytes.is_empty() {
+        return Err("imagem vazia".into());
+    }
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return Err("imagem grande demais".into());
+    }
+    Ok(format!("{:016x}.{ext}", fnv1a(bytes)))
+}
+
+pub fn mime_for(file: &str) -> &'static str {
+    match file.rsplit('.').next() {
+        Some("jpg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        _ => "image/png",
+    }
+}
+
+pub fn store_image_in(dir: &Path, bytes: &[u8], ext: &str) -> Result<String, String> {
+    let name = image_file_name(bytes, ext)?;
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let path = dir.join(&name);
+    if !path.exists() {
+        fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    }
+    Ok(name)
+}
+
+pub fn read_image_in(dir: &Path, file: &str) -> Result<Vec<u8>, String> {
+    if !valid_image_name(file) {
+        return Err("nome de imagem inválido".into());
+    }
+    fs::read(dir.join(file)).map_err(|e| e.to_string())
+}
+
+/// Deletes the images no note uses. Only files with our own names are touched.
+pub fn prune_images_in(dir: &Path, in_use: &HashSet<String>) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else { return 0 };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if valid_image_name(&name) && !in_use.contains(&name) && fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+fn images_dir() -> PathBuf {
+    data_dir().join("notes").join("images")
+}
+
+pub fn store_image(bytes: &[u8], ext: &str) -> Result<String, String> {
+    store_image_in(&images_dir(), bytes, ext)
+}
+
+pub fn read_image(file: &str) -> Result<Vec<u8>, String> {
+    read_image_in(&images_dir(), file)
+}
+
+pub fn prune_images(in_use: &HashSet<String>) -> usize {
+    prune_images_in(&images_dir(), in_use)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -420,5 +505,60 @@ mod tests {
         let store = load_from(&path, 1);
         assert_eq!(store.notes.len(), 1);
         assert_eq!(store.notes[0].text, "hi");
+    }
+
+    #[test]
+    fn an_image_is_stored_by_content_and_the_same_bytes_share_one_file() {
+        let dir = temp("images");
+        let a = store_image_in(&dir, b"fake png bytes", "png").unwrap();
+        let b = store_image_in(&dir, b"fake png bytes", "PNG").unwrap();
+        let c = store_image_in(&dir, b"other bytes", ".jpeg").unwrap();
+        assert_eq!(a, b);
+        assert!(valid_image_name(&a) && a.ends_with(".png"));
+        assert!(c.ends_with(".jpg"));
+        assert_eq!(read_image_in(&dir, &a).unwrap(), b"fake png bytes");
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn unsupported_empty_or_huge_images_are_refused() {
+        let dir = temp("refused");
+        assert!(store_image_in(&dir, b"x", "exe").is_err());
+        assert!(store_image_in(&dir, b"x", "svg").is_err());
+        assert!(store_image_in(&dir, b"", "png").is_err());
+        assert!(store_image_in(&dir, &vec![0u8; MAX_IMAGE_BYTES + 1], "png").is_err());
+    }
+
+    // Review focus: the name comes from the front-end; it must not reach outside the folder.
+    #[test]
+    fn reading_an_image_refuses_anything_that_is_not_one_of_our_names() {
+        let dir = temp("traversal");
+        fs::write(dir.join("secret.txt"), "top secret").unwrap();
+        for bad in ["../secret.txt", "..\\secret.txt", "secret.txt", "C:\\Windows\\win.ini", "/etc/passwd", "", "0123456789ABCDEF.png", "0123456789abcdef.png/../x"] {
+            assert!(read_image_in(&dir, bad).is_err(), "{bad}");
+        }
+        assert!(read_image_in(&dir, "0123456789abcdef.png").is_err(), "valid name, but no such file");
+    }
+
+    #[test]
+    fn pruning_removes_only_unused_images_and_never_foreign_files() {
+        let dir = temp("prune");
+        let keep = store_image_in(&dir, b"keep me", "png").unwrap();
+        let drop = store_image_in(&dir, b"drop me", "png").unwrap();
+        fs::write(dir.join("readme.txt"), "not ours").unwrap();
+        let used: HashSet<String> = [keep.clone()].into_iter().collect();
+        assert_eq!(prune_images_in(&dir, &used), 1);
+        assert!(dir.join(&keep).exists());
+        assert!(!dir.join(&drop).exists());
+        assert!(dir.join("readme.txt").exists());
+        assert_eq!(prune_images_in(&dir.join("nope"), &used), 0, "a missing folder is fine");
+    }
+
+    #[test]
+    fn the_mime_type_follows_the_extension() {
+        assert_eq!(mime_for("0123456789abcdef.png"), "image/png");
+        assert_eq!(mime_for("0123456789abcdef.jpg"), "image/jpeg");
+        assert_eq!(mime_for("0123456789abcdef.webp"), "image/webp");
+        assert_eq!(mime_for("0123456789abcdef.gif"), "image/gif");
     }
 }
