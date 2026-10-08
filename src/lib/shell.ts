@@ -57,6 +57,21 @@ export function pickShape({ visible, status, phase, edge }: ShapeContext): Shape
   return { kind: "bar", shell: turned(BAR), hit: turned(BAR_ZONE) };
 }
 
+/** Bar < box < panel: going up a rank is "grow", going down is "shrink". */
+const RANK: Record<ShapeKind, number> = { hidden: 0, bar: 1, box: 2, panel: 3 };
+
+export type Motion = "grow" | "shrink" | "same";
+
+export function motionBetween(from: ShapeKind, to: ShapeKind): Motion {
+  if (RANK[to] > RANK[from]) return "grow";
+  if (RANK[to] < RANK[from]) return "shrink";
+  return "same";
+}
+
+/** Closing is decisive; opening is elastic. The CSS reads both from variables. */
+export const SHRINK_MS = 200;
+export const GROW_MS = 480;
+
 /** Ms until the countdown (whole seconds left before `deadlineMs`) changes. */
 export function nextTickDelay(nowMs: number, deadlineMs: number): number {
   const rest = (((deadlineMs - nowMs) % 1000) + 1000) % 1000;

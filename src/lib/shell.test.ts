@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextTickDelay, pickShape } from "./shell";
+import { GROW_MS, SHRINK_MS, motionBetween, nextTickDelay, pickShape } from "./shell";
 import type { PanelPhase, ShapeContext } from "./shell";
 import type { TimerStatus, WidgetEdge } from "./types";
 
@@ -71,6 +71,34 @@ describe("pickShape", () => {
     expect(pickShape(ctx({ status: "paused", phase: closing })).shell).toEqual({ width: 320, height: 44 });
     expect(pickShape(ctx({ phase: closing })).kind).toBe("bar");
     expect(pickShape(ctx({ phase: closing })).shell).toEqual({ width: 140, height: 6 });
+  });
+});
+
+describe("motionBetween", () => {
+  it("grows when the shape gets bigger: bar < box < panel", () => {
+    expect(motionBetween("bar", "box")).toBe("grow");
+    expect(motionBetween("box", "panel")).toBe("grow");
+    expect(motionBetween("bar", "panel")).toBe("grow");
+    expect(motionBetween("hidden", "bar")).toBe("grow");
+  });
+
+  it("shrinks when the shape gets smaller", () => {
+    expect(motionBetween("panel", "box")).toBe("shrink");
+    expect(motionBetween("panel", "bar")).toBe("shrink");
+    expect(motionBetween("box", "bar")).toBe("shrink");
+    expect(motionBetween("bar", "hidden")).toBe("shrink");
+  });
+
+  it("is the same when the kind does not change", () => {
+    for (const kind of ["hidden", "bar", "box", "panel"] as const) {
+      expect(motionBetween(kind, kind)).toBe("same");
+    }
+  });
+
+  it("opens slowly and closes quickly", () => {
+    expect(GROW_MS).toBe(480);
+    expect(SHRINK_MS).toBe(200);
+    expect(SHRINK_MS).toBeLessThan(GROW_MS);
   });
 });
 

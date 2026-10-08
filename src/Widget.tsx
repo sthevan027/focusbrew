@@ -3,16 +3,13 @@ import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
 import { fire, getState, onStateChanged, onTogglePanel, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
-import { pickShape } from "./lib/shell";
+import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import ProgressLine from "./widget/ProgressLine";
-import { useHoverOpen, useNow } from "./widget/hooks";
+import { useHoverOpen, useMotion, useNow } from "./widget/hooks";
 import "./Widget.css";
-
-/** Must match the `.shell.closing` transition in Widget.css. */
-const CLOSE_MS = 200;
 
 export default function Widget() {
   const [state, setState] = useState<StateSnapshot | null>(null);
@@ -38,7 +35,7 @@ export default function Widget() {
           if (seq.current !== id) return;
           setPhase("closed");
           setDay(null); // the next open starts on today
-        }, CLOSE_MS);
+        }, SHRINK_MS);
       }
     },
     90,
@@ -53,6 +50,7 @@ export default function Widget() {
         edge: state.config.widget_edge,
       })
     : null;
+  const motion = useMotion(shape?.kind ?? "hidden");
 
   // Typing, dragging (from the list) or a pin keep the panel open.
   const holdFromList = (hold: boolean) => {
@@ -117,6 +115,8 @@ export default function Widget() {
   const style = {
     "--accent": config.accent_color,
     "--s": SCALE_FACTOR[config.widget_scale],
+    "--grow-ms": `${GROW_MS}ms`,
+    "--shrink-ms": `${SHRINK_MS}ms`,
   } as CSSProperties;
 
   return (
@@ -130,7 +130,7 @@ export default function Widget() {
           onClick={phase === "closed" ? () => pin(true) : undefined}
         >
           <div
-            className={`shell-frame ${phase} ${timer.status}`}
+            className={`shell-frame ${phase} ${timer.status} ${motion}`}
             data-kind={shape.kind}
             style={{ width: shape.shell.width, height: shape.shell.height }}
           >

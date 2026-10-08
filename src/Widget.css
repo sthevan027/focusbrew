@@ -72,13 +72,14 @@
 .shell-frame {
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --shell-bg: #000;
+  --spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
   transition:
-    width 260ms var(--ease),
-    height 260ms var(--ease);
+    width var(--shrink-ms, 200ms) var(--ease),
+    height var(--shrink-ms, 200ms) var(--ease);
 }
 .widget-root[data-edge="left"] .shell-frame {
   top: 50%;
@@ -93,6 +94,43 @@
 }
 .shell-frame.open {
   --shell-bg: #0b0b0d;
+}
+
+/* ---- growing is elastic, shrinking is decisive. The spring is a damped
+   curve with ~2% overshoot (the panel's overshoot is clipped by the window,
+   so it only shows from bar to box). ---- */
+@supports (transition-timing-function: linear(0, 1)) {
+  .shell-frame {
+    --spring: linear(
+      0, 0.0153, 0.0555, 0.1133, 0.1825, 0.2584, 0.337, 0.4155, 0.4914, 0.5633,
+      0.63, 0.691, 0.7458, 0.7943, 0.8368, 0.8735, 0.9047, 0.931, 0.9527, 0.9704,
+      0.9846, 0.9956, 1.0041, 1.0103, 1.0147, 1.0176, 1.0192, 1.0199, 1
+    );
+  }
+}
+.shell-frame.grow {
+  transition:
+    width var(--grow-ms, 480ms) var(--spring),
+    height var(--grow-ms, 480ms) var(--spring);
+}
+.shell-frame.grow .shell {
+  transition:
+    border-radius var(--grow-ms, 480ms) var(--ease),
+    background-color var(--grow-ms, 480ms) var(--ease);
+}
+.shell-frame.shrink {
+  --ease: cubic-bezier(0.3, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-frame.grow {
+    transition:
+      width var(--shrink-ms, 200ms) var(--ease),
+      height var(--shrink-ms, 200ms) var(--ease);
+  }
+  .shell-frame.grow .shell {
+    transition-duration: var(--shrink-ms, 200ms);
+  }
 }
 
 /* ---- notch "ears": concave curves where the box or panel meets the screen
@@ -147,12 +185,6 @@
   top: 100%;
   background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
 }
-/* Must match CLOSE_MS in Widget.tsx. */
-.shell-frame.closing,
-.shell.closing {
-  transition-duration: 200ms;
-}
-
 /* ---- the shape: one element that morphs bar -> box -> panel ---- */
 .shell {
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
@@ -166,8 +198,8 @@
   border-radius: calc(var(--k-tl) * var(--rad)) calc(var(--k-tr) * var(--rad))
     calc(var(--k-br) * var(--rad)) calc(var(--k-bl) * var(--rad));
   transition:
-    border-radius 260ms var(--ease),
-    background-color 260ms var(--ease);
+    border-radius var(--shrink-ms, 200ms) var(--ease),
+    background-color var(--shrink-ms, 200ms) var(--ease);
 }
 
 .shell.idle:not(.open) {

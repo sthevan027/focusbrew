@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { nextTickDelay } from "../lib/shell";
+import { motionBetween, nextTickDelay } from "../lib/shell";
+import type { Motion, ShapeKind } from "../lib/shell";
 
 /**
  * Current time in ms while `active`, refreshed right when the countdown to
@@ -111,4 +112,18 @@ export function useHoverOpen(
       if (openRef.current) apply(false);
     },
   };
+}
+
+/**
+ * How the shape just changed: "grow" or "shrink" until the next change of
+ * kind. The first render is "same" (nothing animates on mount).
+ */
+export function useMotion(kind: ShapeKind): Motion {
+  const last = useRef(kind);
+  const motion = useRef<Motion>("same");
+  if (last.current !== kind) {
+    motion.current = motionBetween(last.current, kind);
+    last.current = kind;
+  }
+  return motion.current;
 }
