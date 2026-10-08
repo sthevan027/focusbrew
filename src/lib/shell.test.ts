@@ -9,6 +9,7 @@ const ctx = (over: Partial<ShapeContext> = {}): ShapeContext => ({
   phase: "closed",
   edge: "top",
   sideCount: "stacked",
+  noteOpen: false,
   ...over,
 });
 
@@ -136,5 +137,31 @@ describe("nextTickDelay", () => {
   it("follows a deadline that is not on a whole second", () => {
     expect(nextTickDelay(10_000, 50_400)).toBe(400);
     expect(nextTickDelay(10_500, 50_400)).toBe(900);
+  });
+});
+
+describe("the quick note shape", () => {
+  it("is the biggest shape and wins over the panel, the box and the bar", () => {
+    for (const edge of EDGES) {
+      for (const status of STATUSES) {
+        for (const phase of ["closed", "open", "closing"] as const) {
+          const shape = pickShape(ctx({ noteOpen: true, status, phase, edge }));
+          expect(shape.kind).toBe("note");
+          expect(shape.shell).toEqual({ width: 560, height: 380 });
+          expect(shape.hit).toEqual({ width: 560, height: 380 });
+        }
+      }
+    }
+  });
+
+  it("still loses to a hidden widget", () => {
+    expect(pickShape(ctx({ noteOpen: true, visible: false })).kind).toBe("hidden");
+  });
+
+  it("grows from the panel to the note and shrinks back", () => {
+    expect(motionBetween("panel", "note")).toBe("grow");
+    expect(motionBetween("bar", "note")).toBe("grow");
+    expect(motionBetween("note", "panel")).toBe("shrink");
+    expect(motionBetween("note", "note")).toBe("same");
   });
 });
