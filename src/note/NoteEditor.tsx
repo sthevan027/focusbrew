@@ -16,10 +16,11 @@ import {
 } from "../lib/noteGeometry";
 import type { Handle } from "../lib/noteGeometry";
 import { fitInto } from "../lib/noteMeta";
-import { onNoteFlash, readImageFile, saveNoteImage } from "../lib/tauri";
+import { onNoteFlash, openNote, readImageFile, saveNoteImage, updateSettings } from "../lib/tauri";
 import { copyNoteAsImage } from "./exportImage";
 import { blobFromBase64, prepareImage } from "./imageImport";
 import { NOTE_ICONS } from "./noteIcons";
+import NoteHistory from "./NoteHistory";
 import { NoteSvg } from "./NoteSvg";
 import { useNoteDoc } from "./useNoteDoc";
 import "./note.css";
@@ -58,7 +59,7 @@ type Gesture =
   | { kind: "move"; start: Point; index: number; original: NoteObject[] }
   | { kind: "resize"; index: number; handle: Handle; from: Rect; original: NoteObject[] };
 
-export default function NoteEditor({ request, config, onClose }: Props) {
+export default function NoteEditor({ request, placement, config, onClose }: Props) {
   const doc = useNoteDoc();
   const [mode, setMode] = useState<Mode>("text");
   const [tool, setTool] = useState<Tool>("pen");
@@ -69,6 +70,7 @@ export default function NoteEditor({ request, config, onClose }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const liveRef = useRef<NoteObject[] | null>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -142,6 +144,22 @@ export default function NoteEditor({ request, config, onClose }: Props) {
     });
     return () => void un.then((f) => f());
   }, []);
+
+  // Switches to another note (null = a new one), saving the current one first.
+  const openId = async (id: string | null) => {
+    setSelected(null);
+    await doc.load(id);
+    setHistoryOpen(false);
+    textRef.current?.focus();
+  };
+
+  // Moves this note between "over the panel" and "its own window".
+  const switchPlacement = async () => {
+    await doc.flush();
+    await updateSettings({ ...config, note_placement: placement === "overlay" ? "window" : "overlay" });
+    await openNote(doc.note.id);
+    onClose();
+  };
 
   const close = useCallback(async () => {
     await doc.flush();
@@ -235,6 +253,12 @@ export default function NoteEditor({ request, config, onClose }: Props) {
     if (e.key === "Escape") {
       e.stopPropagation();
       void close();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+      e.preventDefault();
+      void openId(null);
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "h") {
+      e.preventDefault();
+      setHistoryOpen((o) => !o);
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && mode === "draw") {
       e.preventDefault();
       if (e.shiftKey) doc.redo();
@@ -259,9 +283,19 @@ export default function NoteEditor({ request, config, onClose }: Props) {
       }}
       style={{ ["--accent" as string]: config.accent_color }}>
       <header className="note-bar">
+        <button className="note-btn" onClick={() => setHistoryOpen((o) => !o)} title="Histórico (Ctrl+H)">{NOTE_ICONS.history()}</button>
+        <button className="note-btn" onClick={() => void openId(null)} title="Nota nova (Ctrl+N)">{NOTE_ICONS.plus()}</button>
+        <span className="note-sep" />
         <button className={mode === "text" ? "note-btn active" : "note-btn"} onClick={() => setMode("text")} title="Escrever">Aa</button>
         <button className={mode === "draw" ? "note-btn active" : "note-btn"} onClick={() => setMode("draw")} title="Desenhar">{NOTE_ICONS.pen()}</button>
         <span className="note-spacer" />
+        <button
+          className="note-btn"
+          onClick={() => void switchPlacement()}
+          title={placement === "overlay" ? "Abrir numa janela" : "Abrir sobre o painel"}
+        >
+          {NOTE_ICONS.placement()}
+        </button>
         <button
           className="note-btn"
           onClick={() => void copyNoteAsImage(doc.note, doc.images).then(() => say("Copiado como imagem"), () => say("Não consegui copiar"))}
@@ -334,6 +368,7 @@ export default function NoteEditor({ request, config, onClose }: Props) {
         </NoteSvg>
         {toast && <div className="note-toast">{toast}</div>}
       </div>
+      {historyOpen && <NoteHistory currentId={doc.note.id} onPick={(id) => void openId(id)} onNew={() => void openId(null)} />}
     </div>
   );
 }
