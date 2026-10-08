@@ -8,7 +8,7 @@ import type { PanelPhase } from "./lib/shell";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import ProgressLine from "./widget/ProgressLine";
-import { useHoverOpen, useMotion, useNow } from "./widget/hooks";
+import { useHoverOpen, useIdleClose, useMotion, useNow } from "./widget/hooks";
 import "./Widget.css";
 
 export default function Widget() {
@@ -109,6 +109,14 @@ export default function Widget() {
       window.removeEventListener("blur", onBlur);
     };
   }, [pinned]);
+
+  // Optional: a pinned panel nobody touches closes by itself (not while typing or dragging).
+  useIdleClose(
+    pinned && phase === "open",
+    state?.config.panel_autoclose_secs ?? 0,
+    () => childHold.current,
+    () => closeNow.current(),
+  );
 
   if (!state || !shape || shape.kind === "hidden") return null;
 

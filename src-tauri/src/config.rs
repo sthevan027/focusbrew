@@ -45,6 +45,9 @@ pub struct AppConfig {
     pub shortcut_panel: String,
     /// Start focusbrew when Windows starts.
     pub launch_at_login: bool,
+    /// A pinned panel closes by itself after this many seconds without any
+    /// interaction (0 = never; 15, 30 or 60).
+    pub panel_autoclose_secs: u32,
 }
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
@@ -52,6 +55,7 @@ pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
 pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
 pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
 pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
+pub const AUTOCLOSE_CHOICES: [u32; 4] = [0, 15, 30, 60];
 
 fn default_true() -> bool {
     true
@@ -144,6 +148,7 @@ impl Default for AppConfig {
             shortcut_toggle: DEFAULT_SHORTCUT_TOGGLE.to_string(),
             shortcut_panel: DEFAULT_SHORTCUT_PANEL.to_string(),
             launch_at_login: false,
+            panel_autoclose_secs: 0,
         }
     }
 }
@@ -167,6 +172,9 @@ impl AppConfig {
             self.idle_reminder_mins = 0;
         }
         self.daily_goal_mins = self.daily_goal_mins.min(MAX_DAILY_GOAL_MINS);
+        if !AUTOCLOSE_CHOICES.contains(&self.panel_autoclose_secs) {
+            self.panel_autoclose_secs = 0;
+        }
         self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
         self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
         self.monitor = self.monitor.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
@@ -360,6 +368,24 @@ mod tests {
         assert_eq!(c.widget_edge, WidgetEdge::Top);
         assert_eq!(c.accent_color, "#112233");
         assert_eq!(c.daily_goal_mins, 90);
+    }
+
+    #[test]
+    fn the_pinned_panel_does_not_close_by_itself_unless_asked() {
+        assert_eq!(AppConfig::default().panel_autoclose_secs, 0);
+        assert_eq!(parse(r##"{"accent_color":"#112233"}"##).panel_autoclose_secs, 0);
+    }
+
+    #[test]
+    fn the_panel_autoclose_snaps_to_the_offered_choices() {
+        for ok in [0, 15, 30, 60] {
+            let c = AppConfig { panel_autoclose_secs: ok, ..AppConfig::default() }.normalized();
+            assert_eq!(c.panel_autoclose_secs, ok);
+        }
+        for bad in [1, 20, 45, 61, 3600] {
+            let c = AppConfig { panel_autoclose_secs: bad, ..AppConfig::default() }.normalized();
+            assert_eq!(c.panel_autoclose_secs, 0, "{bad} is not offered");
+        }
     }
 
     #[test]

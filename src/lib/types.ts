@@ -30,6 +30,8 @@ export interface AppConfig {
   shortcut_toggle: string;
   shortcut_panel: string;
   launch_at_login: boolean;
+  /** A pinned panel closes by itself after this many idle seconds; 0 = never (15, 30 or 60). */
+  panel_autoclose_secs: number;
 }
 
 export interface MonitorChoice {

@@ -22,6 +22,13 @@ const EDGES: { id: WidgetEdge; label: string }[] = [
   { id: "right", label: "Direita" },
 ];
 
+const AUTOCLOSE: { secs: number; label: string }[] = [
+  { secs: 0, label: "Desligado" },
+  { secs: 15, label: "15 s" },
+  { secs: 30, label: "30 s" },
+  { secs: 60, label: "60 s" },
+];
+
 const SIDE_COUNTS: { id: SideCountStyle; label: string }[] = [
   { id: "stacked", label: "Empilhada" },
   { id: "inline", label: "Numa linha" },
@@ -163,6 +170,24 @@ export default function NotchSection({ config, set }: SectionProps) {
                 onClick={() => set({ side_count_style: style.id })}
               >
                 {style.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row
+          title="Fechar o painel fixado sozinho"
+          hint="Depois desse tempo sem você mexer. Não fecha enquanto você digita ou arrasta uma tarefa."
+        >
+          <div className="segmented" role="radiogroup" aria-label="Fechar o painel fixado sozinho">
+            {AUTOCLOSE.map((choice) => (
+              <button
+                key={choice.secs}
+                type="button"
+                role="radio"
+                aria-checked={config.panel_autoclose_secs === choice.secs}
+                onClick={() => set({ panel_autoclose_secs: choice.secs })}
+              >
+                {choice.label}
               </button>
             ))}
           </div>

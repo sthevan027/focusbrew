@@ -21,12 +21,16 @@ Feito com [Tauri](https://tauri.app) (Rust) + React/TypeScript. Windows.
 ## Como funciona
 
 - **Parado:** uma barra reta e fina no topo da tela, sem nada dentro.
-- **Rodando:** a barra vira uma caixa com a contagem regressiva e o nome da
-  tarefa; uma linha em volta vai se enchendo. No modo **Minimal** só a caixa e a
-  linha aparecem.
+- **Rodando:** a barra vira uma caixa com a contagem regressiva de um lado e o
+  nome da tarefa do outro; uma linha em volta vai se enchendo. No modo
+  **Minimal** a caixa mostra só a contagem, no meio.
 - **Passou o mouse:** o painel abre. Quando o mouse sai, ele fecha.
 - **Clicou na barra:** o painel abre **fixado** — fica aberto até você apertar
-  `Esc` ou clicar fora. Bom pra planejar com calma.
+  `Esc` ou clicar fora. Bom pra planejar com calma. Se quiser, em
+  **Configurações → Notch** ele fecha sozinho depois de 15, 30 ou 60 s sem você
+  mexer (nunca enquanto você digita ou arrasta uma tarefa).
+- **No painel:** clique no número de minutos de uma tarefa pra digitar o tempo
+  (de 5 a 180); arraste pela alça pra reordenar ou soltar num dia da grade.
 
 A barra, a caixa e o painel são uma forma só que se transforma; a janela nunca
 muda de tamanho, então nada pisca nem trava. Fora da forma, o mouse passa direto
@@ -34,7 +38,9 @@ pro que está embaixo.
 
 Dá pra colar o widget em outra borda: em **Configurações → Notch → Posição**,
 escolha Topo, Esquerda ou Direita. Nas laterais a barra fica em pé, centralizada
-na altura da tela, e a caixa e o painel saem da borda pra dentro da tela.
+na altura da tela, e o painel sai da borda pra dentro da tela. Com um bloco
+rodando, a lateral vira uma barra em pé só com a contagem: minutos em cima e
+segundos embaixo, ou numa linha só (**Contagem na lateral**).
 
 <p align="center">
   <img src="docs/screenshots/widget-parado.png" alt="Barra parada" width="260">

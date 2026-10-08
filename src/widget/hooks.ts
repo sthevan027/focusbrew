@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { shouldAutoClose } from "../lib/idle";
 import { motionBetween, nextTickDelay } from "../lib/shell";
 import type { Motion, ShapeKind } from "../lib/shell";
 
@@ -126,4 +127,38 @@ export function useMotion(kind: ShapeKind): Motion {
     last.current = kind;
   }
   return motion.current;
+}
+
+/**
+ * Closes a pinned panel that nobody touches: while `active`, any pointer move,
+ * click, key or scroll counts as activity. The clock stands still (and starts
+ * over once released) while `held()` says something keeps the panel open, like
+ * typing in a field or dragging a task.
+ */
+export function useIdleClose(active: boolean, secs: number, held: () => boolean, onClose: () => void) {
+  const heldRef = useRef(held);
+  heldRef.current = held;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!active || secs <= 0) return;
+    let last = Date.now();
+    const bump = () => {
+      last = Date.now();
+    };
+    const events = ["pointermove", "pointerdown", "keydown", "wheel"] as const;
+    for (const name of events) window.addEventListener(name, bump, { passive: true });
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      if (heldRef.current()) {
+        last = now;
+        return;
+      }
+      if (shouldAutoClose(last, now, secs)) closeRef.current();
+    }, 1000);
+    return () => {
+      for (const name of events) window.removeEventListener(name, bump);
+      window.clearInterval(id);
+    };
+  }, [active, secs]);
 }
