@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
-import { fire, getState, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
+import { fire, getState, onCursorOutside, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
 import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
@@ -25,6 +25,8 @@ export default function Widget() {
   const phaseRef = useRef<PanelPhase>("closed");
   phaseRef.current = phase;
   const panelBeforeNote = useRef(false);
+  const pinnedRef = useRef(false);
+  pinnedRef.current = pinned;
   const childHold = useRef(false);
   const seq = useRef(0);
 
@@ -106,6 +108,18 @@ export default function Widget() {
       unlisten.then((f) => f());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The backend saw the cursor away from the open panel for a while: close it even if the
+  // page never got the mouseleave (a note window taking the focus can swallow it).
+  useEffect(() => {
+    const unlisten = onCursorOutside(() => {
+      if (pinnedRef.current || childHold.current || noteOpen.current || phaseRef.current !== "open") return;
+      closeNow.current();
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, []);
 
   // Closing the note goes back to what was under it: the panel if it was open,

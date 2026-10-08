@@ -83,4 +83,6 @@ export const onNotesChanged = (cb: () => void) => listen("notes-changed", () => 
 /** Show this note (`null` = a new one). */
 export const onOpenNote = (cb: (id: string | null) => void) =>
   getCurrentWebviewWindow().listen<string | null>("open-note", (e) => cb(e.payload));
+/** The cursor has been off the open panel for a while (the page may have missed the mouseleave). */
+export const onCursorOutside = (cb: () => void) => getCurrentWebviewWindow().listen("widget-cursor-outside", () => cb());
 export const onNoteFlash = (cb: () => void) => getCurrentWebviewWindow().listen("note-flash", () => cb());

@@ -1,10 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(not(windows))]
 use tauri::{PhysicalPosition, PhysicalSize};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::config::{AppConfig, SideCountStyle, WidgetEdge};
 use crate::tracker::timer::TimerStatus;
@@ -28,6 +28,8 @@ pub const RUNNING_ZONE: (f64, f64) = (320.0, 44.0);
 pub const SIDE_STACKED_ZONE: (f64, f64) = (56.0, 88.0);
 pub const SIDE_INLINE_ZONE: (f64, f64) = (72.0, 104.0);
 
+/// How long the cursor must stay off the open panel before the page is told.
+const OUTSIDE_AFTER: Duration = Duration::from_millis(500);
 /// How often the cursor is checked while the mouse passes through.
 const HOVER_POLL: Duration = Duration::from_millis(30);
 
@@ -146,10 +148,38 @@ pub fn apply(
     }
 }
 
+/// Tells, once, that the cursor has been away from the open panel for a while.
+/// The page also hears `mouseleave`, but not always (a note window taking over
+/// the focus can swallow it), which left the hover panel stuck open.
+#[derive(Default)]
+pub struct OutsideWatch {
+    since: Option<Instant>,
+    fired: bool,
+}
+
+impl OutsideWatch {
+    /// `active`: the panel is open and no note covers it. `outside`: the cursor is off the panel.
+    /// True exactly once per stay outside, after `after`.
+    pub fn tick(&mut self, now: Instant, active: bool, outside: bool, after: Duration) -> bool {
+        if !(active && outside) {
+            self.since = None;
+            self.fired = false;
+            return false;
+        }
+        let since = *self.since.get_or_insert(now);
+        if !self.fired && now.duration_since(since) >= after {
+            self.fired = true;
+            return true;
+        }
+        false
+    }
+}
+
 /// While the panel is closed the window lets the mouse through, except when
 /// the cursor is over the visible shape — then the page gets the hover.
 pub fn spawn_hover_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
+        let mut outside_watch = OutsideWatch::default();
         loop {
             tokio::time::sleep(HOVER_POLL).await;
             let zone = *ZONE.lock().unwrap();
@@ -167,6 +197,11 @@ pub fn spawn_hover_loop(app: AppHandle) {
                     None => true,
                 },
             };
+            let panel_open = zone.is_some() && EXPANDED.load(Ordering::Relaxed) && !crate::note_window::overlay_open();
+            // Over the panel the window takes the mouse (`pass_through` false), so outside = passing through.
+            if outside_watch.tick(Instant::now(), panel_open, pass_through, OUTSIDE_AFTER) {
+                let _ = app.emit_to("widget", "widget-cursor-outside", ());
+            }
             if PASS_THROUGH.swap(pass_through, Ordering::Relaxed) != pass_through {
                 let handle = app.clone();
                 let _ = app.run_on_main_thread(move || {
@@ -537,5 +572,45 @@ mod layout_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod outside_tests {
+    use super::*;
+
+    const WAIT: Duration = Duration::from_millis(400);
+
+    // QA finding: the page's mouseleave is not always delivered (e.g. when a note window takes over),
+    // so the backend tells the panel when the cursor has really been away from it.
+    #[test]
+    fn fires_once_after_the_cursor_has_been_outside_long_enough() {
+        let t0 = Instant::now();
+        let mut watch = OutsideWatch::default();
+        assert!(!watch.tick(t0, true, true, WAIT), "just left");
+        assert!(!watch.tick(t0 + Duration::from_millis(300), true, true, WAIT), "not long enough");
+        assert!(watch.tick(t0 + Duration::from_millis(450), true, true, WAIT), "long enough");
+        assert!(!watch.tick(t0 + Duration::from_millis(900), true, true, WAIT), "only once");
+    }
+
+    #[test]
+    fn coming_back_inside_starts_over() {
+        let t0 = Instant::now();
+        let mut watch = OutsideWatch::default();
+        watch.tick(t0, true, true, WAIT);
+        assert!(!watch.tick(t0 + Duration::from_millis(300), true, false, WAIT), "back inside");
+        assert!(!watch.tick(t0 + Duration::from_millis(500), true, true, WAIT), "the clock restarted");
+        assert!(watch.tick(t0 + Duration::from_millis(950), true, true, WAIT));
+    }
+
+    #[test]
+    fn nothing_fires_while_the_panel_is_closed_or_a_note_is_open() {
+        let t0 = Instant::now();
+        let mut watch = OutsideWatch::default();
+        watch.tick(t0, false, true, WAIT);
+        assert!(!watch.tick(t0 + Duration::from_secs(5), false, true, WAIT));
+        // and it can fire again the next time the panel opens and the cursor leaves
+        watch.tick(t0 + Duration::from_secs(6), true, true, WAIT);
+        assert!(watch.tick(t0 + Duration::from_secs(7), true, true, WAIT));
     }
 }
