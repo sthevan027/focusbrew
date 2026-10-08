@@ -61,3 +61,19 @@ export function wrapText(text: string, maxWidth: number, measure: (s: string) =>
   }
   return out;
 }
+
+/** Same limits as the backend (notes.rs), so the editor says no instead of the backend silently cutting. */
+export const MAX_OBJECTS = 3000;
+export const MAX_POINTS = 2000;
+export const canAddObject = (count: number) => count < MAX_OBJECTS;
+export const canAddPoint = (count: number) => count < MAX_POINTS;
+
+/**
+ * Whether the note we are showing was deleted elsewhere (the drawer, the
+ * settings gallery): we had saved it, nothing is pending, it still has content
+ * and it is no longer in the list. An emptied note also leaves the list, but
+ * that is the user's own doing.
+ */
+export function noteWasDeleted(s: { saved: boolean; dirty: boolean; empty: boolean; list: { id: string }[]; id: string }): boolean {
+  return s.saved && !s.dirty && !s.empty && !s.list.some((n) => n.id === s.id);
+}

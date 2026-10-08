@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Note } from "../lib/note";
 import { filterNotes, formatNoteDate, noteTitle } from "../lib/noteMeta";
-import { deleteNote, listNotes, onNotesChanged, readNoteImage } from "../lib/tauri";
+import { deleteNote, listNotes, onNotesChanged } from "../lib/tauri";
+import { loadImages } from "./imageCache";
 import { NOTE_ICONS } from "./noteIcons";
 import NoteThumb from "./NoteThumb";
 
@@ -17,16 +18,7 @@ export function useNotesList() {
       if (!alive) return;
       setNotes(list);
       const files = list.flatMap((n) => n.objects.flatMap((o) => (o.type === "image" ? [o.file] : [])));
-      const loaded: Record<string, string> = {};
-      await Promise.all(
-        files.map(async (f) => {
-          try {
-            loaded[f] = await readNoteImage(f);
-          } catch {
-            /* missing file: the thumbnail just lacks it */
-          }
-        }),
-      );
+      const loaded = await loadImages(files);
       if (alive) setImages((old) => ({ ...old, ...loaded }));
     };
     void load();

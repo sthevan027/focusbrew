@@ -15,7 +15,7 @@ import {
   translateObject,
 } from "../lib/noteGeometry";
 import type { Handle } from "../lib/noteGeometry";
-import { fitInto } from "../lib/noteMeta";
+import { canAddObject, canAddPoint, fitInto } from "../lib/noteMeta";
 import { onNoteFlash, openNote, readImageFile, saveNoteImage, updateSettings } from "../lib/tauri";
 import { copyNoteAsImage } from "./exportImage";
 import { blobFromBase64, prepareImage } from "./imageImport";
@@ -180,6 +180,8 @@ export default function NoteEditor({ request, placement, config, onClose }: Prop
   };
 
   const onDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const adds = tool !== "select" && tool !== "eraser";
+    if (adds && !canAddObject(objects.length)) return say("Limite de 3000 itens por nota");
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = toSheet(e);
     if (tool === "select") {
@@ -215,7 +217,7 @@ export default function NoteEditor({ request, placement, config, onClose }: Prop
     if (g.kind === "draw") {
       const d = g.draft;
       if (d.type === "stroke") {
-        g.draft = { ...d, points: [...d.points, p] };
+        if (canAddPoint(d.points.length)) g.draft = { ...d, points: [...d.points, p] };
       } else if (d.type === "shape") {
         const [x2, y2] = constrainShape(d.kind, d.x1, d.y1, p[0], p[1], e.shiftKey);
         g.draft = { ...d, x2, y2 };
@@ -366,7 +368,9 @@ export default function NoteEditor({ request, placement, config, onClose }: Prop
             );
           })()}
         </NoteSvg>
-        {toast && <div className="note-toast">{toast}</div>}
+        {(doc.saveError || toast) && (
+          <div className="note-toast">{doc.saveError ? `Não consegui salvar (tento de novo): ${doc.saveError}` : toast}</div>
+        )}
       </div>
       {historyOpen && <NoteHistory currentId={doc.note.id} onPick={(id) => void openId(id)} onNew={() => void openId(null)} />}
     </div>

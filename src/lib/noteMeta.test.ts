@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Note, NoteObject } from "./note";
-import { filterNotes, fitInto, formatNoteDate, newNote, noteTitle, scaleToMax, wrapText } from "./noteMeta";
+import { canAddObject, canAddPoint, filterNotes, fitInto, formatNoteDate, newNote, noteTitle, noteWasDeleted, scaleToMax, wrapText } from "./noteMeta";
 
 const base = (over: Partial<Note>): Note => ({ id: "a", created_ms: 0, updated_ms: new Date(2026, 9, 8, 14, 5).getTime(), text: "", objects: [], ...over });
 
@@ -54,5 +54,29 @@ describe("image and text measures", () => {
     expect(wrapText("aaa bbb ccc", 70, measure)).toEqual(["aaa bbb", "ccc"]);
     expect(wrapText("a\n\nb", 100, measure)).toEqual(["a", "", "b"]);
     expect(wrapText("supercalifragilistic", 50, measure)).toEqual(["supercalifragilistic"]);
+  });
+});
+
+describe("noteWasDeleted (review fix I4)", () => {
+  const ids = [{ id: "x" }, { id: "y" }];
+
+  it("is true when a note we had saved, untouched since, is gone while it still has content", () => {
+    expect(noteWasDeleted({ saved: true, dirty: false, empty: false, list: ids, id: "z" })).toBe(true);
+  });
+
+  it("is false while the note is in the list, never saved, has pending edits or was just emptied by the user", () => {
+    expect(noteWasDeleted({ saved: true, dirty: false, empty: false, list: ids, id: "x" })).toBe(false);
+    expect(noteWasDeleted({ saved: false, dirty: false, empty: false, list: ids, id: "z" })).toBe(false);
+    expect(noteWasDeleted({ saved: true, dirty: true, empty: false, list: ids, id: "z" })).toBe(false);
+    expect(noteWasDeleted({ saved: true, dirty: false, empty: true, list: ids, id: "z" })).toBe(false);
+  });
+});
+
+describe("object limits (review fix I2)", () => {
+  it("stops adding objects and stroke points at the backend limits", () => {
+    expect(canAddObject(2999)).toBe(true);
+    expect(canAddObject(3000)).toBe(false);
+    expect(canAddPoint(1999)).toBe(true);
+    expect(canAddPoint(2000)).toBe(false);
   });
 });
