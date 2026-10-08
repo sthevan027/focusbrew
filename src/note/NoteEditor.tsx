@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AppConfig } from "../lib/types";
 import { SHEET } from "../lib/note";
 import type { NoteObject, Point, Rect, ShapeKind } from "../lib/note";
@@ -14,7 +15,10 @@ import {
   translateObject,
 } from "../lib/noteGeometry";
 import type { Handle } from "../lib/noteGeometry";
-import { onNoteFlash } from "../lib/tauri";
+import { fitInto } from "../lib/noteMeta";
+import { onNoteFlash, readImageFile, saveNoteImage } from "../lib/tauri";
+import { copyNoteAsImage } from "./exportImage";
+import { blobFromBase64, prepareImage } from "./imageImport";
 import { NOTE_ICONS } from "./noteIcons";
 import { NoteSvg } from "./NoteSvg";
 import { useNoteDoc } from "./useNoteDoc";
@@ -64,6 +68,7 @@ export default function NoteEditor({ request, config, onClose }: Props) {
   const [live, setLiveState] = useState<NoteObject[] | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const liveRef = useRef<NoteObject[] | null>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -95,6 +100,48 @@ export default function NoteEditor({ request, config, onClose }: Props) {
   useEffect(() => {
     if (selected !== null && selected >= objects.length) setSelected(null);
   }, [objects.length, selected]);
+
+  const say = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2200);
+  };
+
+  // A picture from the clipboard or from a dropped file: shrunk, stored, and placed in the middle, selected.
+  const importBlob = async (blob: Blob) => {
+    if (doc.note.objects.filter((o) => o.type === "image").length >= 10) return say("Máximo de 10 imagens por nota");
+    try {
+      const img = await prepareImage(blob);
+      const file = await saveNoteImage(img.base64, img.ext);
+      doc.addImageData(file, img.dataUrl);
+      const size = fitInto(img.w, img.h, 300, 220);
+      const object: NoteObject = { type: "image", file, x: (SHEET.width - size.w) / 2, y: (SHEET.height - size.h) / 2, w: size.w, h: size.h };
+      const at = doc.note.objects.length; // the new object goes last
+      doc.commitObjects([...doc.note.objects, object]);
+      setMode("draw");
+      setTool("select");
+      setSelected(at);
+    } catch (e) {
+      say(`Não deu para usar a imagem: ${String(e)}`);
+    }
+  };
+  const importRef = useRef(importBlob);
+  importRef.current = importBlob;
+
+  // Files dropped on the window arrive as paths through Tauri.
+  useEffect(() => {
+    const un = getCurrentWebview().onDragDropEvent(async (event) => {
+      if (event.payload.type !== "drop") return;
+      for (const path of event.payload.paths) {
+        try {
+          const file = await readImageFile(path);
+          await importRef.current(await blobFromBase64(file.ext, file.data_base64));
+        } catch {
+          say("Esse arquivo não é uma imagem aceita");
+        }
+      }
+    });
+    return () => void un.then((f) => f());
+  }, []);
 
   const close = useCallback(async () => {
     await doc.flush();
@@ -202,11 +249,26 @@ export default function NoteEditor({ request, config, onClose }: Props) {
   const shown = live ?? objects;
   const selectedObject = tool === "select" && selected !== null ? shown[selected] : undefined;
   return (
-    <div className={`note-editor${flash ? " flash" : ""}`} tabIndex={-1} onKeyDown={onKeyDown} style={{ ["--accent" as string]: config.accent_color }}>
+    <div className={`note-editor${flash ? " flash" : ""}`} tabIndex={-1} onKeyDown={onKeyDown}
+      onPaste={(e) => {
+        const file = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
+        if (file) {
+          e.preventDefault();
+          void importBlob(file);
+        }
+      }}
+      style={{ ["--accent" as string]: config.accent_color }}>
       <header className="note-bar">
         <button className={mode === "text" ? "note-btn active" : "note-btn"} onClick={() => setMode("text")} title="Escrever">Aa</button>
         <button className={mode === "draw" ? "note-btn active" : "note-btn"} onClick={() => setMode("draw")} title="Desenhar">{NOTE_ICONS.pen()}</button>
         <span className="note-spacer" />
+        <button
+          className="note-btn"
+          onClick={() => void copyNoteAsImage(doc.note, doc.images).then(() => say("Copiado como imagem"), () => say("Não consegui copiar"))}
+          title="Copiar como imagem"
+        >
+          {NOTE_ICONS.copy()}
+        </button>
         <button className="note-btn" disabled={!doc.canUndo} onClick={doc.undo} title="Desfazer (Ctrl+Z)">{NOTE_ICONS.undo()}</button>
         <button className="note-btn" disabled={!doc.canRedo} onClick={doc.redo} title="Refazer (Ctrl+Shift+Z)">{NOTE_ICONS.redo()}</button>
         <button className="note-btn" onClick={() => void close()} title="Fechar (Esc)">{NOTE_ICONS.close()}</button>
@@ -270,6 +332,7 @@ export default function NoteEditor({ request, config, onClose }: Props) {
             );
           })()}
         </NoteSvg>
+        {toast && <div className="note-toast">{toast}</div>}
       </div>
     </div>
   );
