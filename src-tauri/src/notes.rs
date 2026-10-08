@@ -125,16 +125,32 @@ pub fn sanitize(mut note: Note) -> Note {
     note
 }
 
+/// How the notes file was read at startup.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LoadStatus {
+    /// A good file, or none yet.
+    #[default]
+    Clean,
+    /// A broken file was moved aside to `notes.corrupt-*.json`; the notes
+    /// start empty, but the images they use must stay on disk.
+    Recovered,
+    /// The file exists but could not be read (or moved aside): nothing may be
+    /// written, or the notes in it would be lost.
+    Unreadable,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct NotesStore {
     /// Most recently updated first.
     pub notes: Vec<Note>,
+    pub status: LoadStatus,
 }
 
 impl NotesStore {
     /// Saves a note (new or edited). An empty one is not kept (and removes the
     /// saved one). `updated_ms` is set here; `created_ms` is kept once set.
     pub fn upsert(&mut self, note: Note, now_ms: i64) -> Result<(), String> {
+        self.check_writable()?;
         if note.id.trim().is_empty() {
             return Err("nota sem id".into());
         }
@@ -159,6 +175,19 @@ impl NotesStore {
         self.notes
             .sort_by(|a, b| b.updated_ms.cmp(&a.updated_ms).then(b.created_ms.cmp(&a.created_ms)));
         Ok(())
+    }
+
+    /// Refuses a write when the file on disk could not be read.
+    pub fn check_writable(&self) -> Result<(), String> {
+        if self.status == LoadStatus::Unreadable {
+            return Err("não consegui ler o notes.json; nada será gravado para não perder as notas".into());
+        }
+        Ok(())
+    }
+
+    /// Image files may be deleted only when the whole file was read properly.
+    pub fn may_prune(&self) -> bool {
+        self.status == LoadStatus::Clean
     }
 
     pub fn remove(&mut self, id: &str) -> bool {
@@ -203,23 +232,32 @@ fn one() -> u32 {
 
 pub fn parse(raw: &str) -> Result<NotesStore, String> {
     let file: NotesFile = serde_json::from_str(raw).map_err(|e| e.to_string())?;
-    Ok(NotesStore { notes: file.notes.into_iter().map(sanitize).collect() })
+    Ok(NotesStore { notes: file.notes.into_iter().map(sanitize).collect(), status: LoadStatus::Clean })
 }
 
 /// Reads the notes. A missing or empty file is an empty store; a file that
 /// cannot be read as notes is moved to `notes.corrupt-<stamp>.json` (never
 /// overwritten) and the store starts empty.
 pub fn load_from(path: &Path, stamp_ms: i64) -> NotesStore {
-    let Ok(bytes) = fs::read(path) else { return NotesStore::default() };
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        // No file yet: the first run.
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return NotesStore::default(),
+        // Anything else (locked, no permission...) must not look like "no notes".
+        Err(_) => return NotesStore { status: LoadStatus::Unreadable, ..NotesStore::default() },
+    };
     if bytes.iter().all(|b| b.is_ascii_whitespace()) {
         return NotesStore::default();
     }
-    match String::from_utf8(bytes).ok().and_then(|raw| parse(&raw).ok()) {
+    let text = String::from_utf8(bytes).ok();
+    // Notepad may save a UTF-8 BOM; that is still a good file.
+    let text = text.as_deref().map(|t| t.trim_start_matches('\u{feff}'));
+    match text.and_then(|raw| parse(raw).ok()) {
         Some(store) => store,
         None => {
             let aside = path.with_file_name(format!("notes.corrupt-{stamp_ms}.json"));
-            let _ = fs::rename(path, aside);
-            NotesStore::default()
+            let status = if fs::rename(path, aside).is_ok() { LoadStatus::Recovered } else { LoadStatus::Unreadable };
+            NotesStore { status, ..NotesStore::default() }
         }
     }
 }
@@ -485,6 +523,42 @@ mod tests {
             assert!(!path.exists(), "the broken file must be moved away");
             assert_eq!(fs::read(dir.join(format!("notes.corrupt-{}.json", 100 + i as i64))).unwrap(), bytes);
         }
+    }
+
+    // Review fix C3: only "no file" or "empty file" may mean "no notes yet".
+    #[test]
+    fn an_unreadable_notes_file_is_never_treated_as_empty_and_blocks_writes() {
+        let dir = temp("unreadable");
+        let path = dir.join("notes.json");
+        fs::create_dir_all(&path).unwrap(); // reading a directory as a file fails, like a locked file would
+        let mut store = load_from(&path, 1);
+        assert_eq!(store.status, LoadStatus::Unreadable);
+        assert!(store.upsert(note("a", "hello"), 5).is_err(), "must not overwrite what it could not read");
+        assert!(!store.may_prune());
+    }
+
+    #[test]
+    fn a_corrupt_file_moved_aside_starts_empty_but_never_prunes_images() {
+        let dir = temp("recovered");
+        let path = dir.join("notes.json");
+        fs::write(&path, "{ not json").unwrap();
+        let mut store = load_from(&path, 7);
+        assert_eq!(store.status, LoadStatus::Recovered);
+        assert!(!store.may_prune(), "the .corrupt file still refers to those images");
+        store.upsert(note("a", "new note"), 5).unwrap();
+    }
+
+    #[test]
+    fn a_clean_load_may_prune_and_a_utf8_bom_is_not_corruption() {
+        let dir = temp("bom");
+        let path = dir.join("notes.json");
+        assert_eq!(load_from(&path, 1).status, LoadStatus::Clean);
+        assert!(load_from(&path, 1).may_prune());
+        fs::write(&path, "\u{feff}{\"notes\":[{\"id\":\"a\",\"text\":\"hi\"}]}").unwrap();
+        let store = load_from(&path, 1);
+        assert_eq!(store.status, LoadStatus::Clean);
+        assert_eq!(store.notes.len(), 1);
+        assert!(path.exists());
     }
 
     #[test]

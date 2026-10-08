@@ -353,11 +353,15 @@ pub fn save_note(note: Note, app: AppHandle, notes: State<'_, NotesShared>) -> R
 #[tauri::command]
 pub fn delete_note(id: String, app: AppHandle, notes: State<'_, NotesShared>) -> Result<(), String> {
     let mut store = notes.lock();
+    store.check_writable()?;
     store.remove(&id);
     notes::save(&store).map_err(|e| e.to_string())?;
     let in_use = store.images_in_use();
+    let may_prune = store.may_prune();
     drop(store);
-    notes::prune_images(&in_use);
+    if may_prune {
+        notes::prune_images(&in_use);
+    }
     let _ = app.emit("notes-changed", ());
     Ok(())
 }

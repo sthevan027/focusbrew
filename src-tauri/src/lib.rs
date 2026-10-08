@@ -418,8 +418,11 @@ pub fn run() {
             // Nothing is being edited yet: free the images no note uses.
             {
                 let notes = app.state::<notes::NotesShared>();
-                let in_use = notes.lock().images_in_use();
-                notes::prune_images(&in_use);
+                let store = notes.lock();
+                // A file that was broken or unreadable still refers to its images: keep them.
+                if store.may_prune() {
+                    notes::prune_images(&store.images_in_use());
+                }
             }
             Ok(())
         })
