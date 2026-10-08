@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Note } from "./note";
+import type { Note, NoteObject } from "./note";
 import { filterNotes, fitInto, formatNoteDate, newNote, noteTitle, scaleToMax, wrapText } from "./noteMeta";
 
 const base = (over: Partial<Note>): Note => ({ id: "a", created_ms: 0, updated_ms: new Date(2026, 9, 8, 14, 5).getTime(), text: "", objects: [], ...over });
@@ -11,7 +11,7 @@ describe("noteTitle", () => {
   });
 
   it("falls back to Desenho + date for a note with only drawing, and to Nota vazia", () => {
-    const obj = { type: "stroke", color: "#fff", width: 2, points: [[0, 0]] } as const;
+    const obj: NoteObject = { type: "stroke", color: "#fff", width: 2, points: [[0, 0]] };
     expect(noteTitle(base({ objects: [obj] }))).toBe("Desenho · 08/10 14:05");
     expect(noteTitle(base({}))).toBe("Nota vazia");
   });
