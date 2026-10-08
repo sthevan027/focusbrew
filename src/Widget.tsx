@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
 import { fire, getState, onStateChanged, onTogglePanel, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
-import { hitSize, shellSize } from "./lib/shell";
+import { pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
@@ -45,6 +45,14 @@ export default function Widget() {
     160,
   );
   const now = useNow(state?.timer.status === "running", state?.timer.deadline_ms ?? 0);
+  const shape = state
+    ? pickShape({
+        visible: state.config.widget_visible,
+        status: state.timer.status,
+        phase,
+        edge: state.config.widget_edge,
+      })
+    : null;
 
   // Typing, dragging (from the list) or a pin keep the panel open.
   const holdFromList = (hold: boolean) => {
@@ -103,49 +111,50 @@ export default function Widget() {
     };
   }, [pinned]);
 
-  if (!state) return null;
+  if (!state || !shape || shape.kind === "hidden") return null;
 
   const { timer, config } = state;
   const style = {
     "--accent": config.accent_color,
     "--s": SCALE_FACTOR[config.widget_scale],
   } as CSSProperties;
-  const size = shellSize(timer.status, phase);
-  const hit = hitSize(timer.status, phase);
 
   return (
-    <div className="widget-root" style={style}>
+    <div className="widget-root" data-edge={config.widget_edge} style={style}>
       <div className="scaled">
         <div
           className="hit"
-          style={{ width: hit.width, height: hit.height }}
+          style={{ width: shape.hit.width, height: shape.hit.height }}
           onMouseEnter={hover.onMouseEnter}
           onMouseLeave={hover.onMouseLeave}
           onClick={phase === "closed" ? () => pin(true) : undefined}
         >
           <div
-            className={`shell ${phase} ${timer.status}`}
-            style={{ width: size.width, height: size.height }}
+            className={`shell-frame ${phase} ${timer.status}`}
+            style={{ width: shape.shell.width, height: shape.shell.height }}
           >
-            {phase === "closed" ? (
-              <Notch state={state} now={now} />
-            ) : (
-              <Panel
-                state={state}
+            <div className={`shell ${phase} ${timer.status}`}>
+              {phase === "closed" ? (
+                <Notch state={state} now={now} />
+              ) : (
+                <Panel
+                  state={state}
+                  now={now}
+                  day={day ?? state.today}
+                  onDay={setDay}
+                  pinned={pinned}
+                  onTogglePin={() => pin(!pinned)}
+                  onHold={holdFromList}
+                />
+              )}
+              <ProgressLine
+                timer={timer}
                 now={now}
-                day={day ?? state.today}
-                onDay={setDay}
-                pinned={pinned}
-                onTogglePin={() => pin(!pinned)}
-                onHold={holdFromList}
+                rgb={config.rgb_line}
+                visible={config.progress_line && timer.status !== "idle"}
+                edge={config.widget_edge}
               />
-            )}
-            <ProgressLine
-              timer={timer}
-              now={now}
-              rgb={config.rgb_line}
-              visible={config.progress_line && timer.status !== "idle"}
-            />
+            </div>
           </div>
         </div>
       </div>

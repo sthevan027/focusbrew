@@ -23,61 +23,128 @@
   position: relative;
 }
 
+/* ---- which corners are rounded: only the ones away from the screen edge.
+   The flat side touches the edge. 1 = rounded, 0 = square. ---- */
+.widget-root {
+  --k-tl: 0;
+  --k-tr: 0;
+  --k-br: 1;
+  --k-bl: 1;
+}
+.widget-root[data-edge="left"] {
+  --k-tl: 0;
+  --k-tr: 1;
+  --k-br: 1;
+  --k-bl: 0;
+}
+.widget-root[data-edge="right"] {
+  --k-tl: 1;
+  --k-tr: 0;
+  --k-br: 0;
+  --k-bl: 1;
+}
+
 /* ---- the area that takes the mouse (the backend lets it pass everywhere
-   else while the panel is closed), centered at the top ---- */
+   else while the panel is closed): centered at the top, or centered in height
+   on the left/right edge ---- */
 .hit {
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
 }
+.widget-root[data-edge="left"] .hit {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.widget-root[data-edge="right"] .hit {
+  top: 50%;
+  left: auto;
+  right: 0;
+  transform: translateY(-50%);
+}
 
-/* ---- the shape: one element that morphs bar -> box -> panel ----
-   Centered on the same axis. The window is always panel-sized and never
-   resizes, so every change here is a plain CSS animation. */
-.shell {
+/* ---- the frame: where the shape sits and how big it is. It animates the
+   size; the shell inside is the visible, clipped shape. The window is always
+   panel-sized and never resizes, so every change here is a plain CSS
+   animation. ---- */
+.shell-frame {
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --shell-bg: #000;
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  box-sizing: border-box;
-  overflow: hidden;
-  background: #000;
-  border-radius: 0 0 14px 14px;
   transition:
     width 260ms var(--ease),
-    height 260ms var(--ease),
+    height 260ms var(--ease);
+}
+.widget-root[data-edge="left"] .shell-frame {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.widget-root[data-edge="right"] .shell-frame {
+  top: 50%;
+  left: auto;
+  right: 0;
+  transform: translateY(-50%);
+}
+.shell-frame.open {
+  --shell-bg: #0b0b0d;
+}
+/* Must match CLOSE_MS in Widget.tsx. */
+.shell-frame.closing,
+.shell.closing {
+  transition-duration: 200ms;
+}
+
+/* ---- the shape: one element that morphs bar -> box -> panel ---- */
+.shell {
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --rad: 14px;
+  --outline: color-mix(in srgb, var(--accent) 70%, transparent);
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--shell-bg);
+  border-radius: calc(var(--k-tl) * var(--rad)) calc(var(--k-tr) * var(--rad))
+    calc(var(--k-br) * var(--rad)) calc(var(--k-bl) * var(--rad));
+  transition:
     border-radius 260ms var(--ease),
     background-color 260ms var(--ease);
 }
 
 .shell.idle:not(.open) {
-  border-radius: 0 0 4px 4px;
+  --rad: 4px;
 }
 
 .shell.open {
-  background: #0b0b0d;
-  border-radius: 0 0 18px 18px;
+  --rad: 18px;
 }
 
-/* Must match CLOSE_MS in Widget.tsx. */
-.shell.closing {
-  transition-duration: 200ms;
-}
-
-/* The accent outline of the open panel (no top edge), drawn over the
-   content so it doesn't change the shape's size. */
+/* The accent outline of the open panel (never on the side touching the screen
+   edge), drawn over the content so it doesn't change the shape's size. */
 .shell::after {
   content: "";
   position: absolute;
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  border: 1px solid var(--outline);
   border-top: none;
   border-radius: inherit;
   opacity: 0;
   pointer-events: none;
   transition: opacity 200ms;
+}
+.widget-root[data-edge="left"] .shell::after {
+  border-top: 1px solid var(--outline);
+  border-left: none;
+}
+.widget-root[data-edge="right"] .shell::after {
+  border-top: 1px solid var(--outline);
+  border-right: none;
 }
 .shell.open::after {
   opacity: 1;
@@ -185,6 +252,21 @@
 .shell.open .panel {
   opacity: 1;
   transition: opacity 180ms 70ms ease-out;
+}
+/* On the side edges the panel hangs from the screen edge and is centered in
+   height (the shape grows from there). */
+.widget-root[data-edge="left"] .panel {
+  top: 50%;
+  left: 0;
+  margin-left: 0;
+  margin-top: -150px;
+}
+.widget-root[data-edge="right"] .panel {
+  top: 50%;
+  left: auto;
+  right: 0;
+  margin-left: 0;
+  margin-top: -150px;
 }
 
 .panel :where(button) {
