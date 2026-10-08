@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldHold } from "./holding";
+import { afterNoteClose, shouldHold } from "./holding";
 
 // Review fix C2: the task list unmounting under a note released the hold that keeps the widget open.
 describe("shouldHold", () => {
@@ -15,5 +15,21 @@ describe("shouldHold", () => {
 
   it("an open note wins over the list letting go (the list unmounts when the note opens)", () => {
     expect(shouldHold({ pinned: false, childHold: false, noteOpen: true })).toBe(true);
+  });
+});
+
+// QA finding: closing a note opened from the bar left the hover panel open for good.
+describe("afterNoteClose", () => {
+  it("goes back to the panel only if it was open before the note", () => {
+    expect(afterNoteClose({ panelWasOpen: true, pinned: false })).toBe("panel");
+    expect(afterNoteClose({ panelWasOpen: true, pinned: true })).toBe("panel");
+  });
+
+  it("closes the widget back to the bar or box when the note came from the closed state", () => {
+    expect(afterNoteClose({ panelWasOpen: false, pinned: false })).toBe("bar");
+  });
+
+  it("keeps a pinned panel pinned", () => {
+    expect(afterNoteClose({ panelWasOpen: false, pinned: true })).toBe("panel");
   });
 });

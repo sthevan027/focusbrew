@@ -10,7 +10,7 @@ import type { NoteRequest } from "./note/NoteEditor";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import ProgressLine from "./widget/ProgressLine";
-import { shouldHold } from "./widget/holding";
+import { afterNoteClose, shouldHold } from "./widget/holding";
 import { useHoverOpen, useIdleClose, useMotion, useNow } from "./widget/hooks";
 import "./Widget.css";
 
@@ -22,6 +22,9 @@ export default function Widget() {
   const [note, setNote] = useState<{ open: boolean; request: NoteRequest }>({ open: false, request: { id: null, nonce: 0 } });
   const noteOpen = useRef(false);
   noteOpen.current = note.open;
+  const phaseRef = useRef<PanelPhase>("closed");
+  phaseRef.current = phase;
+  const panelBeforeNote = useRef(false);
   const childHold = useRef(false);
   const seq = useRef(0);
 
@@ -92,6 +95,7 @@ export default function Widget() {
   // mouse, and nothing closes the widget until the note is closed.
   useEffect(() => {
     const unlisten = onOpenNote((id) => {
+      if (!noteOpen.current) panelBeforeNote.current = phaseRef.current !== "closed";
       noteOpen.current = true; // before the list unmounts and lets go of its own hold
       setNote((n) => ({ open: true, request: { id, nonce: n.request.nonce + 1 } }));
       hover.setHolding(true);
@@ -110,8 +114,13 @@ export default function Widget() {
     noteOpen.current = false;
     setNote((n) => ({ ...n, open: false }));
     fire(setNoteOverlayOpen(false));
-    hover.setHolding(shouldHold({ pinned, childHold: childHold.current, noteOpen: false }));
-    if (phase === "closed") fire(setWidgetExpanded(false));
+    if (afterNoteClose({ panelWasOpen: panelBeforeNote.current, pinned }) === "panel") {
+      hover.setHolding(shouldHold({ pinned, childHold: childHold.current, noteOpen: false }));
+    } else {
+      // The note came from the bar or box: go back there, even if the mouse opened the panel meanwhile.
+      hover.closeNow();
+      fire(setWidgetExpanded(false));
+    }
   };
 
   // The panel shortcut opens it pinned, or closes it.
