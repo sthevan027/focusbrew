@@ -10,6 +10,7 @@ import type { NoteRequest } from "./note/NoteEditor";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import ProgressLine from "./widget/ProgressLine";
+import { shouldHold } from "./widget/holding";
 import { useHoverOpen, useIdleClose, useMotion, useNow } from "./widget/hooks";
 import "./Widget.css";
 
@@ -62,11 +63,11 @@ export default function Widget() {
   // Typing, dragging (from the list) or a pin keep the panel open.
   const holdFromList = (hold: boolean) => {
     childHold.current = hold;
-    hover.setHolding(hold || pinned);
+    hover.setHolding(shouldHold({ pinned, childHold: hold, noteOpen: noteOpen.current }));
   };
   const pin = (value: boolean) => {
     setPinned(value);
-    hover.setHolding(value || childHold.current);
+    hover.setHolding(shouldHold({ pinned: value, childHold: childHold.current, noteOpen: noteOpen.current }));
     if (value) hover.openNow();
   };
 
@@ -91,6 +92,7 @@ export default function Widget() {
   // mouse, and nothing closes the widget until the note is closed.
   useEffect(() => {
     const unlisten = onOpenNote((id) => {
+      noteOpen.current = true; // before the list unmounts and lets go of its own hold
       setNote((n) => ({ open: true, request: { id, nonce: n.request.nonce + 1 } }));
       hover.setHolding(true);
       fire(setNoteOverlayOpen(true));
@@ -105,9 +107,10 @@ export default function Widget() {
   // Closing the note goes back to what was under it: the panel if it was open,
   // else the box or the bar (then the mouse passes through again).
   const closeNote = () => {
+    noteOpen.current = false;
     setNote((n) => ({ ...n, open: false }));
     fire(setNoteOverlayOpen(false));
-    hover.setHolding(pinned || childHold.current);
+    hover.setHolding(shouldHold({ pinned, childHold: childHold.current, noteOpen: false }));
     if (phase === "closed") fire(setWidgetExpanded(false));
   };
 
