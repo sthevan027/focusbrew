@@ -42,6 +42,13 @@ na altura da tela, e o painel sai da borda pra dentro da tela. Com um bloco
 rodando, a lateral vira uma barra em pé só com a contagem: minutos em cima e
 segundos embaixo, ou numa linha só (**Contagem na lateral**).
 
+**Notas rápidas:** `Ctrl+Alt+N` (ou o botão de nota no cabeçalho do painel) abre
+uma nota nova em qualquer lugar: escreva, desenhe (caneta, quadrado, círculo,
+triângulo, linha, seta), cole ou arraste imagens e copie a nota como imagem.
+Tudo é salvo sozinho; o histórico fica no botão ☰ da nota e na aba **Notas** da
+configuração. A nota abre sobre o painel do widget ou numa janela, como você
+preferir.
+
 <p align="center">
   <img src="docs/screenshots/widget-parado.png" alt="Barra parada" width="260">
   <img src="docs/screenshots/widget-minimal.png" alt="Modo minimal" width="260">
@@ -189,7 +196,9 @@ src-tauri/src/
   tracker/        o coração, sem Tauri: timer por horário final, tarefas por dia,
                   histórico de blocos e tempo por projeto
   alerts.rs       aviso antes do fim, meta do dia, lembrete de parado (puro)
-  shortcuts.rs    os dois atalhos globais, cada um registrado por conta própria
+  shortcuts.rs    os três atalhos globais, cada um registrado por conta própria
+  notes.rs        as notas rápidas: arquivo atômico, limites, imagens em disco
+  note_window.rs  a janela da nota e o que o atalho faz com uma nota já aberta
   autostart.rs    iniciar com o Windows (chave Run do usuário)
   widget.rs       janela do widget: tamanho fixo, colada no topo, mouse atravessando
   config.rs       configurações (lê qualquer arquivo, antigo ou quebrado, sem falhar)
@@ -208,7 +217,7 @@ src/
 O backend guarda *qual tarefa está rodando* e *quando ela termina*; a interface
 só desenha a partir desse horário, sem contar tempo por conta própria. Os
 dados ficam em `%APPDATA%\sthevandev\focusbrew\` (`config\settings.json`,
-`data\tasks.json`, `data\activity.json` — este com o histórico de blocos dos
+`data\tasks.json`, `data\notes.json` (+ `data\notes\images\`), `data\activity.json` — este com o histórico de blocos dos
 últimos 400 dias).
 
 ## Licença
