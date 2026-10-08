@@ -68,6 +68,15 @@ export const PinIcon =({ size = 12 }: IconProps) => (
   </svg>
 );
 
+export const NoteIcon = ({ size = 13 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+    <path d="M15 3v4h4" />
+    <path d="M9 12h6" />
+    <path d="M9 16h4" />
+  </svg>
+);
+
 export const CheckIcon = ({ size = 12 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" {...stroke} strokeWidth={2}>
     <path d="M3.5 8.5l3 3 6-6.5" />

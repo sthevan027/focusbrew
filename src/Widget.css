@@ -385,6 +385,30 @@
   margin-top: -150px;
 }
 
+/* ---- the quick note over the panel: laid out at its full size and revealed
+   by the growing shape, hanging from the screen edge like the panel ---- */
+.note-root {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 560px;
+  height: 380px;
+  margin-left: -280px;
+}
+.widget-root[data-edge="left"] .note-root {
+  top: 50%;
+  left: 0;
+  margin-left: 0;
+  margin-top: -190px;
+}
+.widget-root[data-edge="right"] .note-root {
+  top: 50%;
+  left: auto;
+  right: 0;
+  margin-left: 0;
+  margin-top: -190px;
+}
+
 .panel :where(button) {
   font: inherit;
   color: inherit;

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateSnapshot } from "./lib/types";
-import { fire, getState, onStateChanged, onTogglePanel, setWidgetExpanded } from "./lib/tauri";
+import { fire, getState, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
 import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
+import NoteEditor from "./note/NoteEditor";
+import type { NoteRequest } from "./note/NoteEditor";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import ProgressLine from "./widget/ProgressLine";
@@ -16,6 +18,9 @@ export default function Widget() {
   const [phase, setPhase] = useState<PanelPhase>("closed");
   const [pinned, setPinned] = useState(false);
   const [day, setDay] = useState<string | null>(null);
+  const [note, setNote] = useState<{ open: boolean; request: NoteRequest }>({ open: false, request: { id: null, nonce: 0 } });
+  const noteOpen = useRef(false);
+  noteOpen.current = note.open;
   const childHold = useRef(false);
   const seq = useRef(0);
 
@@ -49,7 +54,7 @@ export default function Widget() {
         phase,
         edge: state.config.widget_edge,
         sideCount: state.config.side_count_style,
-        noteOpen: false,
+        noteOpen: note.open,
       })
     : null;
   const motion = useMotion(shape?.kind ?? "hidden");
@@ -82,9 +87,37 @@ export default function Widget() {
     };
   }, []);
 
+  // A quick note opens over the panel (or over the bar): the window takes the
+  // mouse, and nothing closes the widget until the note is closed.
+  useEffect(() => {
+    const unlisten = onOpenNote((id) => {
+      setNote((n) => ({ open: true, request: { id, nonce: n.request.nonce + 1 } }));
+      hover.setHolding(true);
+      fire(setNoteOverlayOpen(true));
+      fire(setWidgetExpanded(true));
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Closing the note goes back to what was under it: the panel if it was open,
+  // else the box or the bar (then the mouse passes through again).
+  const closeNote = () => {
+    setNote((n) => ({ ...n, open: false }));
+    fire(setNoteOverlayOpen(false));
+    hover.setHolding(pinned || childHold.current);
+    if (phase === "closed") fire(setWidgetExpanded(false));
+  };
+
   // The panel shortcut opens it pinned, or closes it.
   const togglePanel = useRef(() => {});
-  togglePanel.current = () => (phase === "closed" ? pin(true) : hover.closeNow());
+  togglePanel.current = () => {
+    if (noteOpen.current) return;
+    if (phase === "closed") pin(true);
+    else hover.closeNow();
+  };
   useEffect(() => {
     const unlisten = onTogglePanel(() => togglePanel.current());
     return () => {
@@ -100,9 +133,11 @@ export default function Widget() {
   useEffect(() => {
     if (!pinned) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeNow.current();
+      if (e.key === "Escape" && !noteOpen.current) closeNow.current();
     };
-    const onBlur = () => closeNow.current();
+    const onBlur = () => {
+      if (!noteOpen.current) closeNow.current();
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("blur", onBlur);
     return () => {
@@ -113,7 +148,7 @@ export default function Widget() {
 
   // Optional: a pinned panel nobody touches closes by itself (not while typing or dragging).
   useIdleClose(
-    pinned && phase === "open",
+    pinned && phase === "open" && !note.open,
     state?.config.panel_autoclose_secs ?? 0,
     () => childHold.current,
     () => closeNow.current(),
@@ -122,6 +157,8 @@ export default function Widget() {
   if (!state || !shape || shape.kind === "hidden") return null;
 
   const { timer, config } = state;
+  // Under a note the shape is styled like the open panel, whatever the phase.
+  const shownPhase: PanelPhase = note.open ? "open" : phase;
   const style = {
     "--accent": config.accent_color,
     "--s": SCALE_FACTOR[config.widget_scale],
@@ -137,15 +174,19 @@ export default function Widget() {
           style={{ width: shape.hit.width, height: shape.hit.height }}
           onMouseEnter={hover.onMouseEnter}
           onMouseLeave={hover.onMouseLeave}
-          onClick={phase === "closed" ? () => pin(true) : undefined}
+          onClick={phase === "closed" && !note.open ? () => pin(true) : undefined}
         >
           <div
-            className={`shell-frame ${phase} ${timer.status} ${motion}`}
+            className={`shell-frame ${shownPhase} ${timer.status} ${motion}`}
             data-kind={shape.kind}
             style={{ width: shape.shell.width, height: shape.shell.height }}
           >
-            <div className={`shell ${phase} ${timer.status}`}>
-              {phase === "closed" ? (
+            <div className={`shell ${shownPhase} ${timer.status}`}>
+              {note.open ? (
+                <div className="note-root">
+                  <NoteEditor request={note.request} placement="overlay" config={config} onClose={closeNote} />
+                </div>
+              ) : phase === "closed" ? (
                 <Notch state={state} now={now} />
               ) : (
                 <Panel
@@ -156,13 +197,14 @@ export default function Widget() {
                   pinned={pinned}
                   onTogglePin={() => pin(!pinned)}
                   onHold={holdFromList}
+                  onNote={() => fire(openNote(null))}
                 />
               )}
               <ProgressLine
                 timer={timer}
                 now={now}
                 rgb={config.rgb_line}
-                visible={config.progress_line && timer.status !== "idle"}
+                visible={config.progress_line && timer.status !== "idle" && !note.open}
                 edge={config.widget_edge}
               />
             </div>
