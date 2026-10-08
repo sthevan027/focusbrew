@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TimerView } from "./types";
-import { formatClock, progressFraction, remainingSecs, uLength, uPath } from "./progress";
+import { clockParts, formatClock, progressFraction, remainingSecs, uLength, uPath } from "./progress";
 
 const NOW = 1_000_000;
 
@@ -76,6 +76,26 @@ describe("formatClock", () => {
   it("keeps counting minutes past 99 and clamps negatives", () => {
     expect(formatClock(10800)).toBe("180:00");
     expect(formatClock(-5)).toBe("00:00");
+  });
+});
+
+describe("clockParts", () => {
+  it("splits the countdown into minutes and seconds, both two digits", () => {
+    expect(clockParts(296)).toEqual({ minutes: "04", seconds: "56" });
+    expect(clockParts(0)).toEqual({ minutes: "00", seconds: "00" });
+    expect(clockParts(59.9)).toEqual({ minutes: "00", seconds: "59" });
+  });
+
+  it("keeps counting minutes past 99 and clamps negatives, like formatClock", () => {
+    expect(clockParts(10800)).toEqual({ minutes: "180", seconds: "00" });
+    expect(clockParts(-5)).toEqual({ minutes: "00", seconds: "00" });
+  });
+
+  it("always agrees with formatClock", () => {
+    for (const secs of [0, 1, 59, 60, 61, 1673, 5999, 6000, 10800]) {
+      const { minutes, seconds } = clockParts(secs);
+      expect(`${minutes}:${seconds}`).toBe(formatClock(secs));
+    }
   });
 });
 

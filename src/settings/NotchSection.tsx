@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { NotchStyle, WidgetEdge, WidgetScale } from "../lib/types";
+import type { NotchStyle, SideCountStyle, WidgetEdge, WidgetScale } from "../lib/types";
 import { ACCENT_PRESETS, normalizeHex } from "./colors";
 import Row from "./Row";
 import type { SectionProps } from "./Row";
@@ -20,6 +20,11 @@ const EDGES: { id: WidgetEdge; label: string }[] = [
   { id: "top", label: "Topo" },
   { id: "left", label: "Esquerda" },
   { id: "right", label: "Direita" },
+];
+
+const SIDE_COUNTS: { id: SideCountStyle; label: string }[] = [
+  { id: "stacked", label: "Empilhada" },
+  { id: "inline", label: "Numa linha" },
 ];
 
 /** A little drawing of the notch in each style. */
@@ -144,6 +149,24 @@ export default function NotchSection({ config, set }: SectionProps) {
                 onClick={() => set({ widget_edge: edge.id })}
               >
                 {edge.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row
+          title="Contagem na lateral"
+          hint="Só vale na esquerda ou na direita: minutos em cima e segundos embaixo (04 / 56), ou tudo numa linha (04:56)."
+        >
+          <div className="segmented" role="radiogroup" aria-label="Contagem na lateral">
+            {SIDE_COUNTS.map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                role="radio"
+                aria-checked={config.side_count_style === style.id}
+                onClick={() => set({ side_count_style: style.id })}
+              >
+                {style.label}
               </button>
             ))}
           </div>

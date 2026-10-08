@@ -1,4 +1,4 @@
-import type { TimerStatus, WidgetEdge } from "./types";
+import type { SideCountStyle, TimerStatus, WidgetEdge } from "./types";
 
 /** "closing": the shape is already shrinking but the window is still big. */
 export type PanelPhase = "closed" | "open" | "closing";
@@ -14,6 +14,9 @@ export interface Size {
  */
 export const BAR: Size = { width: 140, height: 6 };
 export const BOX: Size = { width: 320, height: 44 };
+/** The running box on the left/right edges: a standing bar (see widget.rs). */
+export const SIDE_STACKED: Size = { width: 56, height: 88 };
+export const SIDE_INLINE: Size = { width: 72, height: 104 };
 export const PANEL: Size = { width: 560, height: 300 };
 
 /** The strip over the bar that reacts to the mouse. */
@@ -34,6 +37,8 @@ export interface ShapeContext {
   status: TimerStatus;
   phase: PanelPhase;
   edge: WidgetEdge;
+  /** How the countdown looks in the standing bar (left/right edges only). */
+  sideCount: SideCountStyle;
 }
 
 export interface Shape {
@@ -49,10 +54,13 @@ export interface Shape {
  * hidden > open panel > running/paused box > parked bar. While closing, the
  * shape is already the closed one (it shrinks before the window does).
  */
-export function pickShape({ visible, status, phase, edge }: ShapeContext): Shape {
+export function pickShape({ visible, status, phase, edge, sideCount }: ShapeContext): Shape {
   if (!visible) return { kind: "hidden", shell: NONE, hit: NONE };
   if (phase === "open") return { kind: "panel", shell: PANEL, hit: PANEL };
-  if (status !== "idle") return { kind: "box", shell: BOX, hit: BOX };
+  if (status !== "idle") {
+    const box = edge === "top" ? BOX : sideCount === "inline" ? SIDE_INLINE : SIDE_STACKED;
+    return { kind: "box", shell: box, hit: box };
+  }
   if (edge === "top") return { kind: "bar", shell: BAR, hit: BAR_ZONE };
   return { kind: "bar", shell: turned(BAR), hit: turned(BAR_ZONE) };
 }

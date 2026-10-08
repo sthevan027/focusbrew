@@ -48,6 +48,7 @@ export default function Widget() {
         status: state.timer.status,
         phase,
         edge: state.config.widget_edge,
+        sideCount: state.config.side_count_style,
       })
     : null;
   const motion = useMotion(shape?.kind ?? "hidden");

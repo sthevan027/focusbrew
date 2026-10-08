@@ -1,4 +1,6 @@
 export type WidgetEdge = "top" | "left" | "right";
+/** The countdown in the standing bar on the left/right edges. */
+export type SideCountStyle = "stacked" | "inline";
 export type NotchStyle = "standard" | "minimal";
 export type WidgetScale = "small" | "medium" | "large";
 
@@ -15,6 +17,8 @@ export interface AppConfig {
   widget_visible: boolean;
   /** The screen edge the widget is glued to. */
   widget_edge: WidgetEdge;
+  /** Stacked ("04" over "56") or one line ("04:56"); only on the left/right edges. */
+  side_count_style: SideCountStyle;
   /** Monitor name; null = primary. */
   monitor: string | null;
   /** 0 = off; 1, 2 or 5. */

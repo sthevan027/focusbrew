@@ -22,11 +22,19 @@ export function remainingSecs(timer: TimerView, nowMs: number): number {
   return Math.min(left, timer.planned_secs);
 }
 
+/** The countdown as two strings, "27" and "53"; minutes keep growing past 99 ("180"). */
+export function clockParts(secs: number): { minutes: string; seconds: string } {
+  const total = Math.max(0, Math.floor(secs));
+  return {
+    minutes: String(Math.floor(total / 60)).padStart(2, "0"),
+    seconds: String(total % 60).padStart(2, "0"),
+  };
+}
+
 /** "mm:ss" ("27:53"); minutes keep growing past 99 ("180:00"). */
 export function formatClock(secs: number): string {
-  const total = Math.max(0, Math.floor(secs));
-  const minutes = Math.floor(total / 60);
-  return `${String(minutes).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  const { minutes, seconds } = clockParts(secs);
+  return `${minutes}:${seconds}`;
 }
 
 /**

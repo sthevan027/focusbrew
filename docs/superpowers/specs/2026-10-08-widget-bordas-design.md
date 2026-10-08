@@ -137,3 +137,22 @@ posto anterior com o novo e põe `grow` ou `shrink` na moldura.
 
 Esta spec e o código vão para a `main`, sem PR (pedido do Sthevan). Cada
 passo da implementação em commit próprio.
+
+## 8. Emenda (08/10, pedido do Sthevan depois de testar nas laterais)
+
+Nas laterais, com um bloco rodando, a caixa horizontal de 320×44 foi trocada por
+uma **barra em pé só com a contagem** (sem o nome da tarefa, que fica no
+painel), mostrando os 4 dígitos inteiros. Duas versões, escolhidas na nova
+opção `side_count_style` (padrão `stacked`), que só vale na esquerda e na
+direita:
+
+| Valor | Aparência | Tamanho (Médio) |
+|---|---|---|
+| `stacked` | relógio pequeno, minutos ("04") sobre segundos ("56") | 56×88 |
+| `inline` | relógio pequeno e "04:56" numa linha | 72×104 |
+
+No topo nada muda (caixa de 320×44 com contagem e tarefa). O painel aberto, as
+orelhinhas e a linha de progresso em "U" aberto para a borda seguem iguais; a
+zona do mouse (Rust) e a forma (TS) usam os mesmos tamanhos. Minutos passam de
+99 normalmente ("180"). A decisão da §3 ("caixa horizontal saindo da borda")
+vale só para o topo a partir daqui.

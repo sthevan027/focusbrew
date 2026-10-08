@@ -8,6 +8,7 @@ const ctx = (over: Partial<ShapeContext> = {}): ShapeContext => ({
   status: "idle",
   phase: "closed",
   edge: "top",
+  sideCount: "stacked",
   ...over,
 });
 
@@ -38,14 +39,34 @@ describe("pickShape", () => {
     }
   });
 
-  it("is the box while a block runs or is paused", () => {
-    for (const edge of EDGES) {
+  it("is the wide box on the top while a block runs or is paused, whatever the side style", () => {
+    for (const sideCount of ["stacked", "inline"] as const) {
       for (const status of ["running", "paused"] as const) {
-        const shape = pickShape(ctx({ status, edge }));
+        const shape = pickShape(ctx({ status, sideCount }));
         expect(shape.kind).toBe("box");
         expect(shape.shell).toEqual({ width: 320, height: 44 });
         expect(shape.hit).toEqual({ width: 320, height: 44 });
       }
+    }
+  });
+
+  it("is a narrow standing bar on the side edges, with the countdown stacked", () => {
+    for (const edge of ["left", "right"] as const) {
+      for (const status of ["running", "paused"] as const) {
+        const shape = pickShape(ctx({ status, edge, sideCount: "stacked" }));
+        expect(shape.kind).toBe("box");
+        expect(shape.shell).toEqual({ width: 56, height: 88 });
+        expect(shape.hit).toEqual({ width: 56, height: 88 });
+      }
+    }
+  });
+
+  it("is a wider standing bar on the side edges, with the countdown on one line", () => {
+    for (const edge of ["left", "right"] as const) {
+      const shape = pickShape(ctx({ status: "running", edge, sideCount: "inline" }));
+      expect(shape.kind).toBe("box");
+      expect(shape.shell).toEqual({ width: 72, height: 104 });
+      expect(shape.hit).toEqual({ width: 72, height: 104 });
     }
   });
 
@@ -68,6 +89,7 @@ describe("pickShape", () => {
   it("already shrinks back while closing, before the window does", () => {
     const closing: PanelPhase = "closing";
     expect(pickShape(ctx({ status: "running", phase: closing })).kind).toBe("box");
+    expect(pickShape(ctx({ status: "running", phase: closing, edge: "left" })).shell).toEqual({ width: 56, height: 88 });
     expect(pickShape(ctx({ status: "paused", phase: closing })).shell).toEqual({ width: 320, height: 44 });
     expect(pickShape(ctx({ phase: closing })).kind).toBe("bar");
     expect(pickShape(ctx({ phase: closing })).shell).toEqual({ width: 140, height: 6 });
