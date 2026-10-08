@@ -6,17 +6,18 @@ import GithubPanel from "./components/GithubPanel";
 import FocusSection from "./settings/FocusSection";
 import GeneralSection from "./settings/GeneralSection";
 import NotchSection from "./settings/NotchSection";
+import { SECTION_ICONS } from "./settings/icons";
 import ProjectsSection from "./settings/ProjectsSection";
 import "./App.css";
 
 type Section = "focus" | "projects" | "notch" | "general" | "github";
 
-const SECTIONS: { id: Section; label: string; glyph: string; color: string }[] = [
-  { id: "focus", label: "Foco", glyph: "⏱", color: "#ff9f0a" },
-  { id: "projects", label: "Projetos", glyph: "#", color: "#bf5af2" },
-  { id: "notch", label: "Notch", glyph: "▭", color: "#0a84ff" },
-  { id: "general", label: "Geral", glyph: "⚙", color: "#8e8e93" },
-  { id: "github", label: "GitHub", glyph: "⌥", color: "#30d158" },
+const SECTIONS: { id: Section; label: string; color: string }[] = [
+  { id: "focus", label: "Foco", color: "#ff9f0a" },
+  { id: "projects", label: "Projetos", color: "#bf5af2" },
+  { id: "notch", label: "Notch", color: "#0a84ff" },
+  { id: "general", label: "Geral", color: "#8e8e93" },
+  { id: "github", label: "GitHub", color: "#30d158" },
 ];
 
 export default function App() {
@@ -64,7 +65,7 @@ export default function App() {
             onClick={() => setSection(s.id)}
           >
             <span className="nav-glyph" style={{ background: s.color }}>
-              {s.glyph}
+              {SECTION_ICONS[s.id]()}
             </span>
             {s.label}
           </button>
