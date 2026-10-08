@@ -1,41 +1,76 @@
 import { describe, expect, it } from "vitest";
-import { hitSize, nextTickDelay, shellSize } from "./shell";
+import { nextTickDelay, pickShape } from "./shell";
+import type { PanelPhase, ShapeContext } from "./shell";
+import type { TimerStatus, WidgetEdge } from "./types";
 
-// Must match IDLE_ZONE / RUNNING_ZONE / OPEN_SIZE in src-tauri/src/widget.rs.
-describe("hitSize", () => {
-  it("is the strip over the bar when parked", () => {
-    expect(hitSize("idle", "closed")).toEqual({ width: 140, height: 14 });
-  });
-
-  it("is the box while a block runs or is paused", () => {
-    expect(hitSize("running", "closed")).toEqual({ width: 320, height: 44 });
-    expect(hitSize("paused", "closing")).toEqual({ width: 320, height: 44 });
-  });
-
-  it("is the whole panel when open", () => {
-    expect(hitSize("idle", "open")).toEqual({ width: 560, height: 300 });
-  });
+const ctx = (over: Partial<ShapeContext> = {}): ShapeContext => ({
+  visible: true,
+  status: "idle",
+  phase: "closed",
+  edge: "top",
+  ...over,
 });
 
-describe("shellSize", () => {
-  it("is the flat bar when parked and closed", () => {
-    expect(shellSize("idle", "closed")).toEqual({ width: 140, height: 6 });
+const EDGES: WidgetEdge[] = ["top", "left", "right"];
+const STATUSES: TimerStatus[] = ["idle", "running", "paused"];
+
+// Must match IDLE_ZONE / RUNNING_ZONE / OPEN_SIZE in src-tauri/src/widget.rs.
+describe("pickShape", () => {
+  it("is nothing when the widget is hidden, whatever else is going on", () => {
+    for (const edge of EDGES) {
+      const shape = pickShape(ctx({ visible: false, status: "running", phase: "open", edge }));
+      expect(shape).toEqual({
+        kind: "hidden",
+        shell: { width: 0, height: 0 },
+        hit: { width: 0, height: 0 },
+      });
+    }
+  });
+
+  it("is the panel when open, whatever the timer or the edge do", () => {
+    for (const edge of EDGES) {
+      for (const status of STATUSES) {
+        const shape = pickShape(ctx({ phase: "open", status, edge }));
+        expect(shape.kind).toBe("panel");
+        expect(shape.shell).toEqual({ width: 560, height: 300 });
+        expect(shape.hit).toEqual({ width: 560, height: 300 });
+      }
+    }
   });
 
   it("is the box while a block runs or is paused", () => {
-    expect(shellSize("running", "closed")).toEqual({ width: 320, height: 44 });
-    expect(shellSize("paused", "closed")).toEqual({ width: 320, height: 44 });
+    for (const edge of EDGES) {
+      for (const status of ["running", "paused"] as const) {
+        const shape = pickShape(ctx({ status, edge }));
+        expect(shape.kind).toBe("box");
+        expect(shape.shell).toEqual({ width: 320, height: 44 });
+        expect(shape.hit).toEqual({ width: 320, height: 44 });
+      }
+    }
   });
 
-  it("is the panel when open, whatever the timer does", () => {
-    for (const status of ["idle", "running", "paused"] as const) {
-      expect(shellSize(status, "open")).toEqual({ width: 560, height: 300 });
+  it("is the flat bar over its mouse strip when parked on the top", () => {
+    const shape = pickShape(ctx());
+    expect(shape.kind).toBe("bar");
+    expect(shape.shell).toEqual({ width: 140, height: 6 });
+    expect(shape.hit).toEqual({ width: 140, height: 14 });
+  });
+
+  it("stands the parked bar up on the side edges", () => {
+    for (const edge of ["left", "right"] as const) {
+      const shape = pickShape(ctx({ edge }));
+      expect(shape.kind).toBe("bar");
+      expect(shape.shell).toEqual({ width: 6, height: 140 });
+      expect(shape.hit).toEqual({ width: 14, height: 140 });
     }
   });
 
   it("already shrinks back while closing, before the window does", () => {
-    expect(shellSize("running", "closing")).toEqual({ width: 320, height: 44 });
-    expect(shellSize("idle", "closing")).toEqual({ width: 140, height: 6 });
+    const closing: PanelPhase = "closing";
+    expect(pickShape(ctx({ status: "running", phase: closing })).kind).toBe("box");
+    expect(pickShape(ctx({ status: "paused", phase: closing })).shell).toEqual({ width: 320, height: 44 });
+    expect(pickShape(ctx({ phase: closing })).kind).toBe("bar");
+    expect(pickShape(ctx({ phase: closing })).shell).toEqual({ width: 140, height: 6 });
   });
 });
 

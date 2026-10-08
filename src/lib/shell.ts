@@ -1,4 +1,4 @@
-import type { TimerStatus } from "./types";
+import type { TimerStatus, WidgetEdge } from "./types";
 
 /** "closing": the shape is already shrinking but the window is still big. */
 export type PanelPhase = "closed" | "open" | "closing";
@@ -19,15 +19,42 @@ export const PANEL: Size = { width: 560, height: 300 };
 /** The strip over the bar that reacts to the mouse. */
 export const BAR_ZONE: Size = { width: 140, height: 14 };
 
-export function shellSize(status: TimerStatus, phase: PanelPhase): Size {
-  if (phase === "open") return PANEL;
-  return status === "idle" ? BAR : BOX;
+const NONE: Size = { width: 0, height: 0 };
+
+/** The same rectangle on its side (the parked bar on the left/right edges). */
+function turned(size: Size): Size {
+  return { width: size.height, height: size.width };
 }
 
-/** The area that takes the mouse — the backend lets it through everywhere else. */
-export function hitSize(status: TimerStatus, phase: PanelPhase): Size {
-  if (phase === "open") return PANEL;
-  return status === "idle" ? BAR_ZONE : BOX;
+export type ShapeKind = "hidden" | "bar" | "box" | "panel";
+
+export interface ShapeContext {
+  /** The "widget visible" setting. */
+  visible: boolean;
+  status: TimerStatus;
+  phase: PanelPhase;
+  edge: WidgetEdge;
+}
+
+export interface Shape {
+  kind: ShapeKind;
+  /** The visible shape. */
+  shell: Size;
+  /** The area that takes the mouse — the backend lets it through everywhere else. */
+  hit: Size;
+}
+
+/**
+ * What the widget shows right now, decided in one place by priority:
+ * hidden > open panel > running/paused box > parked bar. While closing, the
+ * shape is already the closed one (it shrinks before the window does).
+ */
+export function pickShape({ visible, status, phase, edge }: ShapeContext): Shape {
+  if (!visible) return { kind: "hidden", shell: NONE, hit: NONE };
+  if (phase === "open") return { kind: "panel", shell: PANEL, hit: PANEL };
+  if (status !== "idle") return { kind: "box", shell: BOX, hit: BOX };
+  if (edge === "top") return { kind: "bar", shell: BAR, hit: BAR_ZONE };
+  return { kind: "bar", shell: turned(BAR), hit: turned(BAR_ZONE) };
 }
 
 /** Ms until the countdown (whole seconds left before `deadlineMs`) changes. */
