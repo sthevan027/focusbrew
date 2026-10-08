@@ -42,3 +42,8 @@ export function jumpDistance(heights: number[], from: number, over: number, gap:
   }
   return total;
 }
+
+/** The pointer's travel limited to what keeps the dragged row inside the list. */
+export function clampDelta(delta: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, delta));
+}

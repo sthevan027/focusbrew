@@ -609,13 +609,14 @@
   align-items: center;
   gap: 2px;
   padding-left: 22px;
-  background: linear-gradient(90deg, transparent, var(--row-bg) 45%);
+  background: linear-gradient(90deg, transparent, var(--row-bg) 35%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms;
 }
+/* Keyboard focus only: a clicked play button keeps focus and must not pin them. */
 .task-row:hover .row-actions,
-.task-row:focus-within .row-actions {
+.task-row:has(:focus-visible) .row-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -689,7 +690,9 @@
   background: #34343a;
   color: #f2f2f3;
 }
-.minutes-edit {
+/* `.task-row` in front: `.todo input` (the add field) would otherwise stretch it to 100%. */
+.task-row .minutes-edit {
+  flex: none;
   box-sizing: border-box;
   width: 34px;
   padding: 1px 2px;

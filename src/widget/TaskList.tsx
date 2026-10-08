@@ -4,7 +4,7 @@ import type { StateSnapshot } from "../lib/types";
 import { addTask, fire, moveTask, reorderTasks } from "../lib/tauri";
 import { carriedFrom, tasksForDay } from "../lib/day";
 import { titleWithoutProject } from "../lib/project";
-import { dropIndex, jumpDistance, moveItem, rowShift } from "../lib/reorder";
+import { clampDelta, dropIndex, jumpDistance, moveItem, rowShift } from "../lib/reorder";
 import TaskRow from "./TaskRow";
 
 /** The gap between rows: must match `.task-list` in Widget.css. */
@@ -54,6 +54,9 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
   // Measured when the drag starts, before any row moves: the rows' middles and heights.
   const slots = useRef({ mids: [] as number[], heights: [] as number[] });
   const startY = useRef(0);
+  // How far the dragged row may travel up (min) and down (max) and stay inside the list.
+  const travel = useRef({ min: 0, max: 0 });
+  const listRef = useRef<HTMLDivElement>(null);
 
   // `onHold` changes identity on every render of the widget (the clock ticks
   // every second); calling it from an effect that depends on it would restart
@@ -126,6 +129,10 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
       heights: boxes.map((b) => b?.height ?? 0),
     };
     startY.current = e.clientY;
+    const list = listRef.current?.getBoundingClientRect();
+    const own = boxes[index];
+    travel.current =
+      list && own ? { min: list.top - own.top, max: list.bottom - own.bottom } : { min: 0, max: 0 };
     const el = rowEl(index);
     if (el) el.style.transition = "none"; // follows the pointer, no easing
     setSettling(null);
@@ -136,7 +143,10 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
     if (!drag) return;
     // The dragged row follows the pointer: moved by hand (no render per move).
     const el = rowEl(drag.from);
-    if (el) el.style.transform = `translate3d(0, ${e.clientY - startY.current}px, 0) scale(1.015)`;
+    if (el) {
+      const dy = clampDelta(e.clientY - startY.current, travel.current.min, travel.current.max);
+      el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.015)`;
+    }
     const target = dayUnder(e.clientX, e.clientY, today);
     if (target !== dropDay) setDropDay(target);
     if (target) return;
@@ -183,7 +193,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
 
   return (
     <section className="todo">
-      <div className={moving ? "task-list reordering" : "task-list"}>
+      <div ref={listRef} className={moving ? "task-list reordering" : "task-list"}>
         {open.length === 0 && done.length === 0 && (
           <p className="empty">{day === today ? "Nenhuma tarefa pra hoje" : "Nada planejado — adicione abaixo"}</p>
         )}

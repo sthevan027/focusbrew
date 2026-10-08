@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { dropIndex, jumpDistance, moveItem, rowShift } from "./reorder";
+import { clampDelta, dropIndex, jumpDistance, moveItem, rowShift } from "./reorder";
+
+describe("clampDelta", () => {
+  it("keeps the dragged row inside the list: it cannot go past the top or the bottom", () => {
+    expect(clampDelta(-80, -30, 120)).toBe(-30);
+    expect(clampDelta(200, -30, 120)).toBe(120);
+    expect(clampDelta(40, -30, 120)).toBe(40);
+  });
+
+  it("does not move at all when the list has no room (min above max)", () => {
+    expect(clampDelta(50, 0, 0)).toBe(0);
+  });
+});
 
 describe("rowShift", () => {
   const step = 40;
