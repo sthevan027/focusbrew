@@ -144,6 +144,7 @@ pub fn set_shortcut(
     let action = match which.as_str() {
         "toggle" => shortcuts::Action::Toggle,
         "panel" => shortcuts::Action::Panel,
+        "note" => shortcuts::Action::Note,
         _ => return Err(format!("atalho desconhecido: {which}")),
     };
     let text = text.trim().to_string();
@@ -152,6 +153,7 @@ pub fn set_shortcut(
     match action {
         shortcuts::Action::Toggle => state.config.shortcut_toggle = text,
         shortcuts::Action::Panel => state.config.shortcut_panel = text,
+        shortcuts::Action::Note => state.config.shortcut_note = text,
     }
     state.shortcut_warning = None;
     let _ = config::save(&state.config);

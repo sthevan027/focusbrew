@@ -1,4 +1,4 @@
-//! The two global shortcuts, configurable: start/pause and open the panel.
+//! The three global shortcuts, configurable: start/pause, open the panel and a new quick note.
 //! Each one is registered on its own: one taken by another app must not
 //! leave the other unregistered.
 
@@ -13,6 +13,8 @@ pub enum Action {
     Toggle,
     /// Open/close the panel, pinned.
     Panel,
+    /// Open a new quick note.
+    Note,
 }
 
 impl Action {
@@ -20,14 +22,17 @@ impl Action {
         match self {
             Action::Toggle => 0,
             Action::Panel => 1,
+            Action::Note => 2,
         }
     }
 }
 
-/// What is registered right now: [toggle, panel].
-static ACTIVE: Mutex<[Option<Shortcut>; 2]> = Mutex::new([None, None]);
+type Slots = [Option<Shortcut>; 3];
 
-fn active() -> [Option<Shortcut>; 2] {
+/// What is registered right now: [toggle, panel, note].
+static ACTIVE: Mutex<Slots> = Mutex::new([None, None, None]);
+
+fn active() -> Slots {
     *ACTIVE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
@@ -38,29 +43,32 @@ pub fn parse(text: &str) -> Result<Shortcut, String> {
 /// A shortcut can't be the one the other action already uses.
 pub fn check_conflict(new: Shortcut, other: Option<Shortcut>) -> Result<(), String> {
     if other == Some(new) {
-        return Err("os dois atalhos não podem ser iguais".into());
+        return Err("os atalhos não podem ser iguais".into());
     }
     Ok(())
 }
 
-pub fn action_for(shortcut: &Shortcut) -> Option<Action> {
-    let [toggle, panel] = active();
-    if toggle == Some(*shortcut) {
-        Some(Action::Toggle)
-    } else if panel == Some(*shortcut) {
-        Some(Action::Panel)
-    } else {
-        None
-    }
+pub fn find_action(active: &Slots, shortcut: &Shortcut) -> Option<Action> {
+    [Action::Toggle, Action::Panel, Action::Note]
+        .into_iter()
+        .find(|action| active[action.slot()] == Some(*shortcut))
 }
 
-/// Puts `text` on `action`. Refuses an invalid shortcut, the other action's
+pub fn action_for(shortcut: &Shortcut) -> Option<Action> {
+    find_action(&active(), shortcut)
+}
+
+/// Puts `text` on `action`. Refuses an invalid shortcut, another action's
 /// one, or one another app holds — then the action keeps its old shortcut.
 pub fn set(app: &AppHandle, action: Action, text: &str) -> Result<(), String> {
     let new = parse(text)?;
     let current = active();
-    let (mine, other) = (current[action.slot()], current[1 - action.slot()]);
-    check_conflict(new, other)?;
+    let mine = current[action.slot()];
+    for (slot, other) in current.iter().enumerate() {
+        if slot != action.slot() {
+            check_conflict(new, *other)?;
+        }
+    }
     if mine == Some(new) {
         return Ok(());
     }
@@ -126,6 +134,23 @@ mod tests {
         assert!(err.contains("iguais"), "{err}");
         assert!(check_conflict(parse("Alt+F10").unwrap(), Some(a)).is_ok());
         assert!(check_conflict(a, None).is_ok());
+    }
+
+    #[test]
+    fn each_action_finds_its_own_shortcut_among_three() {
+        let (a, b, c) = (parse("Alt+F9").unwrap(), parse("Alt+F10").unwrap(), parse("Alt+F11").unwrap());
+        let active = [Some(a), Some(b), Some(c)];
+        assert_eq!(find_action(&active, &a), Some(Action::Toggle));
+        assert_eq!(find_action(&active, &b), Some(Action::Panel));
+        assert_eq!(find_action(&active, &c), Some(Action::Note));
+        assert_eq!(find_action(&active, &parse("Alt+F12").unwrap()), None);
+        assert_eq!(find_action(&[None, None, None], &a), None);
+    }
+
+    #[test]
+    fn the_three_actions_use_three_distinct_slots() {
+        let slots: Vec<usize> = [Action::Toggle, Action::Panel, Action::Note].iter().map(|a| a.slot()).collect();
+        assert_eq!(slots, vec![0, 1, 2]);
     }
 
     #[test]

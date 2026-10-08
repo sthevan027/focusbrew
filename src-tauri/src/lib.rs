@@ -125,6 +125,9 @@ fn panel_action(app: &AppHandle) {
     let _ = app.emit_to("widget", "toggle-panel", ());
 }
 
+/// The note shortcut. (The real work arrives with the note window.)
+fn note_action(_app: &AppHandle) {}
+
 fn alert_text(alert: &Alert) -> (String, String) {
     match alert {
         Alert::BeforeEnd { title, mins } => (
@@ -268,6 +271,7 @@ pub fn run() {
             match shortcuts::action_for(shortcut) {
                 Some(shortcuts::Action::Toggle) => hotkey_action(app),
                 Some(shortcuts::Action::Panel) => panel_action(app),
+                Some(shortcuts::Action::Note) => note_action(app),
                 None => {}
             }
         })
@@ -367,6 +371,7 @@ pub fn run() {
                 let wanted = [
                     (shortcuts::Action::Toggle, state.config.shortcut_toggle.clone()),
                     (shortcuts::Action::Panel, state.config.shortcut_panel.clone()),
+                    (shortcuts::Action::Note, state.config.shortcut_note.clone()),
                 ];
                 let problems: Vec<String> = wanted
                     .iter()

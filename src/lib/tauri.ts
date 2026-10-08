@@ -48,7 +48,7 @@ export const importGithubItemAsTask = (item: GithubItem, day?: string) =>
     day: day ?? null,
   });
 
-export const setShortcut = (which: "toggle" | "panel", text: string) =>
+export const setShortcut = (which: "toggle" | "panel" | "note", text: string) =>
   invoke<StateSnapshot>("set_shortcut", { which, text });
 export const setLaunchAtLogin = (enabled: boolean) => invoke<StateSnapshot>("set_launch_at_login", { enabled });
 export const listMonitors = () => invoke<MonitorChoice[]>("list_monitors");
