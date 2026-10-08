@@ -32,12 +32,8 @@ function Thumb({ style }: { style: NotchStyle }) {
   return (
     <div className="thumb">
       <div className={`thumb-notch ${style}`}>
-        {style === "standard" && (
-          <>
-            <i className="t-clock" />
-            <i className="t-title" />
-          </>
-        )}
+        <i className="t-clock" />
+        {style === "standard" && <i className="t-title" />}
         <b className="t-line" />
       </div>
     </div>
@@ -77,7 +73,7 @@ export default function NotchSection({ config, set }: SectionProps) {
         ))}
       </div>
       <p className="row-hint cards-hint">
-        Standard mostra a contagem à esquerda e a tarefa à direita; Minimal mostra só a caixa e a linha.
+        Standard mostra a contagem de um lado e a tarefa do outro; Minimal mostra só a contagem, no meio.
       </p>
 
       <div className="group">
