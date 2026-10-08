@@ -41,20 +41,20 @@ export const SECTION_ICONS = {
   notch: () => (
     <Icon>
       <rect x="3" y="4" width="18" height="16" rx="3" />
-      <path d="M8.5 4v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2V4" />
+      <path d="M7.5 4v4a2 2 0 0 0 2 2h5a2 2 0 0 0 2-2V4z" fill="currentColor" />
     </Icon>
   ),
   general: () => (
     <Icon>
       <path d="M4 6h9" />
-      <circle cx="15" cy="6" r="2" />
-      <path d="M17 6h3" />
-      <path d="M4 12h3" />
-      <circle cx="9" cy="12" r="2" />
-      <path d="M11 12h9" />
-      <path d="M4 18h7" />
-      <circle cx="13" cy="18" r="2" />
-      <path d="M15 18h5" />
+      <circle cx="15" cy="6" r="2.4" />
+      <path d="M17.4 6H20" />
+      <path d="M4 12h2.6" />
+      <circle cx="9" cy="12" r="2.4" />
+      <path d="M11.4 12H20" />
+      <path d="M4 18h6.6" />
+      <circle cx="13" cy="18" r="2.4" />
+      <path d="M15.4 18H20" />
     </Icon>
   ),
   github: () => (

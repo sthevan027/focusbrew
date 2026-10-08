@@ -518,6 +518,14 @@
   flex-direction: column;
   gap: 6px;
   padding-right: 2px;
+  /* Room for the scrollbar is always reserved, so a bar that comes and goes
+     never reflows the rows. */
+  scrollbar-gutter: stable;
+}
+/* Rows that slide while one is dragged would make the list scrollable for a
+   moment (a stray scrollbar): no scrolling while reordering. */
+.task-list.reordering {
+  overflow-y: hidden;
 }
 
 .task-list::-webkit-scrollbar {
