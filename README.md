@@ -113,8 +113,9 @@ em vez de duplicar.
 |---|---|
 | `Ctrl+Shift+Space` | pausa/retoma o bloco; parado, inicia a primeira tarefa de hoje |
 | `Ctrl+Shift+Alt+Space` | abre/fecha o painel fixado |
+| `Ctrl+Alt+N` | abre uma nota rápida nova |
 
-Os dois mudam em **Configurações → Geral** (clique e aperte a combinação). Se
+Os três mudam em **Configurações → Geral** (clique e aperte a combinação). Se
 outro programa já usa uma combinação, o focusbrew avisa qual e o outro atalho
 continua funcionando.
 
@@ -129,6 +130,7 @@ Clique no ícone da bandeja (ou **Abrir configurações** no menu dele).
 | Seção | O que muda |
 |---|---|
 | **Foco** | minutos de uma tarefa nova; aviso no fim do bloco e **antes do fim**; **meta do dia**; **lembrete se ficar parado** (só das 8h às 20h) |
+| **Notas** | galeria das notas rápidas (escrever, desenhar, imagens), onde elas abrem (sobre o painel ou em janela) |
 | **Notch** | estilo Standard ou Minimal; linha de progresso; linha RGB; cor de destaque; tamanho |
 | **Geral** | mostrar o widget; **monitor** do widget; **iniciar com o Windows**; os atalhos |
 | **GitHub** | conectar pelo login do `gh` (ou um token) |

@@ -22,7 +22,7 @@ export default function GeneralSection({ config, set, shortcutWarning }: Section
       .catch(() => setMonitors([]));
   }, []);
 
-  const saveShortcut = (which: "toggle" | "panel", text: string) => {
+  const saveShortcut = (which: "toggle" | "panel" | "note", text: string) => {
     setError(null);
     setShortcut(which, text).catch((e) => setError(String(e)));
   };
@@ -77,6 +77,13 @@ export default function GeneralSection({ config, set, shortcutWarning }: Section
             label="Atalho de abrir o painel"
             value={config.shortcut_panel}
             onChange={(text) => saveShortcut("panel", text)}
+          />
+        </Row>
+        <Row title="Nota rápida" hint="Abre uma nota nova em qualquer lugar. Com uma nota aberta, só traz ela pra frente.">
+          <ShortcutInput
+            label="Atalho de nota rápida"
+            value={config.shortcut_note}
+            onChange={(text) => saveShortcut("note", text)}
           />
         </Row>
       </div>

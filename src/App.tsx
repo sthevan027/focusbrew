@@ -6,13 +6,15 @@ import GithubPanel from "./components/GithubPanel";
 import FocusSection from "./settings/FocusSection";
 import GeneralSection from "./settings/GeneralSection";
 import NotchSection from "./settings/NotchSection";
+import NotesSection from "./settings/NotesSection";
 import { SECTION_ICONS } from "./settings/icons";
 import "./App.css";
 
-type Section = "focus" | "notch" | "general" | "github";
+type Section = "focus" | "notes" | "notch" | "general" | "github";
 
 const SECTIONS: { id: Section; label: string; color: string }[] = [
   { id: "focus", label: "Foco", color: "#ff9f0a" },
+  { id: "notes", label: "Notas", color: "#bf5af2" },
   { id: "notch", label: "Notch", color: "#ff375f" },
   { id: "general", label: "Geral", color: "#8e8e93" },
   { id: "github", label: "GitHub", color: "#30d158" },
@@ -72,6 +74,7 @@ export default function App() {
       <main className="content">
         <h1>{current.label}</h1>
         {section === "focus" && <FocusSection config={state.config} set={set} />}
+        {section === "notes" && <NotesSection config={state.config} set={set} />}
         {section === "notch" && <NotchSection config={state.config} set={set} />}
         {section === "general" && (
           <GeneralSection config={state.config} set={set} shortcutWarning={state.shortcut_warning} />

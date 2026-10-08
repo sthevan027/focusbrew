@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /**
  * The sidebar icons of the settings window, one family: a 24 grid, 2 px
  * rounded strokes, only `currentColor` (the button sets the color). Concepts:
- * Foco = stopwatch, Projetos = folder, Notch = a screen with the widget
+ * Foco = stopwatch, Notas = a sheet with lines, Notch = a screen with the widget
  * hanging from its top edge, Geral = sliders, GitHub = a branch.
  */
 function Icon({ children }: { children: ReactNode }) {
@@ -31,6 +31,14 @@ export const SECTION_ICONS = {
       <path d="M12 13.5V9.5" />
       <path d="M12 6V3.5" />
       <path d="M9.5 3h5" />
+    </Icon>
+  ),
+  notes: () => (
+    <Icon>
+      <path d="M7 3h8l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+      <path d="M15 3v4h4" />
+      <path d="M9 12h6" />
+      <path d="M9 16h4" />
     </Icon>
   ),
   notch: () => (
