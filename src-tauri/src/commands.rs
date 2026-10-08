@@ -403,14 +403,16 @@ pub fn read_image_file(path: String) -> Result<ImagePayload, String> {
     Ok(ImagePayload { ext, data_base64: B64.encode(bytes) })
 }
 
-/// Opens a note (`None` = new) where the settings say.
+/// Opens a note (`None` = new) where the settings say. Async on purpose: on
+/// Windows, building a window from a synchronous command deadlocks.
 #[tauri::command]
-pub fn open_note(id: Option<String>, app: AppHandle, shared: State<'_, Shared>) {
+pub async fn open_note(id: Option<String>, app: AppHandle, shared: State<'_, Shared>) -> Result<(), String> {
     let (placement, visible) = {
         let state = shared.lock();
         (state.config.note_placement, state.config.widget_visible)
     };
     note_window::open(&app, id, note_window::wants_window(placement, visible));
+    Ok(())
 }
 
 #[tauri::command]

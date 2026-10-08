@@ -285,7 +285,11 @@ pub fn run() {
             match shortcuts::action_for(shortcut) {
                 Some(shortcuts::Action::Toggle) => hotkey_action(app),
                 Some(shortcuts::Action::Panel) => panel_action(app),
-                Some(shortcuts::Action::Note) => note_action(app),
+                // Off the event thread: building the note window from here would deadlock on Windows.
+                Some(shortcuts::Action::Note) => {
+                    let app = app.clone();
+                    std::thread::spawn(move || note_action(&app));
+                }
                 None => {}
             }
         })
