@@ -6,7 +6,7 @@ use std::time::Duration;
 use tauri::{PhysicalPosition, PhysicalSize};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-use crate::config::{AppConfig, WidgetEdge};
+use crate::config::{AppConfig, SideCountStyle, WidgetEdge};
 use crate::tracker::timer::TimerStatus;
 
 const FALLBACK_MONITOR_WIDTH: u32 = 1280;
@@ -20,6 +20,10 @@ pub const OPEN_SIZE: (f64, f64) = (560.0, 300.0);
 pub const IDLE_ZONE: (f64, f64) = (140.0, 14.0);
 /// A block is running or paused: the box with the progress line around it.
 pub const RUNNING_ZONE: (f64, f64) = (320.0, 44.0);
+/// On the left/right edges a running block is a standing bar, not the wide
+/// box: the countdown stacked (minutes over seconds) or on one line.
+pub const SIDE_STACKED_ZONE: (f64, f64) = (56.0, 88.0);
+pub const SIDE_INLINE_ZONE: (f64, f64) = (72.0, 104.0);
 
 /// How often the cursor is checked while the mouse passes through.
 const HOVER_POLL: Duration = Duration::from_millis(30);
@@ -277,12 +281,18 @@ pub fn window_layout(config: &AppConfig) -> Layout {
 }
 
 /// The area that catches the mouse while the panel is closed. On the side
-/// edges the parked bar stands up (14 wide, 140 tall).
+/// edges everything stands up: the parked bar is 14 wide and 140 tall, and a
+/// running block is the standing countdown bar (size by `side_count_style`).
 pub fn hot_zone(config: &AppConfig, status: TimerStatus) -> Layout {
-    let (w, h) = if status == TimerStatus::Idle { IDLE_ZONE } else { RUNNING_ZONE };
-    let size = match (status, config.widget_edge) {
-        (TimerStatus::Idle, WidgetEdge::Left | WidgetEdge::Right) => (h, w),
-        _ => (w, h),
+    let side = config.widget_edge != WidgetEdge::Top;
+    let size = match (status == TimerStatus::Idle, side) {
+        (true, false) => IDLE_ZONE,
+        (true, true) => (IDLE_ZONE.1, IDLE_ZONE.0),
+        (false, false) => RUNNING_ZONE,
+        (false, true) => match config.side_count_style {
+            SideCountStyle::Stacked => SIDE_STACKED_ZONE,
+            SideCountStyle::Inline => SIDE_INLINE_ZONE,
+        },
     };
     scaled(config, size)
 }
@@ -290,7 +300,7 @@ pub fn hot_zone(config: &AppConfig, status: TimerStatus) -> Layout {
 #[cfg(test)]
 mod layout_tests {
     use super::*;
-    use crate::config::{AppConfig, WidgetEdge, WidgetScale};
+    use crate::config::{AppConfig, SideCountStyle, WidgetEdge, WidgetScale};
 
     const EDGES: [WidgetEdge; 3] = [WidgetEdge::Top, WidgetEdge::Left, WidgetEdge::Right];
 
@@ -344,12 +354,34 @@ mod layout_tests {
         for edge in [WidgetEdge::Left, WidgetEdge::Right] {
             let c = cfg_edge(edge);
             assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (14.0, 140.0), "{edge:?}");
-            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (320.0, 44.0), "{edge:?}");
-            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (320.0, 44.0), "{edge:?}");
+            // the running bar stands up too: stacked countdown by default
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (56.0, 88.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (56.0, 88.0), "{edge:?}");
         }
         assert_eq!(size(hot_zone(&cfg_edge(WidgetEdge::Top), TimerStatus::Idle)), (140.0, 14.0));
         let small = AppConfig { widget_edge: WidgetEdge::Left, widget_scale: WidgetScale::Small, ..AppConfig::default() };
         assert_eq!(size(hot_zone(&small, TimerStatus::Idle)), (12.0, 119.0));
+    }
+
+    #[test]
+    fn the_inline_countdown_makes_a_wider_standing_bar_only_on_the_sides() {
+        for edge in [WidgetEdge::Left, WidgetEdge::Right] {
+            let c = AppConfig { widget_edge: edge, side_count_style: SideCountStyle::Inline, ..AppConfig::default() };
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (72.0, 104.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (72.0, 104.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (14.0, 140.0), "{edge:?}");
+        }
+        // on the top the box is the same whatever the style
+        for style in [SideCountStyle::Stacked, SideCountStyle::Inline] {
+            let c = AppConfig { side_count_style: style, ..AppConfig::default() };
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (320.0, 44.0));
+        }
+    }
+
+    #[test]
+    fn the_standing_bar_follows_the_scale() {
+        let c = AppConfig { widget_edge: WidgetEdge::Left, widget_scale: WidgetScale::Large, ..AppConfig::default() };
+        assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (70.0, 110.0));
     }
 
     #[test]
@@ -374,7 +406,7 @@ mod layout_tests {
         let c = cfg_edge(WidgetEdge::Left);
         let a = area(0, 0, 1920, 1080, 1.0);
         assert_eq!(physical_bounds(a, &window_layout(&c), WidgetEdge::Left), (0, 390, 560, 300));
-        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Left), (0, 518, 320, 44));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Left), (0, 496, 56, 88));
         assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle), WidgetEdge::Left), (0, 470, 14, 140));
     }
 
@@ -383,7 +415,7 @@ mod layout_tests {
         let c = cfg_edge(WidgetEdge::Right);
         let a = area(0, 0, 1920, 1080, 1.0);
         assert_eq!(physical_bounds(a, &window_layout(&c), WidgetEdge::Right), (1360, 390, 560, 300));
-        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Right), (1600, 518, 320, 44));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Right), (1864, 496, 56, 88));
         assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle), WidgetEdge::Right), (1906, 470, 14, 140));
     }
 

@@ -28,6 +28,8 @@ pub struct AppConfig {
     pub widget_visible: bool,
     /// The screen edge the widget is glued to.
     pub widget_edge: WidgetEdge,
+    /// The countdown's look in the standing bar (only on the left/right edges).
+    pub side_count_style: SideCountStyle,
     /// Name of the monitor the widget sits on; `None` or not found = primary.
     pub monitor: Option<String>,
     /// Heads-up this many minutes before a block ends (0 = off; 1, 2 or 5).
@@ -97,6 +99,17 @@ pub enum WidgetEdge {
     Right,
 }
 
+/// How the countdown looks in the standing bar on the left/right edges.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SideCountStyle {
+    /// Minutes over seconds ("04" above "56"), a narrow bar.
+    #[default]
+    Stacked,
+    /// One line ("04:56"), a slightly wider bar.
+    Inline,
+}
+
 pub const DEFAULT_ACCENT: &str = "#0A84FF";
 
 /// "#rrggbb" in any case (and surrounding spaces) -> "#RRGGBB"; anything else -> `None`.
@@ -123,6 +136,7 @@ impl Default for AppConfig {
             widget_scale: WidgetScale::default(),
             widget_visible: true,
             widget_edge: WidgetEdge::default(),
+            side_count_style: SideCountStyle::default(),
             monitor: None,
             notify_before_end_mins: 0,
             idle_reminder_mins: 0,
@@ -346,6 +360,25 @@ mod tests {
         assert_eq!(c.widget_edge, WidgetEdge::Top);
         assert_eq!(c.accent_color, "#112233");
         assert_eq!(c.daily_goal_mins, 90);
+    }
+
+    #[test]
+    fn the_side_countdown_defaults_to_stacked_and_old_files_get_it() {
+        assert_eq!(AppConfig::default().side_count_style, SideCountStyle::Stacked);
+        let c = parse(r##"{"widget_edge":"left","accent_color":"#112233"}"##);
+        assert_eq!(c.side_count_style, SideCountStyle::Stacked);
+        assert_eq!(c.widget_edge, WidgetEdge::Left);
+    }
+
+    #[test]
+    fn the_side_countdown_style_is_written_in_lower_case_and_read_back() {
+        for (style, text) in [(SideCountStyle::Stacked, "stacked"), (SideCountStyle::Inline, "inline")] {
+            let raw = format!(r#"{{"side_count_style":"{text}"}}"#);
+            assert_eq!(parse(&raw).side_count_style, style);
+            let json =
+                serde_json::to_string(&AppConfig { side_count_style: style, ..AppConfig::default() }).unwrap();
+            assert!(json.contains(&format!("\"side_count_style\":\"{text}\"")), "{json}");
+        }
     }
 
     #[test]
