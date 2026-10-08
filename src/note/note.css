@@ -1,0 +1,104 @@
+.note-editor {
+  position: relative;
+  width: 560px;
+  height: 380px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #0b0b0d;
+  color: #f2f2f3;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.note-editor.flash::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 2px solid var(--accent, #0a84ff);
+  animation: note-flash 450ms ease-out;
+}
+@keyframes note-flash {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.note-editor button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.note-bar,
+.note-tools {
+  flex: none;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  box-sizing: border-box;
+}
+.note-bar { border-bottom: 1px solid #1c1c1f; }
+.note-tools { background: #101013; gap: 4px; }
+.note-spacer { flex: 1; }
+.note-btn {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #b8b8be;
+}
+.note-btn:hover { background: #26262a; color: #f2f2f3; }
+.note-btn.active { background: var(--accent, #0a84ff); color: #fff; }
+.note-btn:disabled { opacity: 0.35; cursor: default; }
+.note-sep { width: 1px; height: 14px; background: #2a2a2d; margin: 0 3px; }
+.note-swatch { width: 14px; height: 14px; border-radius: 50%; border: 2px solid transparent; }
+.note-swatch.active { border-color: #fff; }
+.note-width { width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 6px; }
+.note-width i { display: block; background: currentColor; border-radius: 50%; }
+.note-width.active { background: #26262a; color: #fff; }
+.note-hint { color: #8a8a90; font-size: 12px; padding-left: 4px; }
+
+.note-sheet { position: relative; width: 560px; height: 320px; flex: none; overflow: hidden; }
+.note-sheet > svg { position: absolute; inset: 0; width: 560px; height: 320px; }
+.note-layer-images { pointer-events: none; }
+.note-text {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #f2f2f3;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.note-sheet.drawing .note-text { pointer-events: none; }
+.note-sheet.text .note-draw { pointer-events: none; }
+.note-draw { touch-action: none; cursor: crosshair; }
+.note-sheet.tool-select .note-draw { cursor: default; }
+.note-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #26262a;
+  color: #f2f2f3;
+  font-size: 12px;
+}
