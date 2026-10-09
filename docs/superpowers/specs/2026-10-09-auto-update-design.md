@@ -75,11 +75,15 @@ configurações). Falha de rede nessa checagem **não mostra nada** pro usuário
 
 ## 5. Dados e estado
 
-Novo estado em Rust (lado tracker/config, seguindo o padrão dos módulos
-existentes): última checagem (timestamp), última versão vista disponível
-(ou `None`). Exposto ao frontend via comando Tauri (`get_update_status`) e
-comando de ação (`check_for_update`, `install_update`). Não precisa persistir
-em disco entre sessões — basta checar de novo a cada abertura do app.
+**Revisado após pesquisa da API do `tauri-plugin-updater`:** não passa por
+Rust. A janela `main` (configurações) já carrega seu webview no boot mesmo
+com `visible: false` — é assim que `show_main_window` hoje só mostra/foca
+uma janela que já existe, sem recriar nada — então a checagem "ao abrir o
+app" roda direto do React (`@tauri-apps/plugin-updater`), sem precisar de
+estado nem comando Rust novos. Estado (última checagem, versão disponível,
+checando/instalando, erro) vive só em memória do React, perdido ao fechar o
+app — não precisa persistir em disco entre sessões, já que a checagem roda
+de novo a cada abertura.
 
 ## 6. Testes
 
