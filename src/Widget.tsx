@@ -114,6 +114,8 @@ export default function Widget() {
   // page never got the mouseleave (a note window taking the focus can swallow it).
   useEffect(() => {
     const unlisten = onCursorOutside(() => {
+      // Forget the stale "inside" first, or the next hold change (the list mounting) reopens it.
+      cursorLeft.current();
       if (pinnedRef.current || childHold.current || noteOpen.current || phaseRef.current !== "open") return;
       closeNow.current();
     });
@@ -156,6 +158,8 @@ export default function Widget() {
   // listeners reach it through a ref instead of re-subscribing each second.
   const closeNow = useRef(hover.closeNow);
   closeNow.current = hover.closeNow;
+  const cursorLeft = useRef(hover.cursorLeft);
+  cursorLeft.current = hover.cursorLeft;
   useEffect(() => {
     if (!pinned) return;
     const onKey = (e: KeyboardEvent) => {

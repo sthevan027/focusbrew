@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { shouldAutoClose } from "../lib/idle";
 import { motionBetween, nextTickDelay } from "../lib/shell";
+import { hoverStep } from "./holding";
 import type { Motion, ShapeKind } from "../lib/shell";
 
 /**
@@ -76,9 +77,10 @@ export function useHoverOpen(
 
   const schedule = () => {
     clear();
-    if (inside.current && !openRef.current) {
+    const step = hoverStep({ inside: inside.current, open: openRef.current, holding: holding.current });
+    if (step === "open") {
       timer.current = window.setTimeout(() => apply(true), openDelay);
-    } else if (!inside.current && openRef.current && !holding.current) {
+    } else if (step === "close") {
       timer.current = window.setTimeout(() => {
         if (!inside.current && !holding.current) apply(false);
       }, closeDelay);
@@ -105,6 +107,11 @@ export function useHoverOpen(
     openNow: () => {
       clear();
       if (!openRef.current) apply(true);
+    },
+    /** The backend saw the cursor away from the panel: the page may have missed the mouseleave. */
+    cursorLeft: () => {
+      inside.current = false;
+      schedule();
     },
     /** Closes right away, whatever holds it (Esc, a click elsewhere). */
     closeNow: () => {

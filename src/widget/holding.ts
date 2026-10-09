@@ -7,3 +7,10 @@ export function shouldHold(h: { pinned: boolean; childHold: boolean; noteOpen: b
 export function afterNoteClose(s: { panelWasOpen: boolean; pinned: boolean }): "panel" | "bar" {
   return s.panelWasOpen || s.pinned ? "panel" : "bar";
 }
+
+/** What the hover logic does next: open (cursor in, panel closed), close (cursor out, panel open, nothing holds) or nothing. */
+export function hoverStep(s: { inside: boolean; open: boolean; holding: boolean }): "open" | "close" | "none" {
+  if (s.inside && !s.open) return "open";
+  if (!s.inside && s.open && !s.holding) return "close";
+  return "none";
+}
