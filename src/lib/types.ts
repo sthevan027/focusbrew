@@ -1,5 +1,10 @@
+export type WidgetEdge = "top" | "left" | "right";
+/** The countdown in the standing bar on the left/right edges. */
+export type SideCountStyle = "stacked" | "inline";
 export type NotchStyle = "standard" | "minimal";
 export type WidgetScale = "small" | "medium" | "large";
+/** Where a quick note opens: over the panel or in its own window. */
+export type NotePlacement = "overlay" | "window";
 
 export interface AppConfig {
   github_login: string | null;
@@ -12,6 +17,10 @@ export interface AppConfig {
   accent_color: string;
   widget_scale: WidgetScale;
   widget_visible: boolean;
+  /** The screen edge the widget is glued to. */
+  widget_edge: WidgetEdge;
+  /** Stacked ("04" over "56") or one line ("04:56"); only on the left/right edges. */
+  side_count_style: SideCountStyle;
   /** Monitor name; null = primary. */
   monitor: string | null;
   /** 0 = off; 1, 2 or 5. */
@@ -22,7 +31,12 @@ export interface AppConfig {
   daily_goal_mins: number;
   shortcut_toggle: string;
   shortcut_panel: string;
+  shortcut_note: string;
+  /** Where a quick note opens. */
+  note_placement: NotePlacement;
   launch_at_login: boolean;
+  /** A pinned panel closes by itself after this many idle seconds; 0 = never (15, 30 or 60). */
+  panel_autoclose_secs: number;
 }
 
 export interface MonitorChoice {
@@ -79,17 +93,6 @@ export interface GithubItem {
   repository: string;
   is_pull_request: boolean;
   updated_at: string;
-}
-
-/** Seconds per project (`null` = no project) over a few spans. */
-export interface ProjectTotal {
-  project: string | null;
-  today: number;
-  /** Today and the 6 days before. */
-  week: number;
-  /** Today and the 29 days before. */
-  month: number;
-  total: number;
 }
 
 /** Something done on GitHub, on a local day. */

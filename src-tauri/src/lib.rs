@@ -3,6 +3,8 @@ mod autostart;
 mod commands;
 mod config;
 mod github;
+mod note_window;
+mod notes;
 mod shortcuts;
 mod state;
 mod tracker;
@@ -86,7 +88,9 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
     };
     let window_layout = widget::window_layout(&state.config);
     let zone = widget::hot_zone(&state.config, state.tracker.timer.status());
+    let panel = widget::panel_zone(&state.config);
     let monitor = state.config.monitor.clone();
+    let edge = state.config.widget_edge;
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         if tooltip_changed {
@@ -94,7 +98,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
                 let _ = tray.set_tooltip(Some(tooltip));
             }
         }
-        widget::apply(&handle, window_layout, zone, monitor.as_deref());
+        widget::apply(&handle, window_layout, zone, panel, monitor.as_deref(), edge);
     });
     let _ = app.emit("state-changed", StateSnapshot::from(state));
 }
@@ -122,6 +126,20 @@ fn panel_action(app: &AppHandle) {
         let _ = window.set_focus();
     }
     let _ = app.emit_to("widget", "toggle-panel", ());
+}
+
+/// The note shortcut: a new note, or — with one already open — bring it forward and blink.
+fn note_action(app: &AppHandle) {
+    if note_window::is_open(app) {
+        note_window::focus_and_flash(app);
+        return;
+    }
+    let (placement, visible) = {
+        let shared = app.state::<Shared>();
+        let state = shared.lock();
+        (state.config.note_placement, state.config.widget_visible)
+    };
+    note_window::open(app, None, note_window::wants_window(placement, visible));
 }
 
 fn alert_text(alert: &Alert) -> (String, String) {
@@ -267,6 +285,11 @@ pub fn run() {
             match shortcuts::action_for(shortcut) {
                 Some(shortcuts::Action::Toggle) => hotkey_action(app),
                 Some(shortcuts::Action::Panel) => panel_action(app),
+                // Off the event thread: building the note window from here would deadlock on Windows.
+                Some(shortcuts::Action::Note) => {
+                    let app = app.clone();
+                    std::thread::spawn(move || note_action(&app));
+                }
                 None => {}
             }
         })
@@ -286,15 +309,15 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(global_shortcut_plugin)
         .manage(Shared(Mutex::new(AppState::load())))
+        .manage(notes::NotesShared(Mutex::new(notes::load())))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::add_task,
             commands::toggle_task,
             commands::remove_task,
-            commands::nudge_task_minutes,
+            commands::set_task_minutes,
             commands::move_task,
             commands::edit_task,
-            commands::project_totals,
             commands::set_shortcut,
             commands::set_launch_at_login,
             commands::list_monitors,
@@ -311,6 +334,15 @@ pub fn run() {
             commands::import_github_item_as_task,
             commands::set_widget_expanded,
             commands::open_settings_window,
+            commands::list_notes,
+            commands::save_note,
+            commands::delete_note,
+            commands::save_note_image,
+            commands::read_note_image,
+            commands::read_image_file,
+            commands::open_note,
+            commands::close_note_window,
+            commands::set_note_overlay_open,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -367,6 +399,7 @@ pub fn run() {
                 let wanted = [
                     (shortcuts::Action::Toggle, state.config.shortcut_toggle.clone()),
                     (shortcuts::Action::Panel, state.config.shortcut_panel.clone()),
+                    (shortcuts::Action::Note, state.config.shortcut_note.clone()),
                 ];
                 let problems: Vec<String> = wanted
                     .iter()
@@ -386,6 +419,15 @@ pub fn run() {
             spawn_tick_loop(handle.clone());
             widget::spawn_hover_loop(handle.clone());
             spawn_github_refresh_loop(handle);
+            // Nothing is being edited yet: free the images no note uses.
+            {
+                let notes = app.state::<notes::NotesShared>();
+                let store = notes.lock();
+                // A file that was broken or unreadable still refers to its images: keep them.
+                if store.may_prune() {
+                    notes::prune_images(&store.images_in_use());
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

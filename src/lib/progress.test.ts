@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TimerView } from "./types";
-import { formatClock, progressFraction, remainingSecs, uLength, uPath } from "./progress";
+import { clockParts, formatClock, progressFraction, remainingSecs, uLength, uPath } from "./progress";
 
 const NOW = 1_000_000;
 
@@ -79,6 +79,26 @@ describe("formatClock", () => {
   });
 });
 
+describe("clockParts", () => {
+  it("splits the countdown into minutes and seconds, both two digits", () => {
+    expect(clockParts(296)).toEqual({ minutes: "04", seconds: "56" });
+    expect(clockParts(0)).toEqual({ minutes: "00", seconds: "00" });
+    expect(clockParts(59.9)).toEqual({ minutes: "00", seconds: "59" });
+  });
+
+  it("keeps counting minutes past 99 and clamps negatives, like formatClock", () => {
+    expect(clockParts(10800)).toEqual({ minutes: "180", seconds: "00" });
+    expect(clockParts(-5)).toEqual({ minutes: "00", seconds: "00" });
+  });
+
+  it("always agrees with formatClock", () => {
+    for (const secs of [0, 1, 59, 60, 61, 1673, 5999, 6000, 10800]) {
+      const { minutes, seconds } = clockParts(secs);
+      expect(`${minutes}:${seconds}`).toBe(formatClock(secs));
+    }
+  });
+});
+
 describe("the U-shaped progress line", () => {
   const shape = { width: 320, height: 44, radius: 14, inset: 1 };
 
@@ -98,5 +118,38 @@ describe("the U-shaped progress line", () => {
     const length = uLength(tiny);
     expect(Number.isFinite(length)).toBe(true);
     expect(length).toBeGreaterThanOrEqual(0);
+  });
+
+  it("opens to the left on the left edge: along the top, down the right side, back along the bottom", () => {
+    expect(uPath(shape, "left")).toBe(
+      "M 0 1 L 305 1 A 14 14 0 0 1 319 15 L 319 29 A 14 14 0 0 1 305 43 L 0 43",
+    );
+  });
+
+  it("opens to the right on the right edge: along the top, down the left side, back along the bottom", () => {
+    expect(uPath(shape, "right")).toBe(
+      "M 320 1 L 15 1 A 14 14 0 0 0 1 15 L 1 29 A 14 14 0 0 0 15 43 L 320 43",
+    );
+  });
+
+  it("measures the side edges: two long arms, the short base and two quarter circles", () => {
+    expect(uLength(shape, "left")).toBeCloseTo(2 * 305 + 14 + Math.PI * 14, 5);
+    expect(uLength(shape, "right")).toBeCloseTo(2 * 305 + 14 + Math.PI * 14, 5);
+  });
+
+  it("keeps the top edge exactly as before when no edge is given", () => {
+    expect(uPath(shape)).toBe(uPath(shape, "top"));
+    expect(uLength(shape)).toBe(uLength(shape, "top"));
+  });
+
+  // Review focus: a tiny box on any edge must never produce NaN.
+  it("never breaks on a tiny box, whatever the edge", () => {
+    const tiny = { width: 20, height: 10, radius: 14, inset: 1 };
+    for (const edge of ["top", "left", "right"] as const) {
+      expect(uPath(tiny, edge)).not.toContain("NaN");
+      const length = uLength(tiny, edge);
+      expect(Number.isFinite(length)).toBe(true);
+      expect(length).toBeGreaterThanOrEqual(0);
+    }
   });
 });

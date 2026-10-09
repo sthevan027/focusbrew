@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { nextTickDelay } from "../lib/shell";
+import { shouldAutoClose } from "../lib/idle";
+import { motionBetween, nextTickDelay } from "../lib/shell";
+import { hoverStep } from "./holding";
+import type { Motion, ShapeKind } from "../lib/shell";
 
 /**
  * Current time in ms while `active`, refreshed right when the countdown to
@@ -74,9 +77,10 @@ export function useHoverOpen(
 
   const schedule = () => {
     clear();
-    if (inside.current && !openRef.current) {
+    const step = hoverStep({ inside: inside.current, open: openRef.current, holding: holding.current });
+    if (step === "open") {
       timer.current = window.setTimeout(() => apply(true), openDelay);
-    } else if (!inside.current && openRef.current && !holding.current) {
+    } else if (step === "close") {
       timer.current = window.setTimeout(() => {
         if (!inside.current && !holding.current) apply(false);
       }, closeDelay);
@@ -104,6 +108,11 @@ export function useHoverOpen(
       clear();
       if (!openRef.current) apply(true);
     },
+    /** The backend saw the cursor away from the panel: the page may have missed the mouseleave. */
+    cursorLeft: () => {
+      inside.current = false;
+      schedule();
+    },
     /** Closes right away, whatever holds it (Esc, a click elsewhere). */
     closeNow: () => {
       clear();
@@ -111,4 +120,52 @@ export function useHoverOpen(
       if (openRef.current) apply(false);
     },
   };
+}
+
+/**
+ * How the shape just changed: "grow" or "shrink" until the next change of
+ * kind. The first render is "same" (nothing animates on mount).
+ */
+export function useMotion(kind: ShapeKind): Motion {
+  const last = useRef(kind);
+  const motion = useRef<Motion>("same");
+  if (last.current !== kind) {
+    motion.current = motionBetween(last.current, kind);
+    last.current = kind;
+  }
+  return motion.current;
+}
+
+/**
+ * Closes a pinned panel that nobody touches: while `active`, any pointer move,
+ * click, key or scroll counts as activity. The clock stands still (and starts
+ * over once released) while `held()` says something keeps the panel open, like
+ * typing in a field or dragging a task.
+ */
+export function useIdleClose(active: boolean, secs: number, held: () => boolean, onClose: () => void) {
+  const heldRef = useRef(held);
+  heldRef.current = held;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (!active || secs <= 0) return;
+    let last = Date.now();
+    const bump = () => {
+      last = Date.now();
+    };
+    const events = ["pointermove", "pointerdown", "keydown", "wheel"] as const;
+    for (const name of events) window.addEventListener(name, bump, { passive: true });
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      if (heldRef.current()) {
+        last = now;
+        return;
+      }
+      if (shouldAutoClose(last, now, secs)) closeRef.current();
+    }, 1000);
+    return () => {
+      for (const name of events) window.removeEventListener(name, bump);
+      window.clearInterval(id);
+    };
+  }, [active, secs]);
 }

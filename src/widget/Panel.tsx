@@ -9,7 +9,7 @@ import { daySummary } from "../lib/summary";
 import ActivityPanel from "./ActivityPanel";
 import DaySummaryView from "./DaySummaryView";
 import GithubTab from "./GithubTab";
-import { ChevronIcon, PinIcon } from "./icons";
+import { ChevronIcon, NoteIcon, PinIcon } from "./icons";
 import TaskList from "./TaskList";
 
 interface Props {
@@ -20,11 +20,13 @@ interface Props {
   pinned: boolean;
   onTogglePin: () => void;
   onHold: (hold: boolean) => void;
+  /** Opens a new quick note. */
+  onNote: () => void;
 }
 
 const TAB_LABEL: Record<PanelTab, string> = { tasks: "Tarefas", summary: "Resumo", github: "GitHub" };
 
-export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onHold }: Props) {
+export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onHold, onNote }: Props) {
   const { today } = state;
   const [wanted, setWanted] = useState<PanelTab>("tasks");
   const [dropDay, setDropDay] = useState<string | null>(null);
@@ -102,6 +104,9 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
         )}
 
         <span className="day-stats">{stats}</span>
+        <button type="button" className="pin" aria-label="Nota rápida" title="Nota rápida" onClick={onNote}>
+          <NoteIcon />
+        </button>
         <button
           type="button"
           className={pinned ? "pin pinned" : "pin"}

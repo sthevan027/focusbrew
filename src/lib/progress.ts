@@ -1,4 +1,4 @@
-import type { TimerView } from "./types";
+import type { TimerView, WidgetEdge } from "./types";
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
@@ -22,14 +22,25 @@ export function remainingSecs(timer: TimerView, nowMs: number): number {
   return Math.min(left, timer.planned_secs);
 }
 
-/** "mm:ss" ("27:53"); minutes keep growing past 99 ("180:00"). */
-export function formatClock(secs: number): string {
+/** The countdown as two strings, "27" and "53"; minutes keep growing past 99 ("180"). */
+export function clockParts(secs: number): { minutes: string; seconds: string } {
   const total = Math.max(0, Math.floor(secs));
-  const minutes = Math.floor(total / 60);
-  return `${String(minutes).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  return {
+    minutes: String(Math.floor(total / 60)).padStart(2, "0"),
+    seconds: String(total % 60).padStart(2, "0"),
+  };
 }
 
-/** The "U" the progress line follows: down the left, along the bottom, up the right. */
+/** "mm:ss" ("27:53"); minutes keep growing past 99 ("180:00"). */
+export function formatClock(secs: number): string {
+  const { minutes, seconds } = clockParts(secs);
+  return `${minutes}:${seconds}`;
+}
+
+/**
+ * The "U" the progress line follows: it hugs three sides of the box and leaves
+ * open the side that touches the screen edge.
+ */
 export interface UShape {
   width: number;
   height: number;
@@ -38,24 +49,44 @@ export interface UShape {
   inset: number;
 }
 
-/** A radius that fits the box, so a tiny box never produces a broken path. */
-function safeRadius({ width, height, radius, inset }: UShape): number {
-  return Math.max(0, Math.min(radius, height - inset, (width - 2 * inset) / 2));
+/** How deep the U is (open end to base) and how wide it spans, per edge. */
+function dims(shape: UShape, edge: WidgetEdge): { depth: number; span: number } {
+  return edge === "top"
+    ? { depth: shape.height, span: shape.width }
+    : { depth: shape.width, span: shape.height };
 }
 
-export function uPath(shape: UShape): string {
+/** A radius that fits the box, so a tiny box never produces a broken path. */
+function safeRadius(shape: UShape, edge: WidgetEdge): number {
+  const { depth, span } = dims(shape, edge);
+  return Math.max(0, Math.min(shape.radius, depth - shape.inset, (span - 2 * shape.inset) / 2));
+}
+
+/**
+ * `top`: down the left, along the bottom, up the right. `left`: along the top,
+ * down the right, back along the bottom. `right`: the same, mirrored. The fill
+ * always starts at the top tip.
+ */
+export function uPath(shape: UShape, edge: WidgetEdge = "top"): string {
   const { width, height, inset } = shape;
-  const r = safeRadius(shape);
+  const r = safeRadius(shape, edge);
   const x0 = inset;
   const x1 = width - inset;
-  const yb = height - inset;
-  return `M ${x0} 0 L ${x0} ${yb - r} A ${r} ${r} 0 0 0 ${x0 + r} ${yb} L ${x1 - r} ${yb} A ${r} ${r} 0 0 0 ${x1} ${yb - r} L ${x1} 0`;
+  const y0 = inset;
+  const y1 = height - inset;
+  if (edge === "left") {
+    return `M 0 ${y0} L ${x1 - r} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y0 + r} L ${x1} ${y1 - r} A ${r} ${r} 0 0 1 ${x1 - r} ${y1} L 0 ${y1}`;
+  }
+  if (edge === "right") {
+    return `M ${width} ${y0} L ${x0 + r} ${y0} A ${r} ${r} 0 0 0 ${x0} ${y0 + r} L ${x0} ${y1 - r} A ${r} ${r} 0 0 0 ${x0 + r} ${y1} L ${width} ${y1}`;
+  }
+  return `M ${x0} 0 L ${x0} ${y1 - r} A ${r} ${r} 0 0 0 ${x0 + r} ${y1} L ${x1 - r} ${y1} A ${r} ${r} 0 0 0 ${x1} ${y1 - r} L ${x1} 0`;
 }
 
-export function uLength(shape: UShape): number {
-  const { width, height, inset } = shape;
-  const r = safeRadius(shape);
-  const side = height - inset - r;
-  const bottom = width - 2 * inset - 2 * r;
-  return 2 * side + bottom + Math.PI * r;
+export function uLength(shape: UShape, edge: WidgetEdge = "top"): number {
+  const { depth, span } = dims(shape, edge);
+  const r = safeRadius(shape, edge);
+  const side = depth - shape.inset - r;
+  const base = span - 2 * shape.inset - 2 * r;
+  return 2 * side + base + Math.PI * r;
 }

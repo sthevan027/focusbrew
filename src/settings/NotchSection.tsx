@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { NotchStyle, WidgetScale } from "../lib/types";
+import type { NotchStyle, SideCountStyle, WidgetEdge, WidgetScale } from "../lib/types";
 import { ACCENT_PRESETS, normalizeHex } from "./colors";
 import Row from "./Row";
 import type { SectionProps } from "./Row";
@@ -16,17 +16,31 @@ const SCALES: { id: WidgetScale; label: string }[] = [
   { id: "large", label: "Grande" },
 ];
 
+const EDGES: { id: WidgetEdge; label: string }[] = [
+  { id: "top", label: "Topo" },
+  { id: "left", label: "Esquerda" },
+  { id: "right", label: "Direita" },
+];
+
+const AUTOCLOSE: { secs: number; label: string }[] = [
+  { secs: 0, label: "Desligado" },
+  { secs: 15, label: "15 s" },
+  { secs: 30, label: "30 s" },
+  { secs: 60, label: "60 s" },
+];
+
+const SIDE_COUNTS: { id: SideCountStyle; label: string }[] = [
+  { id: "stacked", label: "Empilhada" },
+  { id: "inline", label: "Numa linha" },
+];
+
 /** A little drawing of the notch in each style. */
 function Thumb({ style }: { style: NotchStyle }) {
   return (
     <div className="thumb">
       <div className={`thumb-notch ${style}`}>
-        {style === "standard" && (
-          <>
-            <i className="t-clock" />
-            <i className="t-title" />
-          </>
-        )}
+        <i className="t-clock" />
+        {style === "standard" && <i className="t-title" />}
         <b className="t-line" />
       </div>
     </div>
@@ -48,7 +62,7 @@ export default function NotchSection({ config, set }: SectionProps) {
 
   return (
     <>
-      <p className="lead">O que o widget mostra no topo da tela enquanto um bloco roda.</p>
+      <p className="lead">O que o widget mostra enquanto um bloco roda.</p>
 
       <div className="cards" role="radiogroup" aria-label="Estilo do notch">
         {STYLES.map((style) => (
@@ -66,7 +80,7 @@ export default function NotchSection({ config, set }: SectionProps) {
         ))}
       </div>
       <p className="row-hint cards-hint">
-        Standard mostra a contagem à esquerda e a tarefa à direita; Minimal mostra só a caixa e a linha.
+        Standard mostra a contagem de um lado e a tarefa do outro; Minimal mostra só a contagem, no meio.
       </p>
 
       <div className="group">
@@ -123,6 +137,57 @@ export default function NotchSection({ config, set }: SectionProps) {
                 onClick={() => set({ widget_scale: scale.id })}
               >
                 {scale.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row title="Posição" hint="Em qual borda da tela o widget fica colado. Nas laterais a barra fica em pé.">
+          <div className="segmented" role="radiogroup" aria-label="Posição do widget">
+            {EDGES.map((edge) => (
+              <button
+                key={edge.id}
+                type="button"
+                role="radio"
+                aria-checked={config.widget_edge === edge.id}
+                onClick={() => set({ widget_edge: edge.id })}
+              >
+                {edge.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row
+          title="Contagem na lateral"
+          hint="Só vale na esquerda ou na direita: minutos em cima e segundos embaixo (04 / 56), ou tudo numa linha (04:56)."
+        >
+          <div className="segmented" role="radiogroup" aria-label="Contagem na lateral">
+            {SIDE_COUNTS.map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                role="radio"
+                aria-checked={config.side_count_style === style.id}
+                onClick={() => set({ side_count_style: style.id })}
+              >
+                {style.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Row
+          title="Fechar o painel fixado sozinho"
+          hint="Depois desse tempo sem você mexer. Não fecha enquanto você digita ou arrasta uma tarefa."
+        >
+          <div className="segmented" role="radiogroup" aria-label="Fechar o painel fixado sozinho">
+            {AUTOCLOSE.map((choice) => (
+              <button
+                key={choice.secs}
+                type="button"
+                role="radio"
+                aria-checked={config.panel_autoclose_secs === choice.secs}
+                onClick={() => set({ panel_autoclose_secs: choice.secs })}
+              >
+                {choice.label}
               </button>
             ))}
           </div>

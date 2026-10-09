@@ -23,61 +23,213 @@
   position: relative;
 }
 
+/* ---- which corners are rounded: only the ones away from the screen edge.
+   The flat side touches the edge. 1 = rounded, 0 = square. ---- */
+.widget-root {
+  --k-tl: 0;
+  --k-tr: 0;
+  --k-br: 1;
+  --k-bl: 1;
+}
+.widget-root[data-edge="left"] {
+  --k-tl: 0;
+  --k-tr: 1;
+  --k-br: 1;
+  --k-bl: 0;
+}
+.widget-root[data-edge="right"] {
+  --k-tl: 1;
+  --k-tr: 0;
+  --k-br: 0;
+  --k-bl: 1;
+}
+
 /* ---- the area that takes the mouse (the backend lets it pass everywhere
-   else while the panel is closed), centered at the top ---- */
+   else while the panel is closed): centered at the top, or centered in height
+   on the left/right edge ---- */
 .hit {
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
 }
+.widget-root[data-edge="left"] .hit {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.widget-root[data-edge="right"] .hit {
+  top: 50%;
+  left: auto;
+  right: 0;
+  transform: translateY(-50%);
+}
 
-/* ---- the shape: one element that morphs bar -> box -> panel ----
-   Centered on the same axis. The window is always panel-sized and never
-   resizes, so every change here is a plain CSS animation. */
-.shell {
+/* ---- the frame: where the shape sits and how big it is. It animates the
+   size; the shell inside is the visible, clipped shape. The window is always
+   panel-sized and never resizes, so every change here is a plain CSS
+   animation. ---- */
+.shell-frame {
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --shell-bg: #000;
+  --spring: cubic-bezier(0.34, 1.2, 0.64, 1);
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
+  transition:
+    width var(--shrink-ms, 200ms) var(--ease),
+    height var(--shrink-ms, 200ms) var(--ease);
+}
+.widget-root[data-edge="left"] .shell-frame {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.widget-root[data-edge="right"] .shell-frame {
+  top: 50%;
+  left: auto;
+  right: 0;
+  transform: translateY(-50%);
+}
+.shell-frame.open {
+  --shell-bg: #0b0b0d;
+}
+
+/* ---- growing is elastic, shrinking is decisive. The spring is a damped
+   curve with ~2% overshoot (the panel's overshoot is clipped by the window,
+   so it only shows from bar to box). ---- */
+@supports (transition-timing-function: linear(0, 1)) {
+  .shell-frame {
+    --spring: linear(
+      0, 0.0153, 0.0555, 0.1133, 0.1825, 0.2584, 0.337, 0.4155, 0.4914, 0.5633,
+      0.63, 0.691, 0.7458, 0.7943, 0.8368, 0.8735, 0.9047, 0.931, 0.9527, 0.9704,
+      0.9846, 0.9956, 1.0041, 1.0103, 1.0147, 1.0176, 1.0192, 1.0199, 1
+    );
+  }
+}
+.shell-frame.grow {
+  transition:
+    width var(--grow-ms, 480ms) var(--spring),
+    height var(--grow-ms, 480ms) var(--spring);
+}
+.shell-frame.grow .shell {
+  transition:
+    border-radius var(--grow-ms, 480ms) var(--ease),
+    background-color var(--grow-ms, 480ms) var(--ease);
+}
+.shell-frame.shrink {
+  --ease: cubic-bezier(0.3, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-frame.grow {
+    transition:
+      width var(--shrink-ms, 200ms) var(--ease),
+      height var(--shrink-ms, 200ms) var(--ease);
+  }
+  .shell-frame.grow .shell {
+    transition-duration: var(--shrink-ms, 200ms);
+  }
+}
+
+/* ---- notch "ears": concave curves where the box or panel meets the screen
+   edge. Pure CSS: a transparent quarter circle (radius 14) cut out of a
+   square painted in the shell's color. Not shown on the parked bar. ---- */
+.shell-frame::before,
+.shell-frame::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  transition: opacity 160ms;
+}
+.shell-frame[data-kind="bar"]::before,
+.shell-frame[data-kind="bar"]::after {
+  opacity: 0;
+}
+
+/* top edge: one ear on each side of the shape, at the top */
+.widget-root[data-edge="top"] .shell-frame::before {
+  top: 0;
+  right: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+.widget-root[data-edge="top"] .shell-frame::after {
+  top: 0;
+  left: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+
+/* left edge: one ear above and one below the shape */
+.widget-root[data-edge="left"] .shell-frame::before {
+  left: 0;
+  bottom: 100%;
+  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--shell-bg) 14px);
+}
+.widget-root[data-edge="left"] .shell-frame::after {
+  left: 0;
+  top: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+
+/* right edge: one ear above and one below the shape */
+.widget-root[data-edge="right"] .shell-frame::before {
+  right: 0;
+  bottom: 100%;
+  background: radial-gradient(circle at 0 0, transparent 13.5px, var(--shell-bg) 14px);
+}
+.widget-root[data-edge="right"] .shell-frame::after {
+  right: 0;
+  top: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+}
+/* ---- the shape: one element that morphs bar -> box -> panel ---- */
+.shell {
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --rad: 14px;
+  --outline: color-mix(in srgb, var(--accent) 70%, transparent);
+  position: absolute;
+  inset: 0;
   box-sizing: border-box;
   overflow: hidden;
-  background: #000;
-  border-radius: 0 0 14px 14px;
+  background: var(--shell-bg);
+  border-radius: calc(var(--k-tl) * var(--rad)) calc(var(--k-tr) * var(--rad))
+    calc(var(--k-br) * var(--rad)) calc(var(--k-bl) * var(--rad));
   transition:
-    width 260ms var(--ease),
-    height 260ms var(--ease),
-    border-radius 260ms var(--ease),
-    background-color 260ms var(--ease);
+    border-radius var(--shrink-ms, 200ms) var(--ease),
+    background-color var(--shrink-ms, 200ms) var(--ease);
 }
 
 .shell.idle:not(.open) {
-  border-radius: 0 0 4px 4px;
+  --rad: 4px;
 }
 
 .shell.open {
-  background: #0b0b0d;
-  border-radius: 0 0 18px 18px;
+  --rad: 18px;
 }
 
-/* Must match CLOSE_MS in Widget.tsx. */
-.shell.closing {
-  transition-duration: 200ms;
-}
-
-/* The accent outline of the open panel (no top edge), drawn over the
-   content so it doesn't change the shape's size. */
+/* The accent outline of the open panel (never on the side touching the screen
+   edge), drawn over the content so it doesn't change the shape's size. */
 .shell::after {
   content: "";
   position: absolute;
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  border: 1px solid var(--outline);
   border-top: none;
   border-radius: inherit;
   opacity: 0;
   pointer-events: none;
   transition: opacity 200ms;
+}
+.widget-root[data-edge="left"] .shell::after {
+  border-top: 1px solid var(--outline);
+  border-left: none;
+}
+.widget-root[data-edge="right"] .shell::after {
+  border-top: 1px solid var(--outline);
+  border-right: none;
 }
 .shell.open::after {
   opacity: 1;
@@ -119,6 +271,37 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Minimal on the top: only the countdown, in the middle. */
+.notch-box.center {
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the standing bar on the left/right edges: the countdown only, with the
+   clock on top. Stacked: minutes over seconds. Inline: "04:56" on one line. ---- */
+.notch-box.side {
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 4px;
+}
+.side-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.notch-box.side.inline .side-time {
+  flex-direction: row;
+  font-size: 18px;
 }
 
 @keyframes pulse {
@@ -185,6 +368,45 @@
 .shell.open .panel {
   opacity: 1;
   transition: opacity 180ms 70ms ease-out;
+}
+/* On the side edges the panel hangs from the screen edge and is centered in
+   height (the shape grows from there). */
+.widget-root[data-edge="left"] .panel {
+  top: 50%;
+  left: 0;
+  margin-left: 0;
+  margin-top: -150px;
+}
+.widget-root[data-edge="right"] .panel {
+  top: 50%;
+  left: auto;
+  right: 0;
+  margin-left: 0;
+  margin-top: -150px;
+}
+
+/* ---- the quick note over the panel: laid out at its full size and revealed
+   by the growing shape, hanging from the screen edge like the panel ---- */
+.note-root {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 560px;
+  height: 380px;
+  margin-left: -280px;
+}
+.widget-root[data-edge="left"] .note-root {
+  top: 50%;
+  left: 0;
+  margin-left: 0;
+  margin-top: -190px;
+}
+.widget-root[data-edge="right"] .note-root {
+  top: 50%;
+  left: auto;
+  right: 0;
+  margin-left: 0;
+  margin-top: -190px;
 }
 
 .panel :where(button) {
@@ -320,6 +542,14 @@
   flex-direction: column;
   gap: 6px;
   padding-right: 2px;
+  /* Room for the scrollbar is always reserved, so a bar that comes and goes
+     never reflows the rows. */
+  scrollbar-gutter: stable;
+}
+/* Rows that slide while one is dragged would make the list scrollable for a
+   moment (a stray scrollbar): no scrolling while reordering. */
+.task-list.reordering {
+  overflow-y: hidden;
 }
 
 .task-list::-webkit-scrollbar {
@@ -344,31 +574,31 @@
   gap: 8px;
   padding: 6px 8px;
   min-height: 32px;
-  background: #1a1a1d;
+  --row-bg: #1a1a1d;
+  background: var(--row-bg);
   border-radius: 10px;
+  transition: background-color 120ms;
+}
+.task-row:hover {
+  --row-bg: #202024;
+}
+/* While a row is dragged the others slide out of its way (transform only). */
+.task-list.reordering .task-row {
+  transition:
+    transform 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 120ms;
 }
 
 .task-row.active {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
 }
+/* The dragged row follows the pointer (moved by hand), lifted over the others. */
 .task-row.dragging {
-  opacity: 0.45;
-}
-.task-row.guide-before::before,
-.task-row.guide-after::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
-}
-.task-row.guide-before::before {
-  top: -4px;
-}
-.task-row.guide-after::after {
-  bottom: -4px;
+  z-index: 2;
+  will-change: transform;
+  opacity: 0.95;
+  --row-bg: #26262b;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
 }
 
 .task-row :where(button) {
@@ -396,8 +626,35 @@
 }
 
 .task-main {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+/* The hover buttons sit over the end of the title and fade in; they take no
+   room in the row, so hovering never reflows the titles. */
+.row-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 22px;
+  background: linear-gradient(90deg, transparent, var(--row-bg) 35%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+/* Keyboard focus only: a clicked play button keeps focus and must not pin them. */
+.task-row:hover .row-actions,
+.task-row:has(:focus-visible) .row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.task-row.dragging .row-actions {
+  opacity: 0;
+  pointer-events: none;
 }
 .task-title {
   font-weight: 600;
@@ -452,21 +709,34 @@
   font-weight: 600;
 }
 .minutes-value {
-  min-width: 18px;
+  min-width: 26px;
+  padding: 1px 3px;
+  border-radius: 6px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: inherit;
+  transition: background-color 120ms;
 }
-.stepper {
-  display: flex;
-  flex-direction: column;
-  line-height: 1;
-}
-.stepper button {
-  font-size: 7px;
-  line-height: 8px;
-  color: #8a8a90;
-}
-.stepper button:hover {
+.minutes-value:hover {
+  background: #34343a;
   color: #f2f2f3;
+}
+/* `.task-row` in front: `.todo input` (the add field) would otherwise stretch it to 100%. */
+.task-row .minutes-edit {
+  flex: none;
+  box-sizing: border-box;
+  width: 34px;
+  padding: 1px 2px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  outline: none;
+  background: #0b0b0d;
+  color: #f2f2f3;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .play {
@@ -482,14 +752,10 @@
 
 .remove {
   flex: none;
-  display: none;
   width: 14px;
   color: #8a8a90;
   font-size: 15px;
   line-height: 1;
-}
-.task-row:hover .remove {
-  display: block;
 }
 .remove:hover {
   color: #ff453a;
@@ -523,19 +789,14 @@
   color: #6a6a70;
 }
 
-/* Only on the hovered row, and only then in the layout: invisible buttons
-   that still take room would cut the titles of every row. */
 .move {
   flex: none;
-  display: none;
+  display: grid;
   place-items: center;
   width: 18px;
   height: 18px;
   border-radius: 5px;
   color: #8a8a90;
-}
-.task-row:hover .move {
-  display: grid;
 }
 .move:hover {
   background: #26262a;

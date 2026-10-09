@@ -1,11 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import type { StateSnapshot } from "../lib/types";
 import { addTask, fire, moveTask, reorderTasks } from "../lib/tauri";
 import { carriedFrom, tasksForDay } from "../lib/day";
 import { titleWithoutProject } from "../lib/project";
-import { dropIndex, moveItem } from "../lib/reorder";
+import { clampDelta, dropIndex, jumpDistance, moveItem, rowShift } from "../lib/reorder";
 import TaskRow from "./TaskRow";
+
+/** The gap between rows: must match `.task-list` in Widget.css. */
+const GAP = 6;
+/** The dragged row glides into its slot (and back) with this. */
+const SETTLE = "transform 160ms cubic-bezier(0.32, 0.72, 0, 1)";
+/** How long the rows stay shifted waiting for the backend's new order. */
+const SETTLE_MAX_MS = 600;
 
 interface Props {
   state: StateSnapshot;
@@ -40,8 +47,16 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
   const [typing, setTyping] = useState(false);
   const [editing, setEditing] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // After the drop the rows stay where they will be until the new order arrives.
+  const [settling, setSettling] = useState<Drag | null>(null);
   const [dropDay, setDropDay] = useState<string | null>(null);
   const rows = useRef(new Map<string, HTMLDivElement>());
+  // Measured when the drag starts, before any row moves: the rows' middles and heights.
+  const slots = useRef({ mids: [] as number[], heights: [] as number[] });
+  const startY = useRef(0);
+  // How far the dragged row may travel up (min) and down (max) and stay inside the list.
+  const travel = useRef({ min: 0, max: 0 });
+  const listRef = useRef<HTMLDivElement>(null);
 
   // `onHold` changes identity on every render of the widget (the clock ticks
   // every second); calling it from an effect that depends on it would restart
@@ -59,6 +74,33 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
     dropRef.current(dropDay);
   }, [dropDay]);
 
+  // Drops the inline motion of every row (the dragged one is moved by hand).
+  const resetRows = () => {
+    rows.current.forEach((el) => {
+      el.style.transition = "";
+      el.style.transform = "";
+    });
+  };
+
+  // The backend sent the new order: the rows are in their final places, so the
+  // leftover offsets go away before the next paint (no double shift).
+  const order = open.map((t) => t.id).join(",");
+  useLayoutEffect(() => {
+    if (!settling) return;
+    resetRows();
+    setSettling(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order]);
+  // If the new order never comes (the order did not change), let go anyway.
+  useEffect(() => {
+    if (!settling) return;
+    const id = window.setTimeout(() => {
+      resetRows();
+      setSettling(null);
+    }, SETTLE_MAX_MS);
+    return () => window.clearTimeout(id);
+  }, [settling]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const title = draft.trim();
@@ -72,24 +114,43 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
     setDraft("");
   };
 
+  const rowEl = (index: number) => {
+    const id = open[index]?.id;
+    return id ? rows.current.get(id) : undefined;
+  };
+
   const onHandleDown = (e: PointerEvent<HTMLButtonElement>, index: number) => {
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    resetRows();
+    const boxes = open.map((t) => rows.current.get(t.id)?.getBoundingClientRect());
+    slots.current = {
+      mids: boxes.map((b) => (b ? b.top + b.height / 2 : 0)),
+      heights: boxes.map((b) => b?.height ?? 0),
+    };
+    startY.current = e.clientY;
+    const list = listRef.current?.getBoundingClientRect();
+    const own = boxes[index];
+    travel.current =
+      list && own ? { min: list.top - own.top, max: list.bottom - own.bottom } : { min: 0, max: 0 };
+    const el = rowEl(index);
+    if (el) el.style.transition = "none"; // follows the pointer, no easing
+    setSettling(null);
     setDrag({ from: index, over: index });
   };
 
   const onHandleMove = (e: PointerEvent<HTMLButtonElement>) => {
     if (!drag) return;
+    // The dragged row follows the pointer: moved by hand (no render per move).
+    const el = rowEl(drag.from);
+    if (el) {
+      const dy = clampDelta(e.clientY - startY.current, travel.current.min, travel.current.max);
+      el.style.transform = `translate3d(0, ${dy}px, 0) scale(1.015)`;
+    }
     const target = dayUnder(e.clientX, e.clientY, today);
     if (target !== dropDay) setDropDay(target);
     if (target) return;
-    const middles = open.map((t) => {
-      const el = rows.current.get(t.id);
-      if (!el) return 0;
-      const box = el.getBoundingClientRect();
-      return box.top + box.height / 2;
-    });
-    const over = dropIndex(middles, e.clientY, drag.from);
+    const over = dropIndex(slots.current.mids, e.clientY, drag.from);
     if (over !== drag.over) setDrag({ from: drag.from, over });
   };
 
@@ -97,30 +158,42 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
     if (!drag) return;
     const target = dayUnder(e.clientX, e.clientY, today);
     const task = open[drag.from];
+    const el = rowEl(drag.from);
     if (target && task && target !== task.day) {
       fire(moveTask(task.id, target));
       onMoved(target);
+      resetRows();
     } else if (!target && drag.over !== drag.from) {
+      // Glide into the new slot now; the rows stay shifted until the order arrives.
+      const distance = jumpDistance(slots.current.heights, drag.from, drag.over, GAP);
+      if (el) {
+        el.style.transition = SETTLE;
+        el.style.transform = `translate3d(0, ${distance}px, 0)`;
+      }
       fire(reorderTasks(moveItem(open.map((t) => t.id), drag.from, drag.over)));
+      setSettling(drag);
+    } else {
+      // Nothing changed: glide back to where it was.
+      if (el) {
+        el.style.transition = SETTLE;
+        el.style.transform = "";
+      }
+      setSettling({ from: drag.from, over: drag.from });
     }
     setDrag(null);
     setDropDay(null);
   };
 
-  // The guide line: before the row that would come after the dragged one, or
-  // after the last of the *other* rows. Hidden while over a grid square.
-  const others = drag ? open.filter((_, i) => i !== drag.from) : [];
-  const guideFor = (index: number): "before" | "after" | null => {
-    if (!drag || dropDay || index === drag.from) return null;
-    const otherIndex = index < drag.from ? index : index - 1;
-    if (otherIndex === drag.over) return "before";
-    if (drag.over >= others.length && otherIndex === others.length - 1) return "after";
-    return null;
-  };
+  // While dragging (and while settling) the other rows slide out of the way,
+  // unless the pointer is over a grid square (the task goes to another day).
+  const moving = drag ?? settling;
+  const slotOver = moving ? (drag && dropDay ? moving.from : moving.over) : 0;
+  const step = moving ? (slots.current.heights[moving.from] ?? 0) + GAP : 0;
+  const shiftFor = (index: number) => (moving ? rowShift(index, moving.from, slotOver, step) : 0);
 
   return (
     <section className="todo">
-      <div className="task-list">
+      <div ref={listRef} className={moving ? "task-list reordering" : "task-list"}>
         {open.length === 0 && done.length === 0 && (
           <p className="empty">{day === today ? "Nenhuma tarefa pra hoje" : "Nada planejado — adicione abaixo"}</p>
         )}
@@ -133,7 +206,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
             viewDay={day}
             carried={carriedFrom(task, today)}
             dragging={drag?.from === i}
-            guide={guideFor(i)}
+            shift={shiftFor(i)}
             rowRef={(el) => {
               if (el) rows.current.set(task.id, el);
               else rows.current.delete(task.id);
@@ -154,7 +227,7 @@ export default function TaskList({ state, day, now, onHold, onDropDay, onMoved }
             viewDay={day}
             carried={null}
             dragging={false}
-            guide={null}
+            shift={0}
             rowRef={() => {}}
             onHandleDown={() => {}}
             onHandleMove={() => {}}

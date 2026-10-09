@@ -1,25 +1,35 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(not(windows))]
 use tauri::{PhysicalPosition, PhysicalSize};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-use crate::config::AppConfig;
+use crate::config::{AppConfig, SideCountStyle, WidgetEdge};
 use crate::tracker::timer::TimerStatus;
 
 const FALLBACK_MONITOR_WIDTH: u32 = 1280;
+const FALLBACK_MONITOR_HEIGHT: u32 = 720;
 
 /// The window never changes size while you use it: resizing a WebView makes
-/// it skip ~100 ms of frames. It is always as big as the open panel, lets the
+/// it skip ~100 ms of frames. It is always as big as the biggest shape (the
+/// quick note, 560×380; the panel is 300 tall inside it), lets the
 /// mouse pass through, and only catches it inside the visible shape's area.
-pub const OPEN_SIZE: (f64, f64) = (560.0, 300.0);
+pub const OPEN_SIZE: (f64, f64) = (560.0, 380.0);
+/// The open panel inside that window: what takes the mouse unless a note is open.
+pub const PANEL_SIZE: (f64, f64) = (560.0, 300.0);
 /// Parked: the area over the flat bar that reacts to the mouse (the bar is 6 px).
 pub const IDLE_ZONE: (f64, f64) = (140.0, 14.0);
 /// A block is running or paused: the box with the progress line around it.
 pub const RUNNING_ZONE: (f64, f64) = (320.0, 44.0);
+/// On the left/right edges a running block is a standing bar, not the wide
+/// box: the countdown stacked (minutes over seconds) or on one line.
+pub const SIDE_STACKED_ZONE: (f64, f64) = (56.0, 88.0);
+pub const SIDE_INLINE_ZONE: (f64, f64) = (72.0, 104.0);
 
+/// How long the cursor must stay off the open panel before the page is told.
+const OUTSIDE_AFTER: Duration = Duration::from_millis(500);
 /// How often the cursor is checked while the mouse passes through.
 const HOVER_POLL: Duration = Duration::from_millis(30);
 
@@ -32,6 +42,8 @@ static EXPANDED: AtomicBool = AtomicBool::new(false);
 static LAST_BOUNDS: Mutex<Option<Bounds>> = Mutex::new(None);
 /// Physical area that catches the mouse while closed; `None` when hidden.
 static ZONE: Mutex<Option<Bounds>> = Mutex::new(None);
+/// Physical area of the open panel (300 tall, inside the 380 tall window).
+static PANEL_ZONE: Mutex<Option<Bounds>> = Mutex::new(None);
 /// Whether the window currently lets the mouse pass through.
 static PASS_THROUGH: AtomicBool = AtomicBool::new(true);
 
@@ -64,16 +76,24 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Pins the window to the very top of the primary monitor, centered, and
+/// Pins the window to the chosen screen edge of the chosen monitor and
 /// records the mouse area for `zone`. Must run on the main thread (`sync_ui`
 /// posts it there).
-pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout, monitor_name: Option<&str>) {
+pub fn apply(
+    app: &AppHandle,
+    window_layout: Layout,
+    zone: Layout,
+    panel: Layout,
+    monitor_name: Option<&str>,
+    edge: WidgetEdge,
+) {
     let Some(window) = app.get_webview_window("widget") else {
         return;
     };
     if !window_layout.visible {
         *LAST_BOUNDS.lock().unwrap() = None;
         *ZONE.lock().unwrap() = None;
+        *PANEL_ZONE.lock().unwrap() = None;
         let _ = window.hide();
         return;
     }
@@ -86,14 +106,31 @@ pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout, monitor_name:
             .find(|m| m.name().map(String::as_str) == Some(name))
     });
     let monitor = chosen.or_else(|| window.primary_monitor().ok().flatten());
-    let place = |layout: &Layout| match &monitor {
-        Some(monitor) => {
-            let pos = monitor.position();
-            physical_bounds(pos.x, pos.y, monitor.size().width, monitor.scale_factor(), layout)
-        }
-        None => physical_bounds(0, 0, FALLBACK_MONITOR_WIDTH, 1.0, layout),
+    let place = |layout: &Layout| {
+        let area = match &monitor {
+            Some(monitor) => {
+                let pos = monitor.position();
+                let size = monitor.size();
+                MonitorArea {
+                    x: pos.x,
+                    y: pos.y,
+                    width: size.width,
+                    height: size.height,
+                    scale: monitor.scale_factor(),
+                }
+            }
+            None => MonitorArea {
+                x: 0,
+                y: 0,
+                width: FALLBACK_MONITOR_WIDTH,
+                height: FALLBACK_MONITOR_HEIGHT,
+                scale: 1.0,
+            },
+        };
+        physical_bounds(area, layout, edge)
     };
     *ZONE.lock().unwrap() = Some(place(&zone));
+    *PANEL_ZONE.lock().unwrap() = Some(place(&panel));
     let bounds = place(&window_layout);
     let visible = window.is_visible().unwrap_or(false);
     {
@@ -111,21 +148,60 @@ pub fn apply(app: &AppHandle, window_layout: Layout, zone: Layout, monitor_name:
     }
 }
 
+/// Tells, once, that the cursor has been away from the open panel for a while.
+/// The page also hears `mouseleave`, but not always (a note window taking over
+/// the focus can swallow it), which left the hover panel stuck open.
+#[derive(Default)]
+pub struct OutsideWatch {
+    since: Option<Instant>,
+    fired: bool,
+}
+
+impl OutsideWatch {
+    /// `active`: the panel is open and no note covers it. `outside`: the cursor is off the panel.
+    /// True exactly once per stay outside, after `after`.
+    pub fn tick(&mut self, now: Instant, active: bool, outside: bool, after: Duration) -> bool {
+        if !(active && outside) {
+            self.since = None;
+            self.fired = false;
+            return false;
+        }
+        let since = *self.since.get_or_insert(now);
+        if !self.fired && now.duration_since(since) >= after {
+            self.fired = true;
+            return true;
+        }
+        false
+    }
+}
+
 /// While the panel is closed the window lets the mouse through, except when
 /// the cursor is over the visible shape — then the page gets the hover.
 pub fn spawn_hover_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
+        let mut outside_watch = OutsideWatch::default();
         loop {
             tokio::time::sleep(HOVER_POLL).await;
             let zone = *ZONE.lock().unwrap();
+            let panel = *PANEL_ZONE.lock().unwrap();
             let pass_through = match zone {
                 None => true,
-                Some(_) if EXPANDED.load(Ordering::Relaxed) => false,
+                // A note over the widget takes the whole window; the panel only its own 300 px.
+                Some(_) if EXPANDED.load(Ordering::Relaxed) && crate::note_window::overlay_open() => false,
+                Some(_) if EXPANDED.load(Ordering::Relaxed) => match (panel, cursor_position(&app)) {
+                    (Some(panel), Some((x, y))) => !contains(panel, x, y),
+                    _ => true,
+                },
                 Some(zone) => match cursor_position(&app) {
                     Some((x, y)) => !contains(zone, x, y),
                     None => true,
                 },
             };
+            let panel_open = zone.is_some() && EXPANDED.load(Ordering::Relaxed) && !crate::note_window::overlay_open();
+            // Over the panel the window takes the mouse (`pass_through` false), so outside = passing through.
+            if outside_watch.tick(Instant::now(), panel_open, pass_through, OUTSIDE_AFTER) {
+                let _ = app.emit_to("widget", "widget-cursor-outside", ());
+            }
             if PASS_THROUGH.swap(pass_through, Ordering::Relaxed) != pass_through {
                 let handle = app.clone();
                 let _ = app.run_on_main_thread(move || {
@@ -175,12 +251,29 @@ fn set_bounds(window: &WebviewWindow, (x, y, w, h): Bounds) {
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
-/// Where a layout goes on a monitor given in physical px: top edge, centered.
-pub fn physical_bounds(mon_x: i32, mon_y: i32, mon_width: u32, scale: f64, layout: &Layout) -> Bounds {
-    let s = if scale > 0.0 { scale } else { 1.0 };
+/// A monitor in physical px.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MonitorArea {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub scale: f64,
+}
+
+/// Where a layout goes on a monitor, in physical px: glued to `edge` —
+/// centered on the top edge, or centered in height on the left/right edge.
+pub fn physical_bounds(area: MonitorArea, layout: &Layout, edge: WidgetEdge) -> Bounds {
+    let s = if area.scale > 0.0 { area.scale } else { 1.0 };
     let w = (layout.width * s).round() as i32;
     let h = (layout.height * s).round() as i32;
-    (mon_x + (mon_width as i32 - w).div_euclid(2), mon_y, w, h)
+    let centered_x = area.x + (area.width as i32 - w).div_euclid(2);
+    let centered_y = area.y + (area.height as i32 - h).div_euclid(2);
+    match edge {
+        WidgetEdge::Top => (centered_x, area.y, w, h),
+        WidgetEdge::Left => (area.x, centered_y, w, h),
+        WidgetEdge::Right => (area.x + area.width as i32 - w, centered_y, w, h),
+    }
 }
 
 /// A monitor the widget can sit on, as the settings list it.
@@ -236,29 +329,84 @@ pub fn window_layout(config: &AppConfig) -> Layout {
     scaled(config, OPEN_SIZE)
 }
 
-/// The area that catches the mouse while the panel is closed.
+/// The open panel (logical px, already scaled): the part of the window that
+/// takes the mouse while the panel is open and no note is.
+pub fn panel_zone(config: &AppConfig) -> Layout {
+    scaled(config, PANEL_SIZE)
+}
+
+/// The area that catches the mouse while the panel is closed. On the side
+/// edges everything stands up: the parked bar is 14 wide and 140 tall, and a
+/// running block is the standing countdown bar (size by `side_count_style`).
 pub fn hot_zone(config: &AppConfig, status: TimerStatus) -> Layout {
-    scaled(config, if status == TimerStatus::Idle { IDLE_ZONE } else { RUNNING_ZONE })
+    let side = config.widget_edge != WidgetEdge::Top;
+    let size = match (status == TimerStatus::Idle, side) {
+        (true, false) => IDLE_ZONE,
+        (true, true) => (IDLE_ZONE.1, IDLE_ZONE.0),
+        (false, false) => RUNNING_ZONE,
+        (false, true) => match config.side_count_style {
+            SideCountStyle::Stacked => SIDE_STACKED_ZONE,
+            SideCountStyle::Inline => SIDE_INLINE_ZONE,
+        },
+    };
+    scaled(config, size)
 }
 
 #[cfg(test)]
 mod layout_tests {
     use super::*;
-    use crate::config::{AppConfig, WidgetScale};
+    use crate::config::{AppConfig, SideCountStyle, WidgetEdge, WidgetScale};
+
+    const EDGES: [WidgetEdge; 3] = [WidgetEdge::Top, WidgetEdge::Left, WidgetEdge::Right];
 
     fn cfg(scale: WidgetScale) -> AppConfig {
         AppConfig { widget_scale: scale, ..AppConfig::default() }
+    }
+
+    fn cfg_edge(edge: WidgetEdge) -> AppConfig {
+        AppConfig { widget_edge: edge, ..AppConfig::default() }
     }
 
     fn size(l: Layout) -> (f64, f64) {
         (l.width, l.height)
     }
 
+    fn area(x: i32, y: i32, width: u32, height: u32, scale: f64) -> MonitorArea {
+        MonitorArea { x, y, width, height, scale }
+    }
+
+    fn inside(outer: Bounds, inner: Bounds) -> bool {
+        inner.0 >= outer.0
+            && inner.1 >= outer.1
+            && inner.0 + inner.2 <= outer.0 + outer.2
+            && inner.1 + inner.3 <= outer.1 + outer.3
+    }
+
     #[test]
-    fn the_window_is_always_the_panel_size() {
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (560.0, 300.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (476.0, 255.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (700.0, 375.0));
+    fn the_window_is_always_the_note_size() {
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (560.0, 380.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (476.0, 323.0));
+        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (700.0, 475.0));
+    }
+
+    // Review fix I1: with the panel open (not the note) the 80 px under it must stay click-through.
+    #[test]
+    fn the_open_panel_zone_is_the_panel_not_the_whole_note_sized_window() {
+        let c = cfg(WidgetScale::Medium);
+        let a = area(0, 0, 1920, 1080, 1.0);
+        let window = physical_bounds(a, &window_layout(&c), WidgetEdge::Top);
+        let panel = physical_bounds(a, &panel_zone(&c), WidgetEdge::Top);
+        assert_eq!(panel, (680, 0, 560, 300));
+        assert!(inside(window, panel));
+        assert!(!contains(panel, 700, 320), "the strip under the panel is not the panel");
+        for edge in [WidgetEdge::Left, WidgetEdge::Right] {
+            let c = cfg_edge(edge);
+            let window = physical_bounds(a, &window_layout(&c), edge);
+            let panel = physical_bounds(a, &panel_zone(&c), edge);
+            assert!(inside(window, panel), "{edge:?}");
+            assert_eq!(panel.3, 300);
+            assert_eq!(panel.1, 390, "centered in height like the window");
+        }
     }
 
     #[test]
@@ -277,6 +425,41 @@ mod layout_tests {
     }
 
     #[test]
+    fn the_parked_bar_stands_up_on_the_sides() {
+        for edge in [WidgetEdge::Left, WidgetEdge::Right] {
+            let c = cfg_edge(edge);
+            assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (14.0, 140.0), "{edge:?}");
+            // the running bar stands up too: stacked countdown by default
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (56.0, 88.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (56.0, 88.0), "{edge:?}");
+        }
+        assert_eq!(size(hot_zone(&cfg_edge(WidgetEdge::Top), TimerStatus::Idle)), (140.0, 14.0));
+        let small = AppConfig { widget_edge: WidgetEdge::Left, widget_scale: WidgetScale::Small, ..AppConfig::default() };
+        assert_eq!(size(hot_zone(&small, TimerStatus::Idle)), (12.0, 119.0));
+    }
+
+    #[test]
+    fn the_inline_countdown_makes_a_wider_standing_bar_only_on_the_sides() {
+        for edge in [WidgetEdge::Left, WidgetEdge::Right] {
+            let c = AppConfig { widget_edge: edge, side_count_style: SideCountStyle::Inline, ..AppConfig::default() };
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (72.0, 104.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (72.0, 104.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (14.0, 140.0), "{edge:?}");
+        }
+        // on the top the box is the same whatever the style
+        for style in [SideCountStyle::Stacked, SideCountStyle::Inline] {
+            let c = AppConfig { side_count_style: style, ..AppConfig::default() };
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (320.0, 44.0));
+        }
+    }
+
+    #[test]
+    fn the_standing_bar_follows_the_scale() {
+        let c = AppConfig { widget_edge: WidgetEdge::Left, widget_scale: WidgetScale::Large, ..AppConfig::default() };
+        assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (70.0, 110.0));
+    }
+
+    #[test]
     fn visibility_follows_the_setting() {
         let hidden = AppConfig { widget_visible: false, ..AppConfig::default() };
         assert!(!window_layout(&hidden).visible);
@@ -286,10 +469,29 @@ mod layout_tests {
     #[test]
     fn the_zone_and_the_window_share_the_same_top_center() {
         let c = cfg(WidgetScale::Medium);
-        let window = physical_bounds(0, 0, 1920, 1.0, &window_layout(&c));
-        let zone = physical_bounds(0, 0, 1920, 1.0, &hot_zone(&c, TimerStatus::Running));
-        assert_eq!(window, (680, 0, 560, 300));
+        let a = area(0, 0, 1920, 1080, 1.0);
+        let window = physical_bounds(a, &window_layout(&c), WidgetEdge::Top);
+        let zone = physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Top);
+        assert_eq!(window, (680, 0, 560, 380));
         assert_eq!(zone, (800, 0, 320, 44));
+    }
+
+    #[test]
+    fn the_left_edge_is_glued_to_the_screen_and_centered_in_height() {
+        let c = cfg_edge(WidgetEdge::Left);
+        let a = area(0, 0, 1920, 1080, 1.0);
+        assert_eq!(physical_bounds(a, &window_layout(&c), WidgetEdge::Left), (0, 350, 560, 380));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Left), (0, 496, 56, 88));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle), WidgetEdge::Left), (0, 470, 14, 140));
+    }
+
+    #[test]
+    fn the_right_edge_is_glued_to_the_screen_and_centered_in_height() {
+        let c = cfg_edge(WidgetEdge::Right);
+        let a = area(0, 0, 1920, 1080, 1.0);
+        assert_eq!(physical_bounds(a, &window_layout(&c), WidgetEdge::Right), (1360, 350, 560, 380));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Right), (1864, 496, 56, 88));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle), WidgetEdge::Right), (1906, 470, 14, 140));
     }
 
     #[test]
@@ -305,9 +507,10 @@ mod layout_tests {
     #[test]
     fn the_window_is_centered_on_top_of_the_monitor() {
         let run = Layout { width: 320.0, height: 44.0, visible: true };
-        assert_eq!(physical_bounds(0, 0, 1920, 1.0, &run), (800, 0, 320, 44));
+        assert_eq!(physical_bounds(area(0, 0, 1920, 1080, 1.0), &run, WidgetEdge::Top), (800, 0, 320, 44));
         // odd leftover pixel: never a half pixel
-        assert_eq!(physical_bounds(0, 0, 1367, 1.0, &run), (523, 0, 320, 44));
+        assert_eq!(physical_bounds(area(0, 0, 1367, 1080, 1.0), &run, WidgetEdge::Top), (523, 0, 320, 44));
+        assert_eq!(physical_bounds(area(0, 0, 1920, 1081, 1.0), &run, WidgetEdge::Left), (0, 518, 320, 44));
     }
 
     // Review focus: a second monitor to the left of the main one has a
@@ -315,21 +518,99 @@ mod layout_tests {
     #[test]
     fn a_monitor_with_a_negative_origin_keeps_the_widget_on_it() {
         let open = Layout { width: 470.0, height: 230.0, visible: true };
-        assert_eq!(physical_bounds(-1920, 0, 1920, 1.0, &open), (-1195, 0, 470, 230));
-        assert_eq!(physical_bounds(-2880, 120, 2880, 1.5, &open), (-1793, 120, 705, 345));
+        let a = area(-1920, 0, 1920, 1080, 1.0);
+        assert_eq!(physical_bounds(a, &open, WidgetEdge::Top), (-1195, 0, 470, 230));
+        assert_eq!(physical_bounds(a, &open, WidgetEdge::Left), (-1920, 425, 470, 230));
+        assert_eq!(physical_bounds(a, &open, WidgetEdge::Right), (-470, 425, 470, 230));
+        let b = area(-2880, 120, 2880, 1620, 1.5);
+        assert_eq!(physical_bounds(b, &open, WidgetEdge::Top), (-1793, 120, 705, 345));
+        assert_eq!(physical_bounds(b, &open, WidgetEdge::Left), (-2880, 757, 705, 345));
+        assert_eq!(physical_bounds(b, &open, WidgetEdge::Right), (-705, 757, 705, 345));
     }
 
     // Review focus: at 150 % sizes and position are all in physical px.
     #[test]
-    fn a_scaled_monitor_gets_physical_sizes_still_centered() {
+    fn a_scaled_monitor_gets_physical_sizes_on_every_edge() {
         let open = Layout { width: 470.0, height: 230.0, visible: true };
-        assert_eq!(physical_bounds(0, 0, 2880, 1.5, &open), (1087, 0, 705, 345));
+        let a = area(0, 0, 2880, 1620, 1.5);
+        assert_eq!(physical_bounds(a, &open, WidgetEdge::Top), (1087, 0, 705, 345));
+        assert_eq!(physical_bounds(a, &open, WidgetEdge::Left), (0, 637, 705, 345));
+        assert_eq!(physical_bounds(a, &open, WidgetEdge::Right), (2175, 637, 705, 345));
     }
 
     #[test]
     fn a_zero_or_negative_scale_factor_is_treated_as_one() {
         let run = Layout { width: 320.0, height: 44.0, visible: true };
-        assert_eq!(physical_bounds(0, 0, 1000, 0.0, &run), (340, 0, 320, 44));
-        assert_eq!(physical_bounds(0, 0, 1000, -2.0, &run), (340, 0, 320, 44));
+        assert_eq!(physical_bounds(area(0, 0, 1000, 1000, 0.0), &run, WidgetEdge::Top), (340, 0, 320, 44));
+        assert_eq!(physical_bounds(area(0, 0, 1000, 1000, -2.0), &run, WidgetEdge::Top), (340, 0, 320, 44));
+        assert_eq!(physical_bounds(area(0, 0, 1000, 1000, 0.0), &run, WidgetEdge::Left), (0, 478, 320, 44));
+    }
+
+    // Review focus: changing the edge while the app runs must move the window
+    // (`apply` skips a repeat of the same bounds).
+    #[test]
+    fn each_edge_places_the_window_somewhere_different() {
+        let a = area(0, 0, 1920, 1080, 1.0);
+        let l = window_layout(&AppConfig::default());
+        let spots: Vec<Bounds> = EDGES.iter().map(|e| physical_bounds(a, &l, *e)).collect();
+        assert_ne!(spots[0], spots[1]);
+        assert_ne!(spots[0], spots[2]);
+        assert_ne!(spots[1], spots[2]);
+    }
+
+    // Review focus: a zone that sticks out of the window can never be hovered.
+    #[test]
+    fn the_mouse_zone_is_always_inside_the_window() {
+        let a = area(0, 0, 1920, 1080, 1.0);
+        for edge in EDGES {
+            for scale in [WidgetScale::Small, WidgetScale::Medium, WidgetScale::Large] {
+                for status in [TimerStatus::Idle, TimerStatus::Running, TimerStatus::Paused] {
+                    let c = AppConfig { widget_edge: edge, widget_scale: scale, ..AppConfig::default() };
+                    let window = physical_bounds(a, &window_layout(&c), edge);
+                    let zone = physical_bounds(a, &hot_zone(&c, status), edge);
+                    assert!(inside(window, zone), "{edge:?} {scale:?}: zone {zone:?} outside window {window:?}");
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod outside_tests {
+    use super::*;
+
+    const WAIT: Duration = Duration::from_millis(400);
+
+    // QA finding: the page's mouseleave is not always delivered (e.g. when a note window takes over),
+    // so the backend tells the panel when the cursor has really been away from it.
+    #[test]
+    fn fires_once_after_the_cursor_has_been_outside_long_enough() {
+        let t0 = Instant::now();
+        let mut watch = OutsideWatch::default();
+        assert!(!watch.tick(t0, true, true, WAIT), "just left");
+        assert!(!watch.tick(t0 + Duration::from_millis(300), true, true, WAIT), "not long enough");
+        assert!(watch.tick(t0 + Duration::from_millis(450), true, true, WAIT), "long enough");
+        assert!(!watch.tick(t0 + Duration::from_millis(900), true, true, WAIT), "only once");
+    }
+
+    #[test]
+    fn coming_back_inside_starts_over() {
+        let t0 = Instant::now();
+        let mut watch = OutsideWatch::default();
+        watch.tick(t0, true, true, WAIT);
+        assert!(!watch.tick(t0 + Duration::from_millis(300), true, false, WAIT), "back inside");
+        assert!(!watch.tick(t0 + Duration::from_millis(500), true, true, WAIT), "the clock restarted");
+        assert!(watch.tick(t0 + Duration::from_millis(950), true, true, WAIT));
+    }
+
+    #[test]
+    fn nothing_fires_while_the_panel_is_closed_or_a_note_is_open() {
+        let t0 = Instant::now();
+        let mut watch = OutsideWatch::default();
+        watch.tick(t0, false, true, WAIT);
+        assert!(!watch.tick(t0 + Duration::from_secs(5), false, true, WAIT));
+        // and it can fire again the next time the panel opens and the cursor leaves
+        watch.tick(t0 + Duration::from_secs(6), true, true, WAIT);
+        assert!(watch.tick(t0 + Duration::from_secs(7), true, true, WAIT));
     }
 }

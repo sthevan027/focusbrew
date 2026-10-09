@@ -6,17 +6,18 @@ import GithubPanel from "./components/GithubPanel";
 import FocusSection from "./settings/FocusSection";
 import GeneralSection from "./settings/GeneralSection";
 import NotchSection from "./settings/NotchSection";
-import ProjectsSection from "./settings/ProjectsSection";
+import NotesSection from "./settings/NotesSection";
+import { SECTION_ICONS } from "./settings/icons";
 import "./App.css";
 
-type Section = "focus" | "projects" | "notch" | "general" | "github";
+type Section = "focus" | "notes" | "notch" | "general" | "github";
 
-const SECTIONS: { id: Section; label: string; glyph: string; color: string }[] = [
-  { id: "focus", label: "Foco", glyph: "⏱", color: "#ff9f0a" },
-  { id: "projects", label: "Projetos", glyph: "#", color: "#bf5af2" },
-  { id: "notch", label: "Notch", glyph: "▭", color: "#0a84ff" },
-  { id: "general", label: "Geral", glyph: "⚙", color: "#8e8e93" },
-  { id: "github", label: "GitHub", glyph: "⌥", color: "#30d158" },
+const SECTIONS: { id: Section; label: string; color: string }[] = [
+  { id: "focus", label: "Foco", color: "#ff9f0a" },
+  { id: "notes", label: "Notas", color: "#bf5af2" },
+  { id: "notch", label: "Notch", color: "#ff375f" },
+  { id: "general", label: "Geral", color: "#8e8e93" },
+  { id: "github", label: "GitHub", color: "#30d158" },
 ];
 
 export default function App() {
@@ -64,7 +65,7 @@ export default function App() {
             onClick={() => setSection(s.id)}
           >
             <span className="nav-glyph" style={{ background: s.color }}>
-              {s.glyph}
+              {SECTION_ICONS[s.id]()}
             </span>
             {s.label}
           </button>
@@ -73,7 +74,7 @@ export default function App() {
       <main className="content">
         <h1>{current.label}</h1>
         {section === "focus" && <FocusSection config={state.config} set={set} />}
-        {section === "projects" && <ProjectsSection state={state} />}
+        {section === "notes" && <NotesSection config={state.config} set={set} />}
         {section === "notch" && <NotchSection config={state.config} set={set} />}
         {section === "general" && (
           <GeneralSection config={state.config} set={set} shortcutWarning={state.shortcut_warning} />

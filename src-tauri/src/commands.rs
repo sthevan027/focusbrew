@@ -1,9 +1,11 @@
-use tauri::{AppHandle, Manager, State};
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::config::{self, AppConfig};
 use crate::github;
+use crate::note_window;
+use crate::notes::{self, Note, NotesShared};
 use crate::state::{AppState, StateSnapshot};
-use crate::tracker::activity::{self, ProjectTotal};
 use crate::tracker::tasks::{self, TaskSource};
 use crate::tracker::{now_ms, today_key};
 use crate::widget;
@@ -62,13 +64,6 @@ pub fn edit_task(
     result.map(|_| snapshot)
 }
 
-/// Time per project over the whole history (the settings' Projetos section).
-#[tauri::command]
-pub fn project_totals(shared: State<'_, Shared>) -> Vec<ProjectTotal> {
-    let state = shared.lock();
-    activity::project_totals(&state.tracker.log.sessions, &today_key())
-}
-
 #[tauri::command]
 pub fn move_task(
     id: String,
@@ -80,17 +75,17 @@ pub fn move_task(
     result.map(|_| snapshot)
 }
 
-/// The ▲▼ arrows (`delta` is +5 or -5).
+/// The minutes typed into a task's time field (the tracker clamps to 5..=180).
 #[tauri::command]
-pub fn nudge_task_minutes(
+pub fn set_task_minutes(
     id: String,
-    delta: i32,
+    minutes: u32,
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> StateSnapshot {
     let (snapshot, (finished, notify_on)) = apply(&app, &shared, |state, now, today| {
         (
-            state.tracker.nudge_minutes(&id, delta, now, today),
+            state.tracker.set_minutes(&id, minutes, now, today),
             state.config.notify_on_finish,
         )
     });
@@ -152,6 +147,7 @@ pub fn set_shortcut(
     let action = match which.as_str() {
         "toggle" => shortcuts::Action::Toggle,
         "panel" => shortcuts::Action::Panel,
+        "note" => shortcuts::Action::Note,
         _ => return Err(format!("atalho desconhecido: {which}")),
     };
     let text = text.trim().to_string();
@@ -160,6 +156,7 @@ pub fn set_shortcut(
     match action {
         shortcuts::Action::Toggle => state.config.shortcut_toggle = text,
         shortcuts::Action::Panel => state.config.shortcut_panel = text,
+        shortcuts::Action::Note => state.config.shortcut_note = text,
     }
     state.shortcut_warning = None;
     let _ = config::save(&state.config);
@@ -201,6 +198,7 @@ pub fn update_settings(
     config.github_use_gh = state.config.github_use_gh;
     config.shortcut_toggle = state.config.shortcut_toggle.clone();
     config.shortcut_panel = state.config.shortcut_panel.clone();
+    config.shortcut_note = state.config.shortcut_note.clone();
     config.launch_at_login = state.config.launch_at_login;
     state.config = config;
     let _ = config::save(&state.config);
@@ -334,4 +332,96 @@ pub fn set_widget_expanded(expanded: bool) {
 #[tauri::command]
 pub fn open_settings_window(app: AppHandle) {
     crate::show_main_window(&app);
+}
+
+#[tauri::command]
+pub fn list_notes(notes: State<'_, NotesShared>) -> Vec<Note> {
+    notes.lock().notes.clone()
+}
+
+#[tauri::command]
+pub fn save_note(note: Note, app: AppHandle, notes: State<'_, NotesShared>) -> Result<(), String> {
+    let mut store = notes.lock();
+    store.upsert(note, now_ms())?;
+    notes::save(&store).map_err(|e| e.to_string())?;
+    drop(store);
+    let _ = app.emit("notes-changed", ());
+    Ok(())
+}
+
+/// Deleting a note also deletes the images no other note uses.
+#[tauri::command]
+pub fn delete_note(id: String, app: AppHandle, notes: State<'_, NotesShared>) -> Result<(), String> {
+    let mut store = notes.lock();
+    store.check_writable()?;
+    store.remove(&id);
+    notes::save(&store).map_err(|e| e.to_string())?;
+    let in_use = store.images_in_use();
+    let may_prune = store.may_prune();
+    drop(store);
+    if may_prune {
+        notes::prune_images(&in_use);
+    }
+    let _ = app.emit("notes-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn save_note_image(data_base64: String, ext: String) -> Result<String, String> {
+    let bytes = B64.decode(data_base64.trim()).map_err(|_| "imagem inválida".to_string())?;
+    notes::store_image(&bytes, &ext)
+}
+
+/// A stored image as a `data:` URL, ready for an `<image>`/`<img>`.
+#[tauri::command]
+pub fn read_note_image(file: String) -> Result<String, String> {
+    let bytes = notes::read_image(&file)?;
+    Ok(format!("data:{};base64,{}", notes::mime_for(&file), B64.encode(bytes)))
+}
+
+#[derive(serde::Serialize)]
+pub struct ImagePayload {
+    pub ext: String,
+    pub data_base64: String,
+}
+
+/// An image file dropped on the note (the path comes from the OS drag-and-drop).
+#[tauri::command]
+pub fn read_image_file(path: String) -> Result<ImagePayload, String> {
+    let path = std::path::PathBuf::from(path);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif"))
+        .ok_or_else(|| "formato de imagem não suportado".to_string())?;
+    let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !meta.is_file() || meta.len() > 20 * 1024 * 1024 {
+        return Err("arquivo grande demais".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(ImagePayload { ext, data_base64: B64.encode(bytes) })
+}
+
+/// Opens a note (`None` = new) where the settings say. Async on purpose: on
+/// Windows, building a window from a synchronous command deadlocks.
+#[tauri::command]
+pub async fn open_note(id: Option<String>, app: AppHandle, shared: State<'_, Shared>) -> Result<(), String> {
+    let (placement, visible) = {
+        let state = shared.lock();
+        (state.config.note_placement, state.config.widget_visible)
+    };
+    note_window::open(&app, id, note_window::wants_window(placement, visible));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_note_window(app: AppHandle) {
+    note_window::close_window(&app);
+}
+
+/// The front-end says the note is (or is no longer) open over the widget.
+#[tauri::command]
+pub fn set_note_overlay_open(open: bool) {
+    note_window::set_overlay_open(open);
 }

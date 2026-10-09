@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { AppConfig, GithubItem, MonitorChoice, ProjectTotal, StateSnapshot } from "./types";
+import type { Note } from "./note";
+import type { AppConfig, GithubItem, MonitorChoice, StateSnapshot } from "./types";
 
 export const currentWindowLabel = () => getCurrentWindow().label;
 
@@ -19,12 +21,12 @@ export function fire(call: Promise<unknown>): void {
 export const addTask = (title: string, day: string) => invoke<StateSnapshot>("add_task", { title, day });
 export const toggleTask = (id: string) => invoke<StateSnapshot>("toggle_task", { id });
 export const removeTask = (id: string) => invoke<StateSnapshot>("remove_task", { id });
-export const nudgeTaskMinutes = (id: string, delta: number) =>
-  invoke<StateSnapshot>("nudge_task_minutes", { id, delta });
+/** The minutes typed into the task's time field; the backend clamps to 5..=180. */
+export const setTaskMinutes = (id: string, minutes: number) =>
+  invoke<StateSnapshot>("set_task_minutes", { id, minutes });
 export const moveTask = (id: string, day: string) => invoke<StateSnapshot>("move_task", { id, day });
 /** `text` is "título #projeto"; no tag clears the project. */
 export const editTask = (id: string, text: string) => invoke<StateSnapshot>("edit_task", { id, text });
-export const projectTotals = () => invoke<ProjectTotal[]>("project_totals");
 export const reorderTasks = (ids: string[]) => invoke<StateSnapshot>("reorder_tasks", { ids });
 
 export const startTask = (id: string) => invoke<StateSnapshot>("start_task", { id });
@@ -48,7 +50,7 @@ export const importGithubItemAsTask = (item: GithubItem, day?: string) =>
     day: day ?? null,
   });
 
-export const setShortcut = (which: "toggle" | "panel", text: string) =>
+export const setShortcut = (which: "toggle" | "panel" | "note", text: string) =>
   invoke<StateSnapshot>("set_shortcut", { which, text });
 export const setLaunchAtLogin = (enabled: boolean) => invoke<StateSnapshot>("set_launch_at_login", { enabled });
 export const listMonitors = () => invoke<MonitorChoice[]>("list_monitors");
@@ -62,3 +64,25 @@ export const openSettingsWindow = () => invoke<void>("open_settings_window");
 
 export const onStateChanged = (cb: (snapshot: StateSnapshot) => void) =>
   listen<StateSnapshot>("state-changed", (event) => cb(event.payload));
+
+export const listNotes = () => invoke<Note[]>("list_notes");
+export const saveNote = (note: Note) => invoke<void>("save_note", { note });
+export const deleteNote = (id: string) => invoke<void>("delete_note", { id });
+export const saveNoteImage = (dataBase64: string, ext: string) => invoke<string>("save_note_image", { dataBase64, ext });
+/** A stored image as a data: URL. */
+export const readNoteImage = (file: string) => invoke<string>("read_note_image", { file });
+export const readImageFile = (path: string) => invoke<{ ext: string; data_base64: string }>("read_image_file", { path });
+/** `null` opens a new note, where the settings say (over the panel or in a window). */
+export const openNote = (id: string | null) => invoke<void>("open_note", { id });
+export const closeNoteWindow = () => invoke<void>("close_note_window");
+export const setNoteOverlayOpen = (open: boolean) => invoke<void>("set_note_overlay_open", { open });
+
+export const onNotesChanged = (cb: () => void) => listen("notes-changed", () => cb());
+// The backend sends these to one window ("widget" or "note"). A plain `listen`
+// hears every window's events, so both would open the same note: listen on this window only.
+/** Show this note (`null` = a new one). */
+export const onOpenNote = (cb: (id: string | null) => void) =>
+  getCurrentWebviewWindow().listen<string | null>("open-note", (e) => cb(e.payload));
+/** The cursor has been off the open panel for a while (the page may have missed the mouseleave). */
+export const onCursorOutside = (cb: () => void) => getCurrentWebviewWindow().listen("widget-cursor-outside", () => cb());
+export const onNoteFlash = (cb: () => void) => getCurrentWebviewWindow().listen("note-flash", () => cb());

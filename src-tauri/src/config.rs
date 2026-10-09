@@ -26,6 +26,10 @@ pub struct AppConfig {
     pub accent_color: String,
     pub widget_scale: WidgetScale,
     pub widget_visible: bool,
+    /// The screen edge the widget is glued to.
+    pub widget_edge: WidgetEdge,
+    /// The countdown's look in the standing bar (only on the left/right edges).
+    pub side_count_style: SideCountStyle,
     /// Name of the monitor the widget sits on; `None` or not found = primary.
     pub monitor: Option<String>,
     /// Heads-up this many minutes before a block ends (0 = off; 1, 2 or 5).
@@ -39,18 +43,38 @@ pub struct AppConfig {
     pub shortcut_toggle: String,
     /// Open/close the panel, pinned.
     pub shortcut_panel: String,
+    /// Open a new quick note.
+    pub shortcut_note: String,
+    /// Where a note opens: over the panel or in its own window.
+    pub note_placement: NotePlacement,
     /// Start focusbrew when Windows starts.
     pub launch_at_login: bool,
+    /// A pinned panel closes by itself after this many seconds without any
+    /// interaction (0 = never; 15, 30 or 60).
+    pub panel_autoclose_secs: u32,
 }
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
 pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
+pub const DEFAULT_SHORTCUT_NOTE: &str = "CommandOrControl+Alt+KeyN";
 pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
 pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
 pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
+pub const AUTOCLOSE_CHOICES: [u32; 4] = [0, 15, 30, 60];
 
 fn default_true() -> bool {
     true
+}
+
+/// Where a quick note opens.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotePlacement {
+    /// Over the widget's panel, hanging from the screen edge.
+    #[default]
+    Overlay,
+    /// In its own window, centered on the monitor.
+    Window,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +106,30 @@ impl WidgetScale {
     }
 }
 
+/// Which screen edge the widget is glued to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WidgetEdge {
+    /// Top of the screen, centered (the original placement).
+    #[default]
+    Top,
+    /// Left edge, centered in height.
+    Left,
+    /// Right edge, centered in height.
+    Right,
+}
+
+/// How the countdown looks in the standing bar on the left/right edges.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SideCountStyle {
+    /// Minutes over seconds ("04" above "56"), a narrow bar.
+    #[default]
+    Stacked,
+    /// One line ("04:56"), a slightly wider bar.
+    Inline,
+}
+
 pub const DEFAULT_ACCENT: &str = "#0A84FF";
 
 /// "#rrggbb" in any case (and surrounding spaces) -> "#RRGGBB"; anything else -> `None`.
@@ -107,13 +155,18 @@ impl Default for AppConfig {
             accent_color: DEFAULT_ACCENT.to_string(),
             widget_scale: WidgetScale::default(),
             widget_visible: true,
+            widget_edge: WidgetEdge::default(),
+            side_count_style: SideCountStyle::default(),
             monitor: None,
             notify_before_end_mins: 0,
             idle_reminder_mins: 0,
             daily_goal_mins: 0,
             shortcut_toggle: DEFAULT_SHORTCUT_TOGGLE.to_string(),
             shortcut_panel: DEFAULT_SHORTCUT_PANEL.to_string(),
+            shortcut_note: DEFAULT_SHORTCUT_NOTE.to_string(),
+            note_placement: NotePlacement::default(),
             launch_at_login: false,
+            panel_autoclose_secs: 0,
         }
     }
 }
@@ -137,8 +190,12 @@ impl AppConfig {
             self.idle_reminder_mins = 0;
         }
         self.daily_goal_mins = self.daily_goal_mins.min(MAX_DAILY_GOAL_MINS);
+        if !AUTOCLOSE_CHOICES.contains(&self.panel_autoclose_secs) {
+            self.panel_autoclose_secs = 0;
+        }
         self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
         self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
+        self.shortcut_note = or_default(self.shortcut_note, DEFAULT_SHORTCUT_NOTE);
         self.monitor = self.monitor.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
         self
     }
@@ -316,5 +373,94 @@ mod tests {
     fn the_enums_are_written_in_lower_case() {
         assert_eq!(serde_json::to_string(&NotchStyle::Minimal).unwrap(), "\"minimal\"");
         assert_eq!(serde_json::to_string(&WidgetScale::Large).unwrap(), "\"large\"");
+    }
+
+    #[test]
+    fn the_widget_defaults_to_the_top_edge() {
+        assert_eq!(AppConfig::default().widget_edge, WidgetEdge::Top);
+    }
+
+    // Review focus: a file written before this setting existed.
+    #[test]
+    fn a_file_without_widget_edge_opens_on_the_top_and_keeps_the_rest() {
+        let c = parse(r##"{"accent_color":"#112233","daily_goal_mins":90}"##);
+        assert_eq!(c.widget_edge, WidgetEdge::Top);
+        assert_eq!(c.accent_color, "#112233");
+        assert_eq!(c.daily_goal_mins, 90);
+    }
+
+    #[test]
+    fn the_pinned_panel_does_not_close_by_itself_unless_asked() {
+        assert_eq!(AppConfig::default().panel_autoclose_secs, 0);
+        assert_eq!(parse(r##"{"accent_color":"#112233"}"##).panel_autoclose_secs, 0);
+    }
+
+    #[test]
+    fn the_panel_autoclose_snaps_to_the_offered_choices() {
+        for ok in [0, 15, 30, 60] {
+            let c = AppConfig { panel_autoclose_secs: ok, ..AppConfig::default() }.normalized();
+            assert_eq!(c.panel_autoclose_secs, ok);
+        }
+        for bad in [1, 20, 45, 61, 3600] {
+            let c = AppConfig { panel_autoclose_secs: bad, ..AppConfig::default() }.normalized();
+            assert_eq!(c.panel_autoclose_secs, 0, "{bad} is not offered");
+        }
+    }
+
+    #[test]
+    fn the_side_countdown_defaults_to_stacked_and_old_files_get_it() {
+        assert_eq!(AppConfig::default().side_count_style, SideCountStyle::Stacked);
+        let c = parse(r##"{"widget_edge":"left","accent_color":"#112233"}"##);
+        assert_eq!(c.side_count_style, SideCountStyle::Stacked);
+        assert_eq!(c.widget_edge, WidgetEdge::Left);
+    }
+
+    #[test]
+    fn the_side_countdown_style_is_written_in_lower_case_and_read_back() {
+        for (style, text) in [(SideCountStyle::Stacked, "stacked"), (SideCountStyle::Inline, "inline")] {
+            let raw = format!(r#"{{"side_count_style":"{text}"}}"#);
+            assert_eq!(parse(&raw).side_count_style, style);
+            let json =
+                serde_json::to_string(&AppConfig { side_count_style: style, ..AppConfig::default() }).unwrap();
+            assert!(json.contains(&format!("\"side_count_style\":\"{text}\"")), "{json}");
+        }
+    }
+
+    #[test]
+    fn the_edge_is_written_in_lower_case_and_read_back() {
+        for (edge, text) in
+            [(WidgetEdge::Top, "top"), (WidgetEdge::Left, "left"), (WidgetEdge::Right, "right")]
+        {
+            let raw = format!(r#"{{"widget_edge":"{text}"}}"#);
+            assert_eq!(parse(&raw).widget_edge, edge);
+            let json = serde_json::to_string(&AppConfig { widget_edge: edge, ..AppConfig::default() }).unwrap();
+            assert!(json.contains(&format!("\"widget_edge\":\"{text}\"")), "{json}");
+        }
+    }
+
+    #[test]
+    fn the_note_settings_have_safe_defaults_and_old_files_get_them() {
+        let c = AppConfig::default();
+        assert_eq!(c.shortcut_note, "CommandOrControl+Alt+KeyN");
+        assert_eq!(c.note_placement, NotePlacement::Overlay);
+        let old = parse(r##"{"accent_color":"#112233"}"##);
+        assert_eq!(old.shortcut_note, DEFAULT_SHORTCUT_NOTE);
+        assert_eq!(old.note_placement, NotePlacement::Overlay);
+    }
+
+    #[test]
+    fn the_note_placement_is_written_in_lower_case_and_read_back() {
+        for (placement, text) in [(NotePlacement::Overlay, "overlay"), (NotePlacement::Window, "window")] {
+            let raw = format!(r#"{{"note_placement":"{text}"}}"#);
+            assert_eq!(parse(&raw).note_placement, placement);
+            let json = serde_json::to_string(&AppConfig { note_placement: placement, ..AppConfig::default() }).unwrap();
+            assert!(json.contains(&format!("\"note_placement\":\"{text}\"")), "{json}");
+        }
+    }
+
+    #[test]
+    fn a_blank_note_shortcut_falls_back_to_the_default() {
+        let c = AppConfig { shortcut_note: "  ".into(), ..AppConfig::default() }.normalized();
+        assert_eq!(c.shortcut_note, DEFAULT_SHORTCUT_NOTE);
     }
 }

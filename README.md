@@ -1,10 +1,17 @@
+<p align="center">
+  <img src="src-tauri/icons/128x128.png" alt="Ícone do app: um grão de café sobre fundo âmbar" width="96">
+  &nbsp;&nbsp;&nbsp;
+  <img src="src-tauri/icons/tray/idle.png" alt="Ícone da bandeja: o grão de café" width="48">
+</p>
+
 # focusbrew
 
-Um tracker do dia pra quem programa, num widget colado no topo da tela. Você
+Um tracker do dia pra quem programa, num widget colado no topo (ou na lateral) da tela. Você
 planeja as tarefas de cada dia, dá play em uma, e uma linha se enche em volta
 do widget enquanto o tempo corre. No fim do dia, o painel responde **o que você
 fez, quanto tempo levou e em qual projeto** — e o que já está planejado pra
-amanhã.
+amanhã. E quando bate uma ideia, `Ctrl+Alt+N` abre uma **nota rápida** pra
+escrever e rabiscar.
 
 Feito com [Tauri](https://tauri.app) (Rust) + React/TypeScript. Windows.
 
@@ -15,12 +22,16 @@ Feito com [Tauri](https://tauri.app) (Rust) + React/TypeScript. Windows.
 ## Como funciona
 
 - **Parado:** uma barra reta e fina no topo da tela, sem nada dentro.
-- **Rodando:** a barra vira uma caixa com a contagem regressiva e o nome da
-  tarefa; uma linha em volta vai se enchendo. No modo **Minimal** só a caixa e a
-  linha aparecem.
+- **Rodando:** a barra vira uma caixa com a contagem regressiva de um lado e o
+  nome da tarefa do outro; uma linha em volta vai se enchendo. No modo
+  **Minimal** a caixa mostra só a contagem, no meio.
 - **Passou o mouse:** o painel abre. Quando o mouse sai, ele fecha.
 - **Clicou na barra:** o painel abre **fixado** — fica aberto até você apertar
-  `Esc` ou clicar fora. Bom pra planejar com calma.
+  `Esc` ou clicar fora. Bom pra planejar com calma. Se quiser, em
+  **Configurações → Notch** ele fecha sozinho depois de 15, 30 ou 60 s sem você
+  mexer (nunca enquanto você digita ou arrasta uma tarefa).
+- **No painel:** clique no número de minutos de uma tarefa pra digitar o tempo
+  (de 5 a 180); arraste pela alça pra reordenar ou soltar num dia da grade.
 
 A barra, a caixa e o painel são uma forma só que se transforma; a janela nunca
 muda de tamanho, então nada pisca nem trava. Fora da forma, o mouse passa direto
@@ -28,8 +39,22 @@ pro que está embaixo.
 
 <p align="center">
   <img src="docs/screenshots/widget-parado.png" alt="Barra parada" width="260">
-  <img src="docs/screenshots/widget-minimal.png" alt="Modo minimal" width="260">
+  <img src="docs/screenshots/widget-minimal.png" alt="Modo Minimal: só a contagem, no meio" width="300">
   <img src="docs/screenshots/widget-rgb.png" alt="Linha RGB" width="260">
+</p>
+
+### Nas laterais da tela
+
+Dá pra colar o widget em outra borda: em **Configurações → Notch → Posição**,
+escolha Topo, Esquerda ou Direita. Nas laterais a barra fica em pé, centralizada
+na altura da tela, e o painel sai da borda pra dentro da tela. Com um bloco
+rodando, a lateral vira uma barra em pé só com a contagem: minutos em cima e
+segundos embaixo, ou numa linha só (**Contagem na lateral**).
+
+<p align="center">
+  <img src="docs/screenshots/widget-lateral.png" alt="Contagem em pé colada na borda esquerda" width="110">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/widget-lateral-painel.png" alt="Painel saindo da borda esquerda" width="480">
 </p>
 
 ## O painel
@@ -40,7 +65,8 @@ pro que está embaixo.
 
 **Cabeçalho:** `‹ ›` andam pelos dias, o nome do dia ("Hoje", "Amanhã", "qui
 08/10") volta pra hoje, e à direita aparece o foco do dia (e a meta, se tiver)
-e quantas tarefas foram concluídas.
+e quantas tarefas foram concluídas. O ícone de nota abre uma nota rápida e o
+alfinete fixa o painel aberto.
 
 ### Tarefas
 
@@ -91,14 +117,52 @@ em vez de duplicar.
   <img src="docs/screenshots/painel-planejar.png" alt="Planejando o dia seguinte" width="600">
 </p>
 
+## Notas rápidas
+
+Pra quando bate uma ideia ou você quer explicar algo rabiscando: `Ctrl+Alt+N`
+(ou o botão de nota no cabeçalho do painel) abre uma nota nova de qualquer
+lugar, sem tirar você do que estava fazendo.
+
+<p align="center">
+  <img src="docs/screenshots/nota-painel.png" alt="Nota aberta sobre o painel com texto, formas e um rabisco" width="560">
+</p>
+
+- **Aa** pra escrever (a primeira linha vira o título) e **✎** pra desenhar:
+  caneta, quadrado, círculo, triângulo, linha e seta (com `Shift` ficam
+  proporcionais ou em ângulos de 45°), preenchimento, 6 cores e 3 espessuras,
+  borracha e seleção (mover, redimensionar pelos cantos, `Delete` apaga).
+- `Ctrl+Z` / `Ctrl+Shift+Z` desfazem e refazem o desenho.
+- **Imagens:** cole um print com `Ctrl+V` (até 10 por nota). O botão de copiar
+  põe a nota inteira no clipboard como imagem.
+- **Tudo salva sozinho.** Nota vazia não é guardada. `Esc` fecha.
+- **Histórico:** ☰ (ou `Ctrl+H`) abre a lista das notas com miniatura e um filtro
+  por texto; **+** (ou `Ctrl+N`) começa outra. Apagar pede uma confirmação
+  rápida no próprio item.
+- **Onde abre:** sobre o painel do widget (padrão) ou numa janela no meio do
+  monitor. O botão de janela na nota troca na hora, sem perder nada. Com uma
+  nota já aberta, o atalho só traz ela pra frente e pisca a borda.
+
+<p align="center">
+  <img src="docs/screenshots/nota-historico.png" alt="Histórico das notas com miniaturas" width="420">
+  <img src="docs/screenshots/nota-janela.png" alt="Nota aberta numa janela" width="420">
+</p>
+
+A aba **Notas** da configuração mostra todas as notas numa galeria; clicar abre
+a nota.
+
+<p align="center">
+  <img src="docs/screenshots/configuracoes-notas.png" alt="Aba Notas com a galeria" width="560">
+</p>
+
 ## Atalhos
 
 | Atalho (padrão) | O que faz |
 |---|---|
 | `Ctrl+Shift+Space` | pausa/retoma o bloco; parado, inicia a primeira tarefa de hoje |
 | `Ctrl+Shift+Alt+Space` | abre/fecha o painel fixado |
+| `Ctrl+Alt+N` | abre uma nota rápida nova |
 
-Os dois mudam em **Configurações → Geral** (clique e aperte a combinação). Se
+Os três mudam em **Configurações → Geral** (clique e aperte a combinação). Se
 outro programa já usa uma combinação, o focusbrew avisa qual e o outro atalho
 continua funcionando.
 
@@ -113,14 +177,13 @@ Clique no ícone da bandeja (ou **Abrir configurações** no menu dele).
 | Seção | O que muda |
 |---|---|
 | **Foco** | minutos de uma tarefa nova; aviso no fim do bloco e **antes do fim**; **meta do dia**; **lembrete se ficar parado** (só das 8h às 20h) |
-| **Projetos** | tempo por projeto: hoje, 7 dias, 30 dias e total |
-| **Notch** | estilo Standard ou Minimal; linha de progresso; linha RGB; cor de destaque; tamanho |
-| **Geral** | mostrar o widget; **monitor** do widget; **iniciar com o Windows**; os atalhos |
+| **Notas** | galeria das notas rápidas (escrever, desenhar, imagens), onde elas abrem (sobre o painel ou em janela) |
+| **Notch** | estilo Standard ou Minimal; **posição** (topo, esquerda, direita) e contagem na lateral; linha de progresso; linha RGB; cor de destaque; tamanho; fechar o painel fixado sozinho |
+| **Geral** | mostrar o widget; **monitor** do widget; **iniciar com o Windows**; os três atalhos |
 | **GitHub** | conectar pelo login do `gh` (ou um token) |
 
 <p align="center">
-  <img src="docs/screenshots/configuracoes-projetos.png" alt="Tempo por projeto" width="420">
-  <img src="docs/screenshots/configuracoes-geral.png" alt="Monitor, iniciar com o Windows e atalhos" width="420">
+  <img src="docs/screenshots/configuracoes-geral.png" alt="Monitor, iniciar com o Windows e os três atalhos" width="560">
 </p>
 
 ### Conectar o GitHub
@@ -172,7 +235,9 @@ src-tauri/src/
   tracker/        o coração, sem Tauri: timer por horário final, tarefas por dia,
                   histórico de blocos e tempo por projeto
   alerts.rs       aviso antes do fim, meta do dia, lembrete de parado (puro)
-  shortcuts.rs    os dois atalhos globais, cada um registrado por conta própria
+  shortcuts.rs    os três atalhos globais, cada um registrado por conta própria
+  notes.rs        as notas rápidas: arquivo atômico, limites, imagens em disco
+  note_window.rs  a janela da nota e o que o atalho faz com uma nota já aberta
   autostart.rs    iniciar com o Windows (chave Run do usuário)
   widget.rs       janela do widget: tamanho fixo, colada no topo, mouse atravessando
   config.rs       configurações (lê qualquer arquivo, antigo ou quebrado, sem falhar)
@@ -191,7 +256,7 @@ src/
 O backend guarda *qual tarefa está rodando* e *quando ela termina*; a interface
 só desenha a partir desse horário, sem contar tempo por conta própria. Os
 dados ficam em `%APPDATA%\sthevandev\focusbrew\` (`config\settings.json`,
-`data\tasks.json`, `data\activity.json` — este com o histórico de blocos dos
+`data\tasks.json`, `data\notes.json` (+ `data\notes\images\`), `data\activity.json` — este com o histórico de blocos dos
 últimos 400 dias).
 
 ## Licença

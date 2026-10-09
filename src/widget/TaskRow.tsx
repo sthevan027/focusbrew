@@ -6,14 +6,15 @@ import {
   editTask,
   fire,
   moveTask,
-  nudgeTaskMinutes,
   removeTask,
+  setTaskMinutes,
   startTask,
   toggleTask,
   toggleTimerPause,
 } from "../lib/tauri";
 import { formatClock, remainingSecs } from "../lib/progress";
 import { addDays } from "../lib/day";
+import { parseMinutes } from "../lib/minutes";
 import { titleWithoutProject } from "../lib/project";
 import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, LinkIcon, PauseIcon, PlayIcon } from "./icons";
 
@@ -26,8 +27,8 @@ interface Props {
   /** "02/10" when the task was left over from an earlier day. */
   carried: string | null;
   dragging: boolean;
-  /** Where the drop guide line is drawn relative to this row, if at all. */
-  guide: "before" | "after" | null;
+  /** Px this row slides to make room for the row being dragged (0 = in place). */
+  shift: number;
   rowRef: (el: HTMLDivElement | null) => void;
   onHandleDown: (e: PointerEvent<HTMLButtonElement>) => void;
   onHandleMove: (e: PointerEvent<HTMLButtonElement>) => void;
@@ -45,7 +46,7 @@ export default function TaskRow({
   viewDay,
   carried,
   dragging,
-  guide,
+  shift,
   rowRef,
   onHandleDown,
   onHandleMove,
@@ -60,7 +61,6 @@ export default function TaskRow({
     active ? "active" : "",
     task.done ? "done" : "",
     dragging ? "dragging" : "",
-    guide ? `guide-${guide}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -95,11 +95,38 @@ export default function TaskRow({
     stopEditing();
   };
 
+  // The time field: click the number, type the minutes. Same save-once guard
+  // as the title (Enter unmounts the field, which also fires blur).
+  const [timeEditing, setTimeEditing] = useState(false);
+  const [timeDraft, setTimeDraft] = useState("");
+  const timeOpen = useRef(false);
+  const startTimeEdit = () => {
+    setTimeDraft(String(task.minutes));
+    timeOpen.current = true;
+    setTimeEditing(true);
+    onEditing(true);
+  };
+  const stopTimeEdit = () => {
+    timeOpen.current = false;
+    setTimeEditing(false);
+    onEditing(false);
+  };
+  const saveTime = () => {
+    if (!timeOpen.current) return;
+    const minutes = parseMinutes(timeDraft);
+    if (minutes !== null && minutes !== task.minutes) fire(setTaskMinutes(task.id, minutes));
+    stopTimeEdit();
+  };
+
   // A GitHub task's note ("dono/repo #N") already names its project.
   const details = [task.note ?? task.project, carried && `de ${carried}`].filter(Boolean).join(" · ");
 
   return (
-    <div ref={rowRef} className={classes}>
+    <div
+      ref={rowRef}
+      className={classes}
+      style={shift ? { transform: `translate3d(0, ${shift}px, 0)` } : undefined}
+    >
       <button
         className="check"
         aria-label={task.done ? "Reabrir tarefa" : "Concluir tarefa"}
@@ -151,35 +178,62 @@ export default function TaskRow({
             {details}
           </div>
         )}
+        {/* Over the end of the title, faded in on hover: nothing here takes
+            room in the row, so hovering never reflows the titles. */}
+        <div className="row-actions">
+          {!task.done && (
+            <button
+              className="move"
+              aria-label="Mover pro dia seguinte"
+              title="Mover pro dia seguinte"
+              onClick={() => {
+                const next = addDays(viewDay, 1);
+                fire(moveTask(task.id, next));
+                onMoved(next);
+              }}
+            >
+              <ArrowRightIcon />
+            </button>
+          )}
+          <button className="remove" aria-label="Remover tarefa" onClick={() => fire(removeTask(task.id))}>
+            ×
+          </button>
+        </div>
       </div>
 
       {!task.done && (
         <>
-          <button
-            className="move"
-            aria-label="Mover pro dia seguinte"
-            title="Mover pro dia seguinte"
-            onClick={() => {
-              const next = addDays(viewDay, 1);
-              fire(moveTask(task.id, next));
-              onMoved(next);
-            }}
-          >
-            <ArrowRightIcon />
-          </button>
-          <div className="minutes">
+          <div className={timeEditing ? "minutes editing" : "minutes"}>
             <ClockIcon />
-            <span className="minutes-value">
-              {active ? formatClock(remainingSecs(timer, now)) : task.minutes}
-            </span>
-            <span className="stepper">
-              <button aria-label="Mais 5 minutos" onClick={() => fire(nudgeTaskMinutes(task.id, 5))}>
-                ▲
+            {timeEditing ? (
+              <input
+                className="minutes-edit"
+                autoFocus
+                inputMode="numeric"
+                maxLength={3}
+                value={timeDraft}
+                aria-label="Minutos da atividade (5 a 180)"
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setTimeDraft(e.currentTarget.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTime();
+                  if (e.key === "Escape") {
+                    e.stopPropagation(); // Esc here cancels the edit, not the pinned panel
+                    stopTimeEdit();
+                  }
+                }}
+                onBlur={saveTime}
+              />
+            ) : (
+              <button
+                className="minutes-value"
+                aria-label="Mudar o tempo da atividade"
+                title="Clique pra digitar os minutos"
+                onClick={startTimeEdit}
+              >
+                {active ? formatClock(remainingSecs(timer, now)) : task.minutes}
               </button>
-              <button aria-label="Menos 5 minutos" onClick={() => fire(nudgeTaskMinutes(task.id, -5))}>
-                ▼
-              </button>
-            </span>
+            )}
           </div>
           <button
             className="play"
@@ -190,10 +244,6 @@ export default function TaskRow({
           </button>
         </>
       )}
-
-      <button className="remove" aria-label="Remover tarefa" onClick={() => fire(removeTask(task.id))}>
-        ×
-      </button>
 
       {!task.done && (
         <button
