@@ -216,13 +216,45 @@ Studio Build Tools com o workload "Desktop development with C++" (veja os
 [pré-requisitos do Tauri](https://tauri.app/start/prerequisites/)) e Node.js 18+.
 
 ```bash
-npm install
-npm run tauri dev      # app em desenvolvimento
-npm test               # contas do front-end (vitest)
+bun install
+bun run tauri dev      # app em desenvolvimento
+bun run test           # contas do front-end (vitest)
 cargo test --manifest-path src-tauri/Cargo.toml   # regras do timer, tarefas, alertas e configurações
-npm run dist            # instalador em src-tauri/target/release/bundle/nsis/
-npm run dist:signed     # o mesmo, assinado (certificado em src-tauri/tauri.signing.conf.json)
+bun run dist            # instalador em src-tauri/target/release/bundle/nsis/
+bun run dist:signed     # o mesmo, assinado (certificado em src-tauri/tauri.signing.conf.json)
 ```
+
+### Publicar uma versão (com atualização automática)
+
+O app checa sozinho, ao abrir, o `latest.json` da release mais recente
+(`https://github.com/sthevan027/focusbrew/releases/latest/download/latest.json`)
+e, em **Configurações → Geral → Atualizações**, baixa e instala a versão nova
+com um clique. Cada atualização é conferida contra a chave pública do
+`tauri.conf.json` (`plugins.updater.pubkey`), então toda release precisa ser
+assinada com a chave privada correspondente.
+
+A chave privada fica **fora do repositório**, em `~/.tauri/focusbrew-updater.key`
+(gerada com `bun x @tauri-apps/cli signer generate --ci -p <senha> -w <arquivo>`).
+Guarde a senha e um backup da chave: sem elas, as versões já instaladas nunca
+mais aceitam uma atualização, só reinstalando na mão.
+
+1. Suba a versão em `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`.
+2. Exporte a chave (arquivos `.env` não funcionam) e gere o instalador assinado:
+
+   ```powershell
+   $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content "$HOME\.tauri\focusbrew-updater.key" -Raw
+   $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<a senha da chave>"
+   bun run dist:signed
+   ```
+
+3. Monte o `latest.json` a partir do `.sig` que o build deixou ao lado do instalador:
+
+   ```bash
+   bun run tools/make-latest-json.ts <versão> "<o que mudou>"
+   ```
+
+4. Publique a release **com a tag `v<versão>`** (o `latest.json` aponta o instalador pra `/releases/download/v<versão>/`; outra tag dá 404 em todas as máquinas) e com os três arquivos de `src-tauri/target/release/bundle/nsis/`:
+   `focusbrew_<versão>_x64-setup.exe`, `focusbrew_<versão>_x64-setup.exe.sig` e `latest.json`.
 
 O instalador usa uma cópia do template NSIS do Tauri
 (`src-tauri/windows/installer.nsi`, base `tauri-cli` 2.11.4) que força o modo

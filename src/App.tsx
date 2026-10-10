@@ -8,6 +8,7 @@ import GeneralSection from "./settings/GeneralSection";
 import NotchSection from "./settings/NotchSection";
 import NotesSection from "./settings/NotesSection";
 import { SECTION_ICONS } from "./settings/icons";
+import { useUpdateStatus } from "./settings/useUpdateStatus";
 import "./App.css";
 
 type Section = "focus" | "notes" | "notch" | "general" | "github";
@@ -27,6 +28,7 @@ export default function App() {
   // must both land: each patch goes on top of this, not of the last render.
   const sent = useRef<AppConfig | null>(null);
   const pending = useRef(0);
+  const update = useUpdateStatus();
 
   useEffect(() => {
     const receive = (snapshot: StateSnapshot) => {
@@ -77,7 +79,12 @@ export default function App() {
         {section === "notes" && <NotesSection config={state.config} set={set} />}
         {section === "notch" && <NotchSection config={state.config} set={set} />}
         {section === "general" && (
-          <GeneralSection config={state.config} set={set} shortcutWarning={state.shortcut_warning} />
+          <GeneralSection
+            config={state.config}
+            set={set}
+            shortcutWarning={state.shortcut_warning}
+            update={update}
+          />
         )}
         {section === "github" && <GithubPanel state={state} />}
       </main>
