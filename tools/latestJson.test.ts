@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+import { buildLatestJson } from "./latestJson";
+
+const input = {
+  version: "0.4.1",
+  notes: "Auto-update pela aba Geral.",
+  pubDate: new Date("2026-10-09T23:59:00Z"),
+  signature: "dW50cnVzdGVk\n",
+  repo: "sthevan027/focusbrew",
+};
+
+describe("buildLatestJson", () => {
+  it("points the windows platform at the release's installer and carries its signature", () => {
+    const json = buildLatestJson(input);
+    expect(json.version).toBe("0.4.1");
+    expect(json.notes).toBe("Auto-update pela aba Geral.");
+    expect(json.pub_date).toBe("2026-10-09T23:59:00.000Z");
+    expect(json.platforms["windows-x86_64"]).toEqual({
+      signature: "dW50cnVzdGVk",
+      url: "https://github.com/sthevan027/focusbrew/releases/download/v0.4.1/focusbrew_0.4.1_x64-setup.exe",
+    });
+  });
+
+  it("accepts a version typed with a leading v", () => {
+    expect(buildLatestJson({ ...input, version: "v0.4.1" }).version).toBe("0.4.1");
+  });
+
+  it("refuses an empty signature, which the updater would reject on every machine", () => {
+    expect(() => buildLatestJson({ ...input, signature: "  \n" })).toThrow(/signature/i);
+  });
+
+  it("refuses something that is not a semver version", () => {
+    expect(() => buildLatestJson({ ...input, version: "latest" })).toThrow(/version/i);
+  });
+});

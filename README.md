@@ -250,7 +250,7 @@ mais aceitam uma atualização, só reinstalando na mão.
 3. Monte o `latest.json` a partir do `.sig` que o build deixou ao lado do instalador:
 
    ```bash
-   bun run scripts/make-latest-json.ts <versão> "<o que mudou>"
+   bun run tools/make-latest-json.ts <versão> "<o que mudou>"
    ```
 
 4. Publique a release com os três arquivos de `src-tauri/target/release/bundle/nsis/`:
