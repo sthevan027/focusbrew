@@ -25,7 +25,6 @@ export default function UpdateRow({ update }: { update: UseUpdateStatus }) {
           {label}
         </button>
       </Row>
-      {state.error && <p className="error">{state.error}</p>}
     </>
   );
 }

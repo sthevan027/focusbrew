@@ -23,7 +23,8 @@ export function useUpdateStatus(): UseUpdateStatus {
       found.current = update ?? null;
       dispatch({ type: "check_success", version: update?.version ?? null, nowMs: Date.now() });
     } catch (err) {
-      dispatch({ type: "check_error", silent, message: String(err), nowMs: Date.now() });
+      console.warn("focusbrew: update check failed:", err);
+      dispatch({ type: "check_error", silent, nowMs: Date.now() });
     }
   }, []);
 
@@ -45,7 +46,10 @@ export function useUpdateStatus(): UseUpdateStatus {
       .downloadAndInstall()
       .then(() => relaunch())
       .then(() => dispatch({ type: "install_done" }))
-      .catch((err) => dispatch({ type: "install_error", message: String(err) }));
+      .catch((err) => {
+        console.warn("focusbrew: update install failed:", err);
+        dispatch({ type: "install_error" });
+      });
   }, []);
 
   return { state, checkNow, install };

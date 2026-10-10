@@ -34,6 +34,7 @@ describe("UpdateRow", () => {
   it("shows the error text when there is one", () => {
     const html = render({ ...initialUpdateState, error: "sem internet" });
     expect(html).toContain("sem internet");
+    expect(html).not.toContain("class=\"error\"");
   });
 
   it("disables the button while checking or installing", () => {

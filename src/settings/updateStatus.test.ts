@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatCheckedAt, initialUpdateState, statusHint, updateStatusReducer } from "./updateStatus";
+import {
+  CHECK_ERROR_TEXT,
+  INSTALL_ERROR_TEXT,
+  formatCheckedAt,
+  initialUpdateState,
+  statusHint,
+  updateStatusReducer,
+} from "./updateStatus";
 
 describe("updateStatusReducer", () => {
   it("marks checking and clears a previous error on check_start", () => {
@@ -28,20 +35,19 @@ describe("updateStatusReducer", () => {
     const state = updateStatusReducer(before, {
       type: "check_error",
       silent: true,
-      message: "offline",
       nowMs: 9999,
     });
     expect(state).toEqual({ ...before, checking: false });
   });
 
-  it("a manual check failure records the timestamp and the error", () => {
+  it("a manual check failure records the timestamp and a friendly message, not the raw error", () => {
     const state = updateStatusReducer(initialUpdateState, {
       type: "check_error",
       silent: false,
-      message: "HTTP 500",
       nowMs: 3000,
     });
-    expect(state).toMatchObject({ checking: false, lastCheckedMs: 3000, error: "HTTP 500" });
+    expect(state).toMatchObject({ checking: false, lastCheckedMs: 3000, error: CHECK_ERROR_TEXT });
+    expect(CHECK_ERROR_TEXT).not.toMatch(/json|http|remote/i);
   });
 
   it("install_start clears a previous error", () => {
@@ -49,12 +55,9 @@ describe("updateStatusReducer", () => {
     expect(state).toMatchObject({ installing: true, error: null });
   });
 
-  it("install_error stops installing and records the message", () => {
-    const state = updateStatusReducer({ ...initialUpdateState, installing: true }, {
-      type: "install_error",
-      message: "boom",
-    });
-    expect(state).toMatchObject({ installing: false, error: "boom" });
+  it("install_error stops installing and records a friendly message", () => {
+    const state = updateStatusReducer({ ...initialUpdateState, installing: true }, { type: "install_error" });
+    expect(state).toMatchObject({ installing: false, error: INSTALL_ERROR_TEXT });
   });
 
   it("install_done just stops installing", () => {
@@ -78,6 +81,15 @@ describe("statusHint", () => {
   it("says up to date when there is no available version", () => {
     const state = { ...initialUpdateState, lastCheckedMs: new Date(2026, 9, 9, 17, 9).getTime() };
     expect(statusHint(state)).toBe("Você está na versão mais recente. Verificado às 17:09.");
+  });
+
+  it("shows the failure text instead of the status line when there is one", () => {
+    const state = {
+      ...initialUpdateState,
+      lastCheckedMs: new Date(2026, 9, 9, 17, 9).getTime(),
+      error: CHECK_ERROR_TEXT,
+    };
+    expect(statusHint(state)).toBe(CHECK_ERROR_TEXT);
   });
 
   it("names the available version", () => {

@@ -14,12 +14,16 @@ export const initialUpdateState: UpdateState = {
   error: null,
 };
 
+/** What the person sees when a check or an install fails; the raw error only goes to the console. */
+export const CHECK_ERROR_TEXT = "Não foi possível verificar atualizações agora. Tente de novo mais tarde.";
+export const INSTALL_ERROR_TEXT = "Não foi possível instalar a atualização. Tente de novo.";
+
 export type UpdateAction =
   | { type: "check_start" }
   | { type: "check_success"; version: string | null; nowMs: number }
-  | { type: "check_error"; silent: boolean; message: string; nowMs: number }
+  | { type: "check_error"; silent: boolean; nowMs: number }
   | { type: "install_start" }
-  | { type: "install_error"; message: string }
+  | { type: "install_error" }
   | { type: "install_done" };
 
 export function updateStatusReducer(state: UpdateState, action: UpdateAction): UpdateState {
@@ -37,11 +41,11 @@ export function updateStatusReducer(state: UpdateState, action: UpdateAction): U
     case "check_error":
       return action.silent
         ? { ...state, checking: false }
-        : { ...state, checking: false, lastCheckedMs: action.nowMs, error: action.message };
+        : { ...state, checking: false, lastCheckedMs: action.nowMs, error: CHECK_ERROR_TEXT };
     case "install_start":
       return { ...state, installing: true, error: null };
     case "install_error":
-      return { ...state, installing: false, error: action.message };
+      return { ...state, installing: false, error: INSTALL_ERROR_TEXT };
     case "install_done":
       return { ...state, installing: false };
   }
@@ -57,6 +61,7 @@ export function formatCheckedAt(ms: number): string {
 
 /** The line under "Atualizações"; undefined before the first check ever finishes. */
 export function statusHint(state: UpdateState): string | undefined {
+  if (state.error) return state.error;
   if (state.lastCheckedMs === null) return undefined;
   const checked = `Verificado às ${formatCheckedAt(state.lastCheckedMs)}.`;
   if (state.availableVersion) return `Versão ${state.availableVersion} disponível. ${checked}`;
