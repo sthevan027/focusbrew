@@ -1,6 +1,6 @@
 [package]
 name = "focusbrew"
-version = "0.4.0"
+version = "0.4.1"
 description = "Tray app that shows when you're deep in AI-assisted dev work and locks in focus mode"
 authors = ["Sthevan Santos"]
 edition = "2021"
