@@ -2,7 +2,7 @@
 // Lê o .sig do instalador já assinado e grava o latest.json ao lado dele.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildLatestJson } from "./latestJson";
+import { buildLatestJson, releaseTag } from "./latestJson";
 
 const [version, notes = ""] = process.argv.slice(2);
 if (!version) {
@@ -17,3 +17,4 @@ const json = buildLatestJson({ version, notes, pubDate: new Date(), signature, r
 const out = join(dir, "latest.json");
 writeFileSync(out, JSON.stringify(json, null, 2) + "\n");
 console.log(`escrito ${out}`);
+console.log(`publique a release com a tag ${releaseTag(clean)} (o instalador é baixado de /releases/download/${releaseTag(clean)}/)`);

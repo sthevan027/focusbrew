@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLatestJson } from "./latestJson";
+import { buildLatestJson, releaseTag } from "./latestJson";
 
 const input = {
   version: "0.4.1",
@@ -31,5 +31,13 @@ describe("buildLatestJson", () => {
 
   it("refuses something that is not a semver version", () => {
     expect(() => buildLatestJson({ ...input, version: "latest" })).toThrow(/version/i);
+  });
+});
+
+describe("releaseTag", () => {
+  it("is the v-prefixed tag the installer url in latest.json points at", () => {
+    expect(releaseTag("0.4.1")).toBe("v0.4.1");
+    expect(releaseTag("v0.4.1")).toBe("v0.4.1");
+    expect(buildLatestJson(input).platforms["windows-x86_64"].url).toContain(`/download/${releaseTag("0.4.1")}/`);
   });
 });

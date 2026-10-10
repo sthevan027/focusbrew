@@ -253,7 +253,7 @@ mais aceitam uma atualização, só reinstalando na mão.
    bun run tools/make-latest-json.ts <versão> "<o que mudou>"
    ```
 
-4. Publique a release com os três arquivos de `src-tauri/target/release/bundle/nsis/`:
+4. Publique a release **com a tag `v<versão>`** (o `latest.json` aponta o instalador pra `/releases/download/v<versão>/`; outra tag dá 404 em todas as máquinas) e com os três arquivos de `src-tauri/target/release/bundle/nsis/`:
    `focusbrew_<versão>_x64-setup.exe`, `focusbrew_<versão>_x64-setup.exe.sig` e `latest.json`.
 
 O instalador usa uma cópia do template NSIS do Tauri

@@ -15,6 +15,11 @@ export interface LatestJson {
   platforms: { "windows-x86_64": { signature: string; url: string } };
 }
 
+/** The git tag the release must be published under: the installer url in latest.json depends on it. */
+export function releaseTag(version: string): string {
+  return `v${version.trim().replace(/^v/, "")}`;
+}
+
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 /** The manifest `tauri-plugin-updater` reads from `releases/latest/download/latest.json`. */
@@ -30,7 +35,7 @@ export function buildLatestJson({ version, notes, pubDate, signature, repo }: La
     platforms: {
       "windows-x86_64": {
         signature: sig,
-        url: `https://github.com/${repo}/releases/download/v${clean}/focusbrew_${clean}_x64-setup.exe`,
+        url: `https://github.com/${repo}/releases/download/${releaseTag(clean)}/focusbrew_${clean}_x64-setup.exe`,
       },
     },
   };
