@@ -7,8 +7,15 @@ import { comboFromKeys, prettyShortcut } from "../lib/shortcut";
 import Row from "./Row";
 import type { SectionProps } from "./Row";
 import Switch from "./Switch";
+import UpdateRow from "./UpdateRow";
+import type { UseUpdateStatus } from "./useUpdateStatus";
 
-export default function GeneralSection({ config, set, shortcutWarning }: SectionProps & { shortcutWarning: string | null }) {
+export default function GeneralSection({
+  config,
+  set,
+  shortcutWarning,
+  update,
+}: SectionProps & { shortcutWarning: string | null; update: UseUpdateStatus }) {
   const [version, setVersion] = useState("");
   const [monitors, setMonitors] = useState<MonitorChoice[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +100,7 @@ export default function GeneralSection({ config, set, shortcutWarning }: Section
         <Row title="Versão">
           <span className="version">{version ? `focusbrew ${version}` : "focusbrew"}</span>
         </Row>
+        <UpdateRow update={update} />
       </div>
     </>
   );

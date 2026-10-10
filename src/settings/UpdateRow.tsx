@@ -16,7 +16,12 @@ export default function UpdateRow({ update }: { update: UseUpdateStatus }) {
   return (
     <>
       <Row title="Atualizações" hint={statusHint(state)}>
-        <button onClick={onClick} disabled={busy}>
+        <button
+          type="button"
+          className={state.availableVersion ? "update-button available" : "update-button"}
+          onClick={onClick}
+          disabled={busy}
+        >
           {label}
         </button>
       </Row>

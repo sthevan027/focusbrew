@@ -225,6 +225,34 @@
   color: var(--accent);
 }
 
+.settings .update-button {
+  min-width: 130px;
+  padding: 6px 14px;
+  border: 1px solid #3a3a3e;
+  border-radius: 8px;
+  background: #2e2e32;
+  color: #f2f2f3;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.settings .update-button:hover:not(:disabled) {
+  background: #38383c;
+}
+.settings .update-button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.settings .update-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.settings .update-button.available {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 /* ---- the Standard / Minimal cards ---- */
 .settings .cards {
   display: grid;
