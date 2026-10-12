@@ -7,7 +7,7 @@ const html = (name: keyof typeof SECTION_ICONS) => renderToStaticMarkup(SECTION_
 
 describe("the settings section icons", () => {
   it("has one icon per section", () => {
-    expect(names.sort()).toEqual(["focus", "general", "github", "notch", "notes"]);
+    expect(names.sort()).toEqual(["focus", "general", "github", "google", "notch", "notes"]);
   });
 
   it("share the same grid, stroke and caps, so the set looks like one family", () => {

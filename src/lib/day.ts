@@ -65,16 +65,18 @@ export function carriedFrom(task: Task, today: string): string | null {
   return !task.done && task.day < today ? shortDate(task.day) : null;
 }
 
-export type PanelTab = "tasks" | "summary" | "github";
+export type PanelTab = "tasks" | "summary" | "github" | "agenda";
 
 /**
  * Tabs a day offers: the past only has its summary; the future its plan (and
- * GitHub items to plan); today all of them. GitHub only when connected.
+ * GitHub items to plan); today all of them. GitHub and the Google agenda only
+ * when connected.
  */
-export function tabsFor(day: string, today: string, github: boolean): PanelTab[] {
+export function tabsFor(day: string, today: string, github: boolean, agenda = false): PanelTab[] {
   if (day < today) return ["summary"];
   const tabs: PanelTab[] = day > today ? ["tasks"] : ["tasks", "summary"];
   if (github) tabs.push("github");
+  if (agenda) tabs.push("agenda");
   return tabs;
 }
 

@@ -94,6 +94,11 @@ describe("tabsFor", () => {
     expect(tabsFor(today, today, true)).toEqual(["tasks", "summary", "github"]);
     expect(tabsFor(today, today, false)).toEqual(["tasks", "summary"]);
   });
+  it("the agenda tab shows on today and future days once Google is connected", () => {
+    expect(tabsFor("2026-10-06", today, false, true)).toEqual(["tasks", "agenda"]);
+    expect(tabsFor(today, today, false, true)).toEqual(["tasks", "summary", "agenda"]);
+    expect(tabsFor("2026-10-04", today, false, true)).toEqual(["summary"]);
+  });
 });
 
 describe("plannedByDay", () => {

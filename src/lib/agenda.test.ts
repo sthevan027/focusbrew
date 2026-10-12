@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isImported } from "./agenda";
+import { isImported, syncedAtLabel } from "./agenda";
 import type { Task } from "./types";
 
 const task = (over: Partial<Task> = {}): Task => ({
@@ -22,5 +22,16 @@ describe("isImported", () => {
 
   it("is false when nothing is imported yet", () => {
     expect(isImported("evt-1", [])).toBe(false);
+  });
+});
+
+describe("syncedAtLabel", () => {
+  it("is null before the first sync", () => {
+    expect(syncedAtLabel(0)).toBe(null);
+  });
+
+  it("is the local HH:MM of the last sync", () => {
+    const at = new Date(2026, 9, 12, 14, 5).getTime();
+    expect(syncedAtLabel(at)).toBe("14:05");
   });
 });

@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { AppConfig, StateSnapshot } from "./lib/types";
 import { fire, getState, onStateChanged, updateSettings } from "./lib/tauri";
 import GithubPanel from "./components/GithubPanel";
+import GoogleCalendarPanel from "./components/GoogleCalendarPanel";
 import FocusSection from "./settings/FocusSection";
 import GeneralSection from "./settings/GeneralSection";
 import NotchSection from "./settings/NotchSection";
@@ -11,7 +12,7 @@ import { SECTION_ICONS } from "./settings/icons";
 import { useUpdateStatus } from "./settings/useUpdateStatus";
 import "./App.css";
 
-type Section = "focus" | "notes" | "notch" | "general" | "github";
+type Section = "focus" | "notes" | "notch" | "general" | "github" | "google";
 
 const SECTIONS: { id: Section; label: string; color: string }[] = [
   { id: "focus", label: "Foco", color: "#ff9f0a" },
@@ -19,6 +20,7 @@ const SECTIONS: { id: Section; label: string; color: string }[] = [
   { id: "notch", label: "Notch", color: "#ff375f" },
   { id: "general", label: "Geral", color: "#8e8e93" },
   { id: "github", label: "GitHub", color: "#30d158" },
+  { id: "google", label: "Google Agenda", color: "#0a84ff" },
 ];
 
 export default function App() {
@@ -87,6 +89,7 @@ export default function App() {
           />
         )}
         {section === "github" && <GithubPanel state={state} />}
+        {section === "google" && <GoogleCalendarPanel state={state} />}
       </main>
     </div>
   );
