@@ -5,6 +5,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::config::{self, AppConfig};
 use crate::github;
 use crate::google_calendar;
+use crate::google_sync::{self, SyncAction};
 use crate::note_window;
 use crate::notes::{self, Note, NotesShared};
 use crate::state::{AppState, StateSnapshot};
@@ -106,6 +107,16 @@ pub fn toggle_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> Sta
 
 #[tauri::command]
 pub fn remove_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    let (linked, token) = {
+        let state = shared.lock();
+        let linked = state.tracker.tasks.iter().find(|t| t.id == id).and_then(|t| t.google_event_id.clone());
+        (linked, state.google_access_token.clone())
+    };
+    if let (Some(event_id), Some(token)) = (linked, token) {
+        tauri::async_runtime::spawn(async move {
+            let _ = google_calendar::delete_event(&token, &event_id).await;
+        });
+    }
     apply(&app, &shared, |state, now, today| state.tracker.remove_task(&id, now, today)).0
 }
 
@@ -259,6 +270,91 @@ pub fn google_disconnect(app: AppHandle, shared: State<'_, Shared>) -> StateSnap
     let snapshot = StateSnapshot::from(&*state);
     sync_ui(&app, &state);
     snapshot
+}
+
+/// One Google sync cycle, for today only: renews the token, then reconciles
+/// today's tasks with today's events. The caller records any error.
+pub(crate) async fn refresh_google_now(app: &AppHandle) -> Result<(), String> {
+    let refresh = google_calendar::load_refresh_token().ok_or_else(|| "sem refresh token salvo".to_string())?;
+    let token = google_calendar::refresh_access_token(&refresh, GOOGLE_CLIENT_ID).await?.access_token;
+    {
+        let shared = app.state::<Shared>();
+        let mut state = shared.lock();
+        if !state.config.google_connected {
+            return Ok(());
+        }
+        state.google_access_token = Some(token.clone());
+    }
+
+    let today = today_key();
+    let planned: Vec<tasks::Task> = {
+        let shared = app.state::<Shared>();
+        let state = shared.lock();
+        state.tracker.tasks.iter().filter(|t| google_sync::in_scope(t, &today)).cloned().collect()
+    };
+    let remote_events = google_calendar::fetch_day_events(&token, &today).await?;
+
+    for task in &planned {
+        let remote = task.google_event_id.as_ref().and_then(|id| remote_events.iter().find(|e| &e.id == id));
+        match google_sync::decide(task, remote) {
+            SyncAction::CreateRemote => {
+                let start_ms = now_ms();
+                let end_ms = start_ms + i64::from(task.minutes) * 60_000;
+                if let Ok(event_id) = google_calendar::create_event(&token, &task.title, start_ms, end_ms).await {
+                    update_task(app, &task.id, |t| t.google_event_id = Some(event_id));
+                }
+            }
+            SyncAction::PushTitle(title) => {
+                if let Some(event_id) = &task.google_event_id {
+                    let _ = google_calendar::patch_event_title(&token, event_id, &title).await;
+                }
+            }
+            SyncAction::PullTitle(title) => {
+                let remote_done = remote.map_or(task.done, |r| google_calendar::strip_done_prefix(&r.title).1);
+                update_task(app, &task.id, |t| {
+                    t.title = title;
+                    t.updated_at = now_ms();
+                });
+                set_done(app, &task.id, remote_done);
+            }
+            SyncAction::MarkLocalDone => set_done(app, &task.id, true),
+            SyncAction::MarkLocalOpen => set_done(app, &task.id, false),
+            SyncAction::DeleteLocal => {
+                let shared = app.state::<Shared>();
+                let mut state = shared.lock();
+                state.tracker.remove_task(&task.id, now_ms(), &today);
+                state.save_tracker();
+            }
+            SyncAction::Noop => {}
+        }
+    }
+
+    let shared = app.state::<Shared>();
+    let mut state = shared.lock();
+    state.google_last_sync_ms = now_ms();
+    state.google_error = None;
+    sync_ui(app, &state);
+    Ok(())
+}
+
+fn update_task(app: &AppHandle, id: &str, change: impl FnOnce(&mut tasks::Task)) {
+    let shared = app.state::<Shared>();
+    let mut state = shared.lock();
+    if let Some(task) = state.tracker.tasks.iter_mut().find(|t| t.id == id) {
+        change(task);
+    }
+    state.save_tracker();
+}
+
+/// Same as ticking the task in the UI, so a task finished on Google stops its timer too.
+fn set_done(app: &AppHandle, id: &str, done: bool) {
+    let shared = app.state::<Shared>();
+    let mut state = shared.lock();
+    let needs_toggle = state.tracker.tasks.iter().any(|t| t.id == id && t.done != done);
+    if needs_toggle {
+        state.tracker.toggle_task(id, now_ms(), &today_key());
+    }
+    state.save_tracker();
 }
 
 /// The token for Google calls: this session's, or a fresh one from the saved
