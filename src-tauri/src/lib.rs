@@ -3,6 +3,7 @@ mod autostart;
 mod commands;
 mod config;
 mod github;
+mod google_calendar;
 mod note_window;
 mod notes;
 mod shortcuts;
