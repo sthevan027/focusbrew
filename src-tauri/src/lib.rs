@@ -335,6 +335,8 @@ pub fn run() {
             commands::clear_github_token,
             commands::google_connect,
             commands::google_disconnect,
+            commands::google_list_day_events,
+            commands::google_import_event,
             commands::refresh_github,
             commands::import_github_item_as_task,
             commands::set_widget_expanded,

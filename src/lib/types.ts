@@ -37,6 +37,15 @@ export interface AppConfig {
   launch_at_login: boolean;
   /** A pinned panel closes by itself after this many idle seconds; 0 = never (15, 30 or 60). */
   panel_autoclose_secs: number;
+  google_connected: boolean;
+}
+
+export interface CalendarEventView {
+  id: string;
+  title: string;
+  start_ms: number;
+  end_ms: number;
+  updated_ms: number;
 }
 
 export interface MonitorChoice {
@@ -55,7 +64,7 @@ export interface TimerView {
   deadline_ms: number;
 }
 
-export type TaskSource = "manual" | "github";
+export type TaskSource = "manual" | "github" | "google_calendar";
 
 export interface Task {
   id: string;
@@ -73,6 +82,8 @@ export interface Task {
   project: string | null;
   /** The PR/issue it came from. */
   url: string | null;
+  google_event_id: string | null;
+  updated_at: number;
 }
 
 /** One block of work that ended (title/project as they were then). */
@@ -127,4 +138,7 @@ export interface StateSnapshot {
   github_source: GithubTokenSource | null;
   /** A configured shortcut another app holds (so it is not active). */
   shortcut_warning: string | null;
+  google_connected: boolean;
+  google_error: string | null;
+  google_last_sync_ms: number;
 }

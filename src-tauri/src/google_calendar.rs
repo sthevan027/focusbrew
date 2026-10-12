@@ -2,7 +2,10 @@
 //! secret fixo), leitura/escrita de eventos e a regra de "edição mais
 //! recente vence" ao conciliar os dois lados.
 
+use chrono::TimeZone;
 use sha2::{Digest, Sha256};
+
+use crate::tracker::tasks::{self, Task, TaskSource};
 
 const SERVICE: &str = "focusbrew";
 const ACCOUNT: &str = "google-refresh-token";
@@ -331,6 +334,49 @@ pub async fn delete_event(access_token: &str, event_id: &str) -> Result<DeleteOu
     }
 }
 
+/// Start and end of a local calendar day, as RFC 3339 for the Calendar API.
+pub fn day_bounds(day: &str) -> Option<(String, String)> {
+    let date = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()?;
+    let start = chrono::Local.from_local_datetime(&date.and_hms_opt(0, 0, 0)?).single()?;
+    let end = chrono::Local.from_local_datetime(&date.and_hms_opt(23, 59, 59)?).single()?;
+    Some((start.to_rfc3339(), end.to_rfc3339()))
+}
+
+/// Adds the event as a task planned for `day`, unless a task already points at it.
+pub fn import_event(tasks: &mut Vec<Task>, event: &CalendarEvent, day: &str, now_ms: i64) -> bool {
+    if tasks.iter().any(|t| t.google_event_id.as_deref() == Some(event.id.as_str())) {
+        return false;
+    }
+    let minutes = ((event.end_ms - event.start_ms) / 60_000).max(0) as u32;
+    let Some(mut task) = tasks::new_task(&event.title, TaskSource::GoogleCalendar, minutes, day) else {
+        return false;
+    };
+    task.google_event_id = Some(event.id.clone());
+    task.updated_at = now_ms;
+    tasks.push(task);
+    true
+}
+
+pub async fn fetch_day_events(access_token: &str, day: &str) -> Result<Vec<CalendarEvent>, String> {
+    let (start, end) = day_bounds(day).ok_or_else(|| format!("dia inválido: {day}"))?;
+    let resp = auth_client(access_token)?
+        .get(EVENTS_URL)
+        .query(&[
+            ("timeMin", start.as_str()),
+            ("timeMax", end.as_str()),
+            ("singleEvents", "true"),
+            ("orderBy", "startTime"),
+        ])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("falha ao buscar eventos do dia (HTTP {})", resp.status()));
+    }
+    let raw = resp.text().await.map_err(|e| e.to_string())?;
+    parse_events_response(&raw)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,5 +539,33 @@ mod tests {
     #[test]
     fn a_created_event_response_without_an_id_is_an_error() {
         assert!(parse_created_event_id("{}").is_err());
+    }
+
+    #[test]
+    fn the_day_bounds_are_the_local_day() {
+        let (start, end) = day_bounds("2026-10-12").unwrap();
+        assert!(start.starts_with("2026-10-12T00:00:00"));
+        assert!(end.starts_with("2026-10-12T23:59:59"));
+        assert_eq!(day_bounds("garbage"), None);
+    }
+
+    #[test]
+    fn importing_an_event_makes_a_linked_task_once() {
+        let event = CalendarEvent {
+            id: "evt-1".into(),
+            title: "Reunião".into(),
+            start_ms: 0,
+            end_ms: 3_600_000,
+            updated_ms: 0,
+        };
+        let mut list = Vec::new();
+        assert!(import_event(&mut list, &event, "2026-10-12", 1_000));
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].google_event_id.as_deref(), Some("evt-1"));
+        assert_eq!(list[0].source, TaskSource::GoogleCalendar);
+        assert_eq!(list[0].minutes, 60);
+        assert_eq!(list[0].day, "2026-10-12");
+        assert!(!import_event(&mut list, &event, "2026-10-12", 2_000));
+        assert_eq!(list.len(), 1);
     }
 }

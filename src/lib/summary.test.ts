@@ -25,6 +25,8 @@ const task = (id: string, extra: Partial<Task> = {}): Task => ({
   done_at: null,
   project: null,
   url: null,
+  google_event_id: null,
+  updated_at: 0,
   ...extra,
 });
 

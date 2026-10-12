@@ -261,6 +261,41 @@ pub fn google_disconnect(app: AppHandle, shared: State<'_, Shared>) -> StateSnap
     snapshot
 }
 
+/// The token for Google calls: this session's, or a fresh one from the saved
+/// refresh token (a restarted app has the connection but no token yet).
+async fn google_access_token(shared: &Shared) -> Result<String, String> {
+    let cached = shared.lock().google_access_token.clone();
+    if let Some(token) = cached {
+        return Ok(token);
+    }
+    let refresh = google_calendar::load_refresh_token().ok_or_else(|| "conta Google não conectada".to_string())?;
+    let tokens = google_calendar::refresh_access_token(&refresh, GOOGLE_CLIENT_ID).await?;
+    shared.lock().google_access_token = Some(tokens.access_token.clone());
+    Ok(tokens.access_token)
+}
+
+#[tauri::command]
+pub async fn google_list_day_events(
+    day: String,
+    shared: State<'_, Shared>,
+) -> Result<Vec<google_calendar::CalendarEvent>, String> {
+    let token = google_access_token(&shared).await?;
+    google_calendar::fetch_day_events(&token, &day).await
+}
+
+#[tauri::command]
+pub fn google_import_event(
+    event: google_calendar::CalendarEvent,
+    day: String,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> StateSnapshot {
+    apply(&app, &shared, |state, now, _| {
+        google_calendar::import_event(&mut state.tracker.tasks, &event, &day, now);
+    })
+    .0
+}
+
 #[tauri::command]
 pub async fn github_gh_available() -> bool {
     github::gh_token().await.is_some()
