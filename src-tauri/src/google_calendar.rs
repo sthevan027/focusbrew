@@ -106,37 +106,56 @@ pub async fn exchange_code(
     redirect_uri: &str,
     client_id: &str,
 ) -> Result<TokenResponse, String> {
-    let resp = client()
-        .post("https://oauth2.googleapis.com/token")
-        .form(&[
+    let fields = with_secret(
+        vec![
             ("code", code),
             ("client_id", client_id),
             ("redirect_uri", redirect_uri),
             ("grant_type", "authorization_code"),
             ("code_verifier", verifier),
-        ])
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!("Google rejeitou o código (HTTP {})", resp.status()));
-    }
-    resp.json().await.map_err(|e| e.to_string())
+        ],
+        client_secret()?,
+    );
+    post_token(&fields, "Google rejeitou o código").await
 }
 
 pub async fn refresh_access_token(refresh_token: &str, client_id: &str) -> Result<TokenResponse, String> {
-    let resp = client()
-        .post("https://oauth2.googleapis.com/token")
-        .form(&[
+    let fields = with_secret(
+        vec![
             ("refresh_token", refresh_token),
             ("client_id", client_id),
             ("grant_type", "refresh_token"),
-        ])
+        ],
+        client_secret()?,
+    );
+    post_token(&fields, "falha ao renovar o token").await
+}
+
+/// Set at build time (`FOCUSBREW_GOOGLE_CLIENT_SECRET`). Google wants it on the
+/// token endpoint for Desktop clients even with PKCE; it is not secret inside an
+/// installed app, but it must never be committed.
+const CLIENT_SECRET: Option<&str> = option_env!("FOCUSBREW_GOOGLE_CLIENT_SECRET");
+
+fn client_secret() -> Result<&'static str, String> {
+    CLIENT_SECRET.ok_or_else(|| "FOCUSBREW_GOOGLE_CLIENT_SECRET não estava definido no build".to_string())
+}
+
+fn with_secret<'a>(mut fields: Vec<(&'a str, &'a str)>, secret: &'a str) -> Vec<(&'a str, &'a str)> {
+    fields.push(("client_secret", secret));
+    fields
+}
+
+async fn post_token(fields: &[(&str, &str)], failure: &str) -> Result<TokenResponse, String> {
+    let resp = client()
+        .post("https://oauth2.googleapis.com/token")
+        .form(fields)
         .send()
         .await
         .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
-        return Err(format!("falha ao renovar o token (HTTP {})", resp.status()));
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("{failure} (HTTP {status}): {body}"));
     }
     resp.json().await.map_err(|e| e.to_string())
 }
@@ -544,6 +563,13 @@ mod tests {
     #[test]
     fn a_tie_favors_the_remote_so_a_fresh_pull_does_not_fight_a_stale_local_default() {
         assert_eq!(newer_wins(100, 100), Winner::Remote);
+    }
+
+    #[test]
+    fn token_requests_carry_the_client_secret_google_requires_for_desktop_clients() {
+        let fields = with_secret(vec![("grant_type", "refresh_token")], "segredo");
+        assert!(fields.contains(&("client_secret", "segredo")));
+        assert!(fields.contains(&("grant_type", "refresh_token")));
     }
 
     #[test]

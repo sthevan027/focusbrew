@@ -236,7 +236,7 @@ pub async fn save_github_token(token: String, shared: State<'_, Shared>) -> Resu
 /// Fixed port for the OAuth redirect; it must match the redirect URI registered on the Google client.
 const GOOGLE_OAUTH_PORT: u16 = 53682;
 /// Create at https://console.cloud.google.com (OAuth client, type "Desktop app").
-const GOOGLE_CLIENT_ID: &str = "COLOQUE_O_CLIENT_ID_AQUI.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID: &str = "10792334375-halgr8bommvuu24vlt51ljksdh1llo5s.apps.googleusercontent.com";
 
 #[tauri::command]
 pub async fn google_connect(app: AppHandle, shared: State<'_, Shared>) -> Result<StateSnapshot, String> {
