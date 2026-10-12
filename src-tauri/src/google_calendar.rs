@@ -237,6 +237,84 @@ pub fn newer_wins(local_updated_ms: i64, remote_updated_ms: i64) -> Winner {
     }
 }
 
+fn event_body(title: &str, start_ms: i64, end_ms: i64) -> serde_json::Value {
+    let start = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms).unwrap_or_default();
+    let end = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(end_ms).unwrap_or_default();
+    serde_json::json!({
+        "summary": title,
+        "start": { "dateTime": start.to_rfc3339() },
+        "end": { "dateTime": end.to_rfc3339() },
+    })
+}
+
+fn auth_client(access_token: &str) -> Result<reqwest::Client, String> {
+    use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {access_token}")).map_err(|e| e.to_string())?,
+    );
+    reqwest::Client::builder().default_headers(headers).build().map_err(|e| e.to_string())
+}
+
+const EVENTS_URL: &str = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+
+#[derive(Deserialize)]
+struct CreatedEvent {
+    id: String,
+}
+
+/// A resposta de criação traz o evento inteiro (summary, start, end...); só o
+/// `id` interessa aqui, e a forma completa não bate com `CalendarEvent`.
+fn parse_created_event_id(raw: &str) -> Result<String, String> {
+    serde_json::from_str::<CreatedEvent>(raw).map(|e| e.id).map_err(|e| e.to_string())
+}
+
+pub async fn create_event(access_token: &str, title: &str, start_ms: i64, end_ms: i64) -> Result<String, String> {
+    let resp = auth_client(access_token)?
+        .post(EVENTS_URL)
+        .json(&event_body(title, start_ms, end_ms))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("falha ao criar evento (HTTP {})", resp.status()));
+    }
+    let raw = resp.text().await.map_err(|e| e.to_string())?;
+    parse_created_event_id(&raw)
+}
+
+pub async fn patch_event_title(access_token: &str, event_id: &str, title: &str) -> Result<(), String> {
+    let resp = auth_client(access_token)?
+        .patch(format!("{EVENTS_URL}/{event_id}"))
+        .json(&serde_json::json!({ "summary": title }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("falha ao editar evento (HTTP {})", resp.status()));
+    }
+    Ok(())
+}
+
+pub enum DeleteOutcome {
+    Deleted,
+    AlreadyGone,
+}
+
+pub async fn delete_event(access_token: &str, event_id: &str) -> Result<DeleteOutcome, String> {
+    let resp = auth_client(access_token)?
+        .delete(format!("{EVENTS_URL}/{event_id}"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    match resp.status().as_u16() {
+        200..=299 => Ok(DeleteOutcome::Deleted),
+        404 | 410 => Ok(DeleteOutcome::AlreadyGone),
+        code => Err(format!("falha ao excluir evento (HTTP {code})")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,5 +455,27 @@ mod tests {
     #[test]
     fn a_tie_favors_the_remote_so_a_fresh_pull_does_not_fight_a_stale_local_default() {
         assert_eq!(newer_wins(100, 100), Winner::Remote);
+    }
+
+    #[test]
+    fn event_body_uses_rfc3339_with_the_right_shape() {
+        let start_ms = 1_760_284_800_000i64;
+        let end_ms = start_ms + 3_600_000;
+        let body = event_body("Estudar Rust", start_ms, end_ms);
+        assert_eq!(body["summary"], "Estudar Rust");
+        assert!(body["start"]["dateTime"].as_str().unwrap().contains('T'));
+        assert!(body["end"]["dateTime"].as_str().unwrap().contains('T'));
+    }
+
+    #[test]
+    fn the_created_event_id_comes_out_of_googles_full_response() {
+        let raw = r#"{"id":"evt-9","summary":"Estudar","start":{"dateTime":"2026-10-12T14:00:00-03:00"},
+                       "end":{"dateTime":"2026-10-12T15:00:00-03:00"}}"#;
+        assert_eq!(parse_created_event_id(raw).unwrap(), "evt-9");
+    }
+
+    #[test]
+    fn a_created_event_response_without_an_id_is_an_error() {
+        assert!(parse_created_event_id("{}").is_err());
     }
 }
