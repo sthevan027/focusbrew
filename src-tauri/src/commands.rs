@@ -60,7 +60,7 @@ pub fn edit_task(
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> Result<StateSnapshot, String> {
-    let (snapshot, result) = apply(&app, &shared, |state, _, _| state.tracker.edit_task(&id, &text));
+    let (snapshot, result) = apply(&app, &shared, |state, now, _| state.tracker.edit_task(&id, &text, now));
     result.map(|_| snapshot)
 }
 
@@ -71,7 +71,7 @@ pub fn move_task(
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> Result<StateSnapshot, String> {
-    let (snapshot, result) = apply(&app, &shared, |state, _, _| state.tracker.move_task(&id, &day));
+    let (snapshot, result) = apply(&app, &shared, |state, now, _| state.tracker.move_task(&id, &day, now));
     result.map(|_| snapshot)
 }
 

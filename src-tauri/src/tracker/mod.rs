@@ -94,7 +94,7 @@ impl Tracker {
     }
 
     /// Plans a task for another day.
-    pub fn move_task(&mut self, id: &str, day: &str) -> Result<(), String> {
+    pub fn move_task(&mut self, id: &str, day: &str, now_ms: i64) -> Result<(), String> {
         if !tasks::is_valid_day(day) {
             return Err(format!("dia inválido: {day}"));
         }
@@ -104,11 +104,12 @@ impl Tracker {
             .find(|t| t.id == id)
             .ok_or_else(|| "tarefa não encontrada".to_string())?;
         task.day = day.to_string();
+        task.updated_at = now_ms;
         Ok(())
     }
 
     /// Renames a task from "título #projeto" text (no tag = no project).
-    pub fn edit_task(&mut self, id: &str, text: &str) -> Result<(), String> {
+    pub fn edit_task(&mut self, id: &str, text: &str, now_ms: i64) -> Result<(), String> {
         let (raw_title, project) = tasks::split_project(text);
         let title = tasks::clean_title(&raw_title).ok_or_else(|| "o título não pode ficar vazio".to_string())?;
         let task = self
@@ -118,6 +119,7 @@ impl Tracker {
             .ok_or_else(|| "tarefa não encontrada".to_string())?;
         task.title = title;
         task.project = project;
+        task.updated_at = now_ms;
         Ok(())
     }
 
@@ -171,6 +173,7 @@ impl Tracker {
         {
             let task = self.tasks.iter_mut().find(|t| t.id == id)?;
             task.minutes = minutes;
+            task.updated_at = now_ms;
         }
         if self.timer.task_id() != Some(id) {
             return None;
@@ -189,6 +192,7 @@ impl Tracker {
             };
             task.done = !task.done;
             task.done_at = task.done.then_some(now_ms);
+            task.updated_at = now_ms;
             task.done
         };
         if now_done && self.timer.task_id() == Some(id) {
@@ -479,8 +483,8 @@ mod tests {
     #[test]
     fn first_open_task_ignores_tasks_planned_for_later() {
         let mut tr = tracker(&[("later", 25), ("old", 25)]);
-        tr.move_task("later", "2026-10-09").unwrap();
-        tr.move_task("old", "2026-10-01").unwrap();
+        tr.move_task("later", "2026-10-09", T0).unwrap();
+        tr.move_task("old", "2026-10-01", T0).unwrap();
         assert_eq!(tr.first_open_task(DAY).as_deref(), Some("old"));
     }
 
@@ -552,30 +556,62 @@ mod tests {
     #[test]
     fn a_task_moves_to_a_real_day_only() {
         let mut tr = tracker(&[("a", 25)]);
-        assert!(tr.move_task("a", "2026-10-09").is_ok());
+        assert!(tr.move_task("a", "2026-10-09", T0).is_ok());
         assert_eq!(tr.tasks[0].day, "2026-10-09");
-        assert!(tr.move_task("a", "2026-13-01").is_err());
-        assert!(tr.move_task("ghost", "2026-10-09").is_err());
+        assert!(tr.move_task("a", "2026-13-01", T0).is_err());
+        assert!(tr.move_task("ghost", "2026-10-09", T0).is_err());
         assert_eq!(tr.tasks[0].day, "2026-10-09");
     }
 
     #[test]
     fn editing_sets_the_title_and_the_project() {
         let mut tr = tracker(&[("a", 25)]);
-        tr.edit_task("a", "  Novo título #virex ").unwrap();
+        tr.edit_task("a", "  Novo título #virex ", T0).unwrap();
         assert_eq!(tr.tasks[0].title, "Novo título");
         assert_eq!(tr.tasks[0].project.as_deref(), Some("virex"));
-        tr.edit_task("a", "Sem projeto").unwrap();
+        tr.edit_task("a", "Sem projeto", T0).unwrap();
         assert_eq!(tr.tasks[0].project, None);
     }
 
     #[test]
     fn editing_to_a_blank_title_is_refused() {
         let mut tr = tracker(&[("a", 25)]);
-        assert!(tr.edit_task("a", "   ").is_err());
-        assert!(tr.edit_task("a", "#virex").is_err());
-        assert!(tr.edit_task("ghost", "x").is_err());
+        assert!(tr.edit_task("a", "   ", T0).is_err());
+        assert!(tr.edit_task("a", "#virex", T0).is_err());
+        assert!(tr.edit_task("ghost", "x", T0).is_err());
         assert_eq!(tr.tasks[0].title, "a");
+    }
+
+    #[test]
+    fn editing_a_task_bumps_its_updated_at() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.tasks[0].updated_at = 1_000;
+        tr.edit_task("a", "Novo título", T0).unwrap();
+        assert_eq!(tr.tasks[0].updated_at, T0);
+    }
+
+    #[test]
+    fn toggling_a_task_bumps_its_updated_at() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.tasks[0].updated_at = 1_000;
+        tr.toggle_task("a", T0, DAY);
+        assert_eq!(tr.tasks[0].updated_at, T0);
+    }
+
+    #[test]
+    fn moving_a_task_bumps_its_updated_at() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.tasks[0].updated_at = 1_000;
+        tr.move_task("a", "2026-10-09", T0).unwrap();
+        assert_eq!(tr.tasks[0].updated_at, T0);
+    }
+
+    #[test]
+    fn setting_minutes_bumps_updated_at() {
+        let mut tr = tracker(&[("a", 25)]);
+        tr.tasks[0].updated_at = 1_000;
+        tr.set_minutes("a", 30, T0, DAY);
+        assert_eq!(tr.tasks[0].updated_at, T0);
     }
 
     #[test]

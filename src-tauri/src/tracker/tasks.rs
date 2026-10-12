@@ -18,6 +18,8 @@ pub const MAX_TITLE_CHARS: usize = 200;
 pub enum TaskSource {
     Manual,
     Github,
+    #[serde(rename = "google_calendar")]
+    GoogleCalendar,
 }
 
 fn default_minutes() -> u32 {
@@ -51,6 +53,12 @@ pub struct Task {
     /// Link of the PR/issue it was imported from.
     #[serde(default)]
     pub url: Option<String>,
+    /// The Google Calendar event this task is linked to, once synced.
+    #[serde(default)]
+    pub google_event_id: Option<String>,
+    /// When the task was last edited (epoch ms). Decides which side wins a sync.
+    #[serde(default)]
+    pub updated_at: i64,
 }
 
 /// A real calendar date written exactly as "AAAA-MM-DD".
@@ -121,6 +129,8 @@ pub fn new_task(title: &str, source: TaskSource, minutes: u32, day: &str) -> Opt
         done_at: None,
         project: None,
         url: None,
+        google_event_id: None,
+        updated_at: chrono::Utc::now().timestamp_millis(),
     })
 }
 
@@ -338,5 +348,23 @@ mod tests {
         let mut tasks = vec![task("a"), task("done"), task("b")];
         reorder(&mut tasks, &strings(&["b", "a"]));
         assert_eq!(ids(&tasks), vec!["b", "a", "done"]);
+    }
+
+    #[test]
+    fn new_task_starts_with_no_google_event_and_a_fresh_timestamp() {
+        let before = chrono::Utc::now().timestamp_millis();
+        let task = new_task("Título", TaskSource::Manual, 25, "2026-10-12").unwrap();
+        assert_eq!(task.google_event_id, None);
+        assert!(task.updated_at >= before);
+    }
+
+    #[test]
+    fn google_calendar_source_round_trips_through_json() {
+        let raw = r#"{"id":"1","title":"Reunião","done":false,"created_at":"2026-10-12T10:00:00Z",
+                       "source":"google_calendar","day":"2026-10-12"}"#;
+        let task: Task = serde_json::from_str(raw).unwrap();
+        assert_eq!(task.source, TaskSource::GoogleCalendar);
+        assert_eq!(task.google_event_id, None);
+        assert_eq!(task.updated_at, 0);
     }
 }
