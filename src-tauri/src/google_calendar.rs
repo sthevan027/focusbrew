@@ -237,6 +237,22 @@ pub fn newer_wins(local_updated_ms: i64, remote_updated_ms: i64) -> Winner {
     }
 }
 
+pub fn save_refresh_token(token: &str) -> Result<(), String> {
+    let entry = keyring::Entry::new(SERVICE, ACCOUNT).map_err(|e| e.to_string())?;
+    entry.set_password(token).map_err(|e| e.to_string())
+}
+
+pub fn load_refresh_token() -> Option<String> {
+    keyring::Entry::new(SERVICE, ACCOUNT).ok().and_then(|entry| entry.get_password().ok())
+}
+
+pub fn clear_refresh_token() -> Result<(), String> {
+    match keyring::Entry::new(SERVICE, ACCOUNT) {
+        Ok(entry) => entry.delete_credential().map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 fn event_body(title: &str, start_ms: i64, end_ms: i64) -> serde_json::Value {
     let start = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(start_ms).unwrap_or_default();
     let end = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(end_ms).unwrap_or_default();

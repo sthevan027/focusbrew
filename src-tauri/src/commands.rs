@@ -1,8 +1,10 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::config::{self, AppConfig};
 use crate::github;
+use crate::google_calendar;
 use crate::note_window;
 use crate::notes::{self, Note, NotesShared};
 use crate::state::{AppState, StateSnapshot};
@@ -220,6 +222,45 @@ pub async fn save_github_token(token: String, shared: State<'_, Shared>) -> Resu
 
 /// Whether the GitHub CLI is installed and logged in — lets the screen offer
 /// "Conectar com o GitHub CLI" only when it can work.
+/// Fixed port for the OAuth redirect; it must match the redirect URI registered on the Google client.
+const GOOGLE_OAUTH_PORT: u16 = 53682;
+/// Create at https://console.cloud.google.com (OAuth client, type "Desktop app").
+const GOOGLE_CLIENT_ID: &str = "COLOQUE_O_CLIENT_ID_AQUI.apps.googleusercontent.com";
+
+#[tauri::command]
+pub async fn google_connect(app: AppHandle, shared: State<'_, Shared>) -> Result<StateSnapshot, String> {
+    let redirect_uri = format!("http://127.0.0.1:{GOOGLE_OAUTH_PORT}/callback");
+    let pair = google_calendar::generate_pkce();
+    let url = google_calendar::authorize_url(&pair.challenge, &redirect_uri, GOOGLE_CLIENT_ID);
+    app.opener().open_url(&url, None::<&str>).map_err(|e| e.to_string())?;
+    let code = tauri::async_runtime::spawn_blocking(move || google_calendar::listen_for_code(GOOGLE_OAUTH_PORT))
+        .await
+        .map_err(|e| e.to_string())??;
+    let tokens = google_calendar::exchange_code(&code, &pair.verifier, &redirect_uri, GOOGLE_CLIENT_ID).await?;
+    let refresh_token = tokens.refresh_token.ok_or_else(|| "Google não devolveu um refresh token".to_string())?;
+    google_calendar::save_refresh_token(&refresh_token)?;
+
+    let mut state = shared.lock();
+    state.config.google_connected = true;
+    state.google_access_token = Some(tokens.access_token);
+    state.google_error = None;
+    let _ = config::save(&state.config);
+    let snapshot = StateSnapshot::from(&*state);
+    sync_ui(&app, &state);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn google_disconnect(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    let _ = google_calendar::clear_refresh_token();
+    let mut state = shared.lock();
+    state.disconnect_google();
+    let _ = config::save(&state.config);
+    let snapshot = StateSnapshot::from(&*state);
+    sync_ui(&app, &state);
+    snapshot
+}
+
 #[tauri::command]
 pub async fn github_gh_available() -> bool {
     github::gh_token().await.is_some()

@@ -333,6 +333,8 @@ pub fn run() {
             commands::github_gh_available,
             commands::connect_github_with_gh,
             commands::clear_github_token,
+            commands::google_connect,
+            commands::google_disconnect,
             commands::refresh_github,
             commands::import_github_item_as_task,
             commands::set_widget_expanded,
