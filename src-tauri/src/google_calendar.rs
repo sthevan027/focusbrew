@@ -205,6 +205,38 @@ pub fn parse_events_response(raw: &str) -> Result<Vec<CalendarEvent>, String> {
         .collect())
 }
 
+const DONE_PREFIX: &str = "✓ ";
+
+pub fn done_title(original: &str) -> String {
+    format!("{DONE_PREFIX}{original}")
+}
+
+/// `(título sem o prefixo, estava marcado como concluído)`.
+pub fn strip_done_prefix(title: &str) -> (String, bool) {
+    match title.strip_prefix(DONE_PREFIX) {
+        Some(rest) => (rest.to_string(), true),
+        None => (title.to_string(), false),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Winner {
+    Local,
+    Remote,
+}
+
+/// Quem vence ao conciliar uma tarefa editada nos dois lados. Um empate
+/// favorece o remoto: `updated_at` local começa em 0 pra tarefas antigas
+/// sem esse campo, e um evento recém-puxado não deve perder pra esse
+/// default.
+pub fn newer_wins(local_updated_ms: i64, remote_updated_ms: i64) -> Winner {
+    if local_updated_ms > remote_updated_ms {
+        Winner::Local
+    } else {
+        Winner::Remote
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +345,37 @@ mod tests {
         let events = parse_events_response(raw).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].id, "ok");
+    }
+
+    #[test]
+    fn done_title_adds_the_checkmark_prefix() {
+        assert_eq!(done_title("Reunião"), "✓ Reunião");
+    }
+
+    #[test]
+    fn strip_done_prefix_recognizes_the_checkmark() {
+        assert_eq!(strip_done_prefix("✓ Reunião"), ("Reunião".to_string(), true));
+    }
+
+    #[test]
+    fn strip_done_prefix_on_a_plain_title_is_a_no_op() {
+        assert_eq!(strip_done_prefix("Reunião"), ("Reunião".to_string(), false));
+    }
+
+    #[test]
+    fn stripping_then_redoing_the_prefix_round_trips() {
+        let (plain, _) = strip_done_prefix("✓ Reunião");
+        assert_eq!(done_title(&plain), "✓ Reunião");
+    }
+
+    #[test]
+    fn newer_wins_picks_the_larger_timestamp() {
+        assert_eq!(newer_wins(100, 50), Winner::Local);
+        assert_eq!(newer_wins(50, 100), Winner::Remote);
+    }
+
+    #[test]
+    fn a_tie_favors_the_remote_so_a_fresh_pull_does_not_fight_a_stale_local_default() {
+        assert_eq!(newer_wins(100, 100), Winner::Remote);
     }
 }
