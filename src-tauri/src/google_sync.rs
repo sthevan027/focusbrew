@@ -9,8 +9,8 @@ pub enum SyncAction {
     CreateRemote,
     PushTitle(String),
     PullTitle(String),
-    MarkLocalDone,
-    MarkLocalOpen,
+    MarkLocalDone(String),
+    MarkLocalOpen(String),
     DeleteLocal,
     Noop,
 }
@@ -19,6 +19,15 @@ pub enum SyncAction {
 /// can be checked against them (anything else would look "deleted on Google").
 pub fn in_scope(task: &Task, today: &str) -> bool {
     task.day == today
+}
+
+/// The title the task's event carries: a finished task carries the checkmark.
+pub fn event_title_for(task: &Task) -> String {
+    if task.done {
+        google_calendar::done_title(&task.title)
+    } else {
+        task.title.clone()
+    }
 }
 
 pub fn decide(task: &Task, remote: Option<&CalendarEvent>) -> SyncAction {
@@ -33,7 +42,7 @@ pub fn decide(task: &Task, remote: Option<&CalendarEvent>) -> SyncAction {
         };
     };
 
-    let local_title = if task.done { google_calendar::done_title(&task.title) } else { task.title.clone() };
+    let local_title = event_title_for(task);
     let (remote_plain_title, remote_done) = google_calendar::strip_done_prefix(&remote.title);
 
     if local_title == remote.title && task.done == remote_done {
@@ -44,9 +53,9 @@ pub fn decide(task: &Task, remote: Option<&CalendarEvent>) -> SyncAction {
         Winner::Local => SyncAction::PushTitle(local_title),
         Winner::Remote if remote_done != task.done => {
             if remote_done {
-                SyncAction::MarkLocalDone
+                SyncAction::MarkLocalDone(remote_plain_title)
             } else {
-                SyncAction::MarkLocalOpen
+                SyncAction::MarkLocalOpen(remote_plain_title)
             }
         }
         Winner::Remote => SyncAction::PullTitle(remote_plain_title),
@@ -95,14 +104,36 @@ mod tests {
     fn a_checkmark_added_remotely_after_the_local_edit_marks_the_task_done_locally() {
         let t = task("Tarefa", false, 100, Some("evt"));
         let r = remote("✓ Tarefa", 200);
-        assert_eq!(decide(&t, Some(&r)), SyncAction::MarkLocalDone);
+        assert_eq!(decide(&t, Some(&r)), SyncAction::MarkLocalDone("Tarefa".to_string()));
     }
 
     #[test]
     fn removing_the_checkmark_remotely_after_the_local_edit_reopens_the_task_locally() {
         let t = task("Tarefa", true, 100, Some("evt"));
         let r = remote("Tarefa", 200);
-        assert_eq!(decide(&t, Some(&r)), SyncAction::MarkLocalOpen);
+        assert_eq!(decide(&t, Some(&r)), SyncAction::MarkLocalOpen("Tarefa".to_string()));
+    }
+
+    #[test]
+    fn a_task_finished_on_google_also_takes_the_remote_title() {
+        let t = task("Reunião", false, 100, Some("evt"));
+        let r = remote("✓ Reunião com cliente", 200);
+        assert_eq!(decide(&t, Some(&r)), SyncAction::MarkLocalDone("Reunião com cliente".to_string()));
+    }
+
+    #[test]
+    fn a_task_reopened_on_google_also_takes_the_remote_title() {
+        let t = task("Reunião", true, 100, Some("evt"));
+        let r = remote("Reunião com cliente", 200);
+        assert_eq!(decide(&t, Some(&r)), SyncAction::MarkLocalOpen("Reunião com cliente".to_string()));
+    }
+
+    #[test]
+    fn a_task_finished_before_its_event_existed_is_created_with_the_checkmark() {
+        let done = task("Feita", true, 100, None);
+        assert_eq!(event_title_for(&done), "✓ Feita");
+        let open = task("Aberta", false, 100, None);
+        assert_eq!(event_title_for(&open), "Aberta");
     }
 
     #[test]

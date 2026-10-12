@@ -348,13 +348,40 @@ pub fn import_event(tasks: &mut Vec<Task>, event: &CalendarEvent, day: &str, now
         return false;
     }
     let minutes = ((event.end_ms - event.start_ms) / 60_000).max(0) as u32;
-    let Some(mut task) = tasks::new_task(&event.title, TaskSource::GoogleCalendar, minutes, day) else {
+    let (title, done) = strip_done_prefix(&event.title);
+    let Some(mut task) = tasks::new_task(&title, TaskSource::GoogleCalendar, minutes, day) else {
         return false;
     };
     task.google_event_id = Some(event.id.clone());
     task.updated_at = now_ms;
+    task.done = done;
+    task.done_at = done.then_some(now_ms);
     tasks.push(task);
     true
+}
+
+/// Google's answer decides whether an event is really gone: a 404/410, or a
+/// cancelled event. Anything else (a moved event, an outage) means it still exists.
+pub fn gone_from_response(status: u16, body_status: Option<&str>) -> bool {
+    matches!(status, 404 | 410) || body_status == Some("cancelled")
+}
+
+pub async fn event_is_gone(access_token: &str, event_id: &str) -> Result<bool, String> {
+    let resp = auth_client(access_token)?
+        .get(format!("{EVENTS_URL}/{event_id}"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    let body_status = if status == 200 {
+        resp.json::<serde_json::Value>()
+            .await
+            .ok()
+            .and_then(|v| v["status"].as_str().map(str::to_string))
+    } else {
+        None
+    };
+    Ok(gone_from_response(status, body_status.as_deref()))
 }
 
 pub async fn fetch_day_events(access_token: &str, day: &str) -> Result<Vec<CalendarEvent>, String> {
@@ -547,6 +574,31 @@ mod tests {
         assert!(start.starts_with("2026-10-12T00:00:00"));
         assert!(end.starts_with("2026-10-12T23:59:59"));
         assert_eq!(day_bounds("garbage"), None);
+    }
+
+    #[test]
+    fn importing_a_finished_event_keeps_the_title_clean_and_the_state() {
+        let event = CalendarEvent {
+            id: "evt-2".into(),
+            title: "✓ Reunião".into(),
+            start_ms: 0,
+            end_ms: 1_800_000,
+            updated_ms: 0,
+        };
+        let mut list = Vec::new();
+        assert!(import_event(&mut list, &event, "2026-10-12", 1_000));
+        assert_eq!(list[0].title, "Reunião");
+        assert!(list[0].done);
+        assert_eq!(list[0].done_at, Some(1_000));
+    }
+
+    #[test]
+    fn an_event_is_gone_only_when_google_says_so() {
+        assert!(gone_from_response(404, None));
+        assert!(gone_from_response(410, None));
+        assert!(gone_from_response(200, Some("cancelled")));
+        assert!(!gone_from_response(200, Some("confirmed")));
+        assert!(!gone_from_response(500, None));
     }
 
     #[test]

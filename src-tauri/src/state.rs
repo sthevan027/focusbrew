@@ -61,10 +61,14 @@ impl AppState {
         }
     }
 
+    /// Keeps the tasks, but unlinks them: their events belong to the old account.
     pub fn disconnect_google(&mut self) {
         self.config.google_connected = false;
         self.google_access_token = None;
         self.google_error = None;
+        for task in &mut self.tracker.tasks {
+            task.google_event_id = None;
+        }
     }
 
     /// Writes the tasks and the activity log to disk.
@@ -346,5 +350,16 @@ mod google_tests {
         assert!(!state.config.google_connected);
         assert_eq!(state.google_access_token, None);
         assert_eq!(state.google_error, None);
+    }
+
+    #[test]
+    fn disconnecting_unlinks_the_tasks_from_their_google_events() {
+        let mut state = AppState::for_test();
+        let mut task = crate::tracker::tasks::new_task("Tarefa", crate::tracker::tasks::TaskSource::Manual, 25, "2026-10-12").unwrap();
+        task.google_event_id = Some("evt".into());
+        state.tracker.tasks.push(task);
+        state.disconnect_google();
+        assert_eq!(state.tracker.tasks.len(), 1);
+        assert_eq!(state.tracker.tasks[0].google_event_id, None);
     }
 }

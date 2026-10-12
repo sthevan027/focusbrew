@@ -300,7 +300,8 @@ pub(crate) async fn refresh_google_now(app: &AppHandle) -> Result<(), String> {
             SyncAction::CreateRemote => {
                 let start_ms = now_ms();
                 let end_ms = start_ms + i64::from(task.minutes) * 60_000;
-                if let Ok(event_id) = google_calendar::create_event(&token, &task.title, start_ms, end_ms).await {
+                let title = google_sync::event_title_for(task);
+                if let Ok(event_id) = google_calendar::create_event(&token, &title, start_ms, end_ms).await {
                     update_task(app, &task.id, |t| t.google_event_id = Some(event_id));
                 }
             }
@@ -311,19 +312,20 @@ pub(crate) async fn refresh_google_now(app: &AppHandle) -> Result<(), String> {
             }
             SyncAction::PullTitle(title) => {
                 let remote_done = remote.map_or(task.done, |r| google_calendar::strip_done_prefix(&r.title).1);
-                update_task(app, &task.id, |t| {
-                    t.title = title;
-                    t.updated_at = now_ms();
-                });
-                set_done(app, &task.id, remote_done);
+                pull_remote(app, &task.id, title, remote_done);
             }
-            SyncAction::MarkLocalDone => set_done(app, &task.id, true),
-            SyncAction::MarkLocalOpen => set_done(app, &task.id, false),
+            SyncAction::MarkLocalDone(title) => pull_remote(app, &task.id, title, true),
+            SyncAction::MarkLocalOpen(title) => pull_remote(app, &task.id, title, false),
             SyncAction::DeleteLocal => {
-                let shared = app.state::<Shared>();
-                let mut state = shared.lock();
-                state.tracker.remove_task(&task.id, now_ms(), &today);
-                state.save_tracker();
+                // Missing from today's list is not the same as deleted: a task moved
+                // to another day keeps its event there, so only Google's own answer removes it.
+                let Some(event_id) = &task.google_event_id else { continue };
+                if matches!(google_calendar::event_is_gone(&token, event_id).await, Ok(true)) {
+                    let shared = app.state::<Shared>();
+                    let mut state = shared.lock();
+                    state.tracker.remove_task(&task.id, now_ms(), &today);
+                    state.save_tracker();
+                }
             }
             SyncAction::Noop => {}
         }
@@ -344,6 +346,15 @@ fn update_task(app: &AppHandle, id: &str, change: impl FnOnce(&mut tasks::Task))
         change(task);
     }
     state.save_tracker();
+}
+
+/// Takes the title and state Google won the conflict with.
+fn pull_remote(app: &AppHandle, id: &str, title: String, done: bool) {
+    update_task(app, id, |t| {
+        t.title = title;
+        t.updated_at = now_ms();
+    });
+    set_done(app, id, done);
 }
 
 /// Same as ticking the task in the UI, so a task finished on Google stops its timer too.
