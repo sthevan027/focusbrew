@@ -63,7 +63,7 @@ notas ficam no PC; a aba GitHub usa o login do `gh` CLI (ou um token pessoal).
 | Framework | **Vite + React 19 + TypeScript**, gerenciado com **Bun** | Next.js (rev. 1) | Página única estática; sem SSR a manter. Mesmo stack da landing do Pacer, e o app também é React + Vite. Next só compensaria com várias páginas ou blog |
 | Versões | As mesmas da landing do Pacer: React ^19.1, Vite ^8, TypeScript ~6, Vitest ^5 | Versões novas na hora | Uma só referência para manter |
 | Onde mora | Pasta **`site/`** dentro do repo `focusbrew` | Repo separado | Pedido do Sthevan. `site/` tem `package.json` e `bun.lock` próprios, fora do build do Tauri |
-| Hospedagem | **Netlify**, com base `site/` (como o Pacer) | Vercel (rev. 1) | Mesmo fluxo do Pacer. Preview por PR nos dois |
+| Hospedagem | **A decidir** (Netlify, como o Pacer, ou Vercel, como na rev. 1), com base `site/` | — | Em análise pelo Sthevan |
 | Estilo | **CSS próprio com variáveis** espelhando o app (`--accent`, `--text`, `--muted`…) | Tailwind | O app usa CSS puro |
 | Dados de versão | **API de releases do GitHub** no cliente, com link fixo de fallback | `latest.json` como fonte (seção 6) | Mesma decisão do Pacer (seção 5.2) |
 | Idioma | **PT-BR primeiro**, textos num arquivo de strings pronto para EN | PT + EN desde o dia 1 | O repo tem `README.en.md`; EN fica como fatia posterior |
@@ -260,11 +260,11 @@ funcionando antes de qualquer vídeo.
 ## 13. Perguntas em aberto
 
 1. **Domínio/URL** da landing (subdomínio de `sthevan.dev`, `*.netlify.app` ou domínio próprio)?
-2. **Hospedagem:** Netlify (como o Pacer, recomendado) ou Vercel (como na rev. 1)?
+2. **Hospedagem:** em análise pelo Sthevan (Netlify, como o Pacer, ou Vercel, como na rev. 1).
 3. **PT-BR apenas no começo** ou PT + EN já na primeira versão?
 4. **Análise de acesso:** nenhuma, ou uma ferramenta leve sem cookies?
 5. **Vídeo:** captura real com `ffmpeg` (recomendado) ou só prints no começo?
-6. **Assinatura da página:** **Sthevan**, **Virex**, ou os dois?
+6. **Assinatura da página:** **decidido: Sthevan** (não Virex). Sem outra decisão pendente nesta pergunta.
 7. **Opção de download:** A (API de releases, recomendado) ou B (`latest.json`)?
 
 ## 14. Critérios de aceite
