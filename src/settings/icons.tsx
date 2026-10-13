@@ -69,4 +69,11 @@ export const SECTION_ICONS = {
       <path d="M18 9v1a5 5 0 0 1-5 5H6" />
     </Icon>
   ),
+  google: () => (
+    <Icon>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M3.5 10h17" />
+      <path d="M8 3v4M16 3v4" />
+    </Icon>
+  ),
 };

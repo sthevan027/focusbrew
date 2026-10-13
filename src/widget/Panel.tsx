@@ -7,6 +7,7 @@ import { addDays, dayLabel, tabsFor, tasksForDay } from "../lib/day";
 import type { PanelTab } from "../lib/day";
 import { daySummary } from "../lib/summary";
 import ActivityPanel from "./ActivityPanel";
+import { AgendaTab } from "./AgendaTab";
 import DaySummaryView from "./DaySummaryView";
 import GithubTab from "./GithubTab";
 import { ChevronIcon, NoteIcon, PinIcon } from "./icons";
@@ -24,7 +25,7 @@ interface Props {
   onNote: () => void;
 }
 
-const TAB_LABEL: Record<PanelTab, string> = { tasks: "Tarefas", summary: "Resumo", github: "GitHub" };
+const TAB_LABEL: Record<PanelTab, string> = { tasks: "Tarefas", summary: "Resumo", github: "GitHub", agenda: "Agenda" };
 
 export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onHold, onNote }: Props) {
   const { today } = state;
@@ -39,7 +40,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
     flashTimer.current = window.setTimeout(() => setFlashDay(null), 900);
   };
   useEffect(() => () => window.clearTimeout(flashTimer.current), []);
-  const tabs =tabsFor(day, today, Boolean(state.config.github_login));
+  const tabs = tabsFor(day, today, Boolean(state.config.github_login), state.config.google_connected);
   const tab = tabs.includes(wanted) ? wanted : tabs[0];
 
   let stats: string;
@@ -125,6 +126,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
         )}
         {tab === "summary" && <DaySummaryView state={state} day={day} />}
         {tab === "github" && <GithubTab state={state} day={day} />}
+        {tab === "agenda" && <AgendaTab state={state} day={day} />}
         <div className="divider" />
         <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} flashDay={flashDay} />
       </div>

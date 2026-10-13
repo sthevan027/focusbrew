@@ -1,8 +1,11 @@
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::config::{self, AppConfig};
 use crate::github;
+use crate::google_calendar;
+use crate::google_sync::{self, SyncAction};
 use crate::note_window;
 use crate::notes::{self, Note, NotesShared};
 use crate::state::{AppState, StateSnapshot};
@@ -60,7 +63,7 @@ pub fn edit_task(
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> Result<StateSnapshot, String> {
-    let (snapshot, result) = apply(&app, &shared, |state, _, _| state.tracker.edit_task(&id, &text));
+    let (snapshot, result) = apply(&app, &shared, |state, now, _| state.tracker.edit_task(&id, &text, now));
     result.map(|_| snapshot)
 }
 
@@ -71,7 +74,7 @@ pub fn move_task(
     app: AppHandle,
     shared: State<'_, Shared>,
 ) -> Result<StateSnapshot, String> {
-    let (snapshot, result) = apply(&app, &shared, |state, _, _| state.tracker.move_task(&id, &day));
+    let (snapshot, result) = apply(&app, &shared, |state, now, _| state.tracker.move_task(&id, &day, now));
     result.map(|_| snapshot)
 }
 
@@ -104,6 +107,16 @@ pub fn toggle_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> Sta
 
 #[tauri::command]
 pub fn remove_task(id: String, app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    let (linked, token) = {
+        let state = shared.lock();
+        let linked = state.tracker.tasks.iter().find(|t| t.id == id).and_then(|t| t.google_event_id.clone());
+        (linked, state.google_access_token.clone())
+    };
+    if let (Some(event_id), Some(token)) = (linked, token) {
+        tauri::async_runtime::spawn(async move {
+            let _ = google_calendar::delete_event(&token, &event_id).await;
+        });
+    }
     apply(&app, &shared, |state, now, today| state.tracker.remove_task(&id, now, today)).0
 }
 
@@ -220,6 +233,201 @@ pub async fn save_github_token(token: String, shared: State<'_, Shared>) -> Resu
 
 /// Whether the GitHub CLI is installed and logged in — lets the screen offer
 /// "Conectar com o GitHub CLI" only when it can work.
+/// Fixed port for the OAuth redirect; it must match the redirect URI registered on the Google client.
+const GOOGLE_OAUTH_PORT: u16 = 53682;
+/// Create at https://console.cloud.google.com (OAuth client, type "Desktop app").
+const GOOGLE_CLIENT_ID: &str = "10792334375-halgr8bommvuu24vlt51ljksdh1llo5s.apps.googleusercontent.com";
+
+#[tauri::command]
+pub async fn google_connect(app: AppHandle, shared: State<'_, Shared>) -> Result<StateSnapshot, String> {
+    let redirect_uri = format!("http://127.0.0.1:{GOOGLE_OAUTH_PORT}/callback");
+    let pair = google_calendar::generate_pkce();
+    let url = google_calendar::authorize_url(&pair.challenge, &redirect_uri, GOOGLE_CLIENT_ID);
+    app.opener().open_url(&url, None::<&str>).map_err(|e| e.to_string())?;
+    let code = tauri::async_runtime::spawn_blocking(move || google_calendar::listen_for_code(GOOGLE_OAUTH_PORT))
+        .await
+        .map_err(|e| e.to_string())??;
+    let tokens = google_calendar::exchange_code(&code, &pair.verifier, &redirect_uri, GOOGLE_CLIENT_ID).await?;
+    let refresh_token = tokens.refresh_token.ok_or_else(|| "Google não devolveu um refresh token".to_string())?;
+    google_calendar::save_refresh_token(&refresh_token)?;
+
+    let mut state = shared.lock();
+    state.config.google_connected = true;
+    state.google_access_token = Some(tokens.access_token);
+    state.google_error = None;
+    let _ = config::save(&state.config);
+    let snapshot = StateSnapshot::from(&*state);
+    sync_ui(&app, &state);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn google_disconnect(app: AppHandle, shared: State<'_, Shared>) -> StateSnapshot {
+    let _ = google_calendar::clear_refresh_token();
+    let mut state = shared.lock();
+    state.disconnect_google();
+    let _ = config::save(&state.config);
+    let snapshot = StateSnapshot::from(&*state);
+    sync_ui(&app, &state);
+    snapshot
+}
+
+/// One Google sync cycle, for today only: renews the token, then reconciles
+/// today's tasks with today's events. The caller records any error.
+pub(crate) async fn refresh_google_now(app: &AppHandle) -> Result<(), String> {
+    let refresh = google_calendar::load_refresh_token().ok_or_else(|| "sem refresh token salvo".to_string())?;
+    let token = google_calendar::refresh_access_token(&refresh, GOOGLE_CLIENT_ID).await?.access_token;
+    {
+        let shared = app.state::<Shared>();
+        let mut state = shared.lock();
+        if !state.config.google_connected {
+            return Ok(());
+        }
+        state.google_access_token = Some(token.clone());
+    }
+
+    let today = today_key();
+    let planned: Vec<tasks::Task> = {
+        let shared = app.state::<Shared>();
+        let state = shared.lock();
+        state.tracker.tasks.iter().filter(|t| google_sync::in_scope(t, &today)).cloned().collect()
+    };
+    let remote_events = google_calendar::fetch_day_events(&token, &today).await?;
+
+    for task in &planned {
+        let remote = task.google_event_id.as_ref().and_then(|id| remote_events.iter().find(|e| &e.id == id));
+        match google_sync::decide(task, remote) {
+            SyncAction::CreateRemote => {
+                let start_ms = now_ms();
+                let end_ms = start_ms + i64::from(task.minutes) * 60_000;
+                let title = google_sync::event_title_for(task);
+                if let Ok(event_id) = google_calendar::create_event(&token, &title, start_ms, end_ms).await {
+                    update_task(app, &task.id, |t| t.google_event_id = Some(event_id));
+                }
+            }
+            SyncAction::PushTitle(title) => {
+                if let Some(event_id) = &task.google_event_id {
+                    let _ = google_calendar::patch_event_title(&token, event_id, &title).await;
+                }
+            }
+            SyncAction::PullTitle(title) => {
+                let remote_done = remote.map_or(task.done, |r| google_calendar::strip_done_prefix(&r.title).1);
+                pull_remote(app, &task.id, title, remote_done);
+            }
+            SyncAction::MarkLocalDone(title) => pull_remote(app, &task.id, title, true),
+            SyncAction::MarkLocalOpen(title) => pull_remote(app, &task.id, title, false),
+            SyncAction::DeleteLocal => {
+                // Missing from today's list is not the same as deleted: a task moved
+                // to another day keeps its event there, so only Google's own answer removes it.
+                let Some(event_id) = &task.google_event_id else { continue };
+                if matches!(google_calendar::event_is_gone(&token, event_id).await, Ok(true)) {
+                    let shared = app.state::<Shared>();
+                    let mut state = shared.lock();
+                    state.tracker.remove_task(&task.id, now_ms(), &today);
+                    state.save_tracker();
+                }
+            }
+            SyncAction::Noop => {}
+        }
+    }
+
+    let shared = app.state::<Shared>();
+    let mut state = shared.lock();
+    state.google_last_sync_ms = now_ms();
+    state.google_error = None;
+    sync_ui(app, &state);
+    Ok(())
+}
+
+fn update_task(app: &AppHandle, id: &str, change: impl FnOnce(&mut tasks::Task)) {
+    let shared = app.state::<Shared>();
+    let mut state = shared.lock();
+    if let Some(task) = state.tracker.tasks.iter_mut().find(|t| t.id == id) {
+        change(task);
+    }
+    state.save_tracker();
+}
+
+/// Takes the title and state Google won the conflict with.
+fn pull_remote(app: &AppHandle, id: &str, title: String, done: bool) {
+    update_task(app, id, |t| {
+        t.title = title;
+        t.updated_at = now_ms();
+    });
+    set_done(app, id, done);
+}
+
+/// Same as ticking the task in the UI, so a task finished on Google stops its timer too.
+fn set_done(app: &AppHandle, id: &str, done: bool) {
+    let shared = app.state::<Shared>();
+    let needs_toggle = {
+        let mut state = shared.lock();
+        let needs_toggle = state.tracker.tasks.iter().any(|t| t.id == id && t.done != done);
+        if needs_toggle {
+            state.tracker.toggle_task(id, now_ms(), &today_key());
+            state.save_tracker();
+        }
+        needs_toggle
+    };
+    if needs_toggle {
+        push_title_to_google(app, id);
+    }
+}
+
+/// Sends the task's current title (with the ✓ when done) to its Google event
+/// right away, instead of waiting for the next sync cycle.
+fn push_title_to_google(app: &AppHandle, id: &str) {
+    let app = app.clone();
+    let id = id.to_string();
+    tauri::async_runtime::spawn(async move {
+        let (event_id, title) = {
+            let shared = app.state::<Shared>();
+            let state = shared.lock();
+            let Some(task) = state.tracker.tasks.iter().find(|t| t.id == id) else { return };
+            let Some(event_id) = task.google_event_id.clone() else { return };
+            (event_id, google_sync::event_title_for(task))
+        };
+        let shared = app.state::<Shared>();
+        let Ok(token) = google_access_token(&shared).await else { return };
+        let _ = google_calendar::patch_event_title(&token, &event_id, &title).await;
+    });
+}
+
+/// The token for Google calls: this session's, or a fresh one from the saved
+/// refresh token (a restarted app has the connection but no token yet).
+async fn google_access_token(shared: &Shared) -> Result<String, String> {
+    let cached = shared.lock().google_access_token.clone();
+    if let Some(token) = cached {
+        return Ok(token);
+    }
+    let refresh = google_calendar::load_refresh_token().ok_or_else(|| "conta Google não conectada".to_string())?;
+    let tokens = google_calendar::refresh_access_token(&refresh, GOOGLE_CLIENT_ID).await?;
+    shared.lock().google_access_token = Some(tokens.access_token.clone());
+    Ok(tokens.access_token)
+}
+
+#[tauri::command]
+pub async fn google_list_day_events(
+    day: String,
+    shared: State<'_, Shared>,
+) -> Result<Vec<google_calendar::CalendarEvent>, String> {
+    let token = google_access_token(&shared).await?;
+    google_calendar::fetch_day_events(&token, &day).await
+}
+
+#[tauri::command]
+pub fn google_import_event(
+    event: google_calendar::CalendarEvent,
+    day: String,
+    app: AppHandle,
+    shared: State<'_, Shared>,
+) -> StateSnapshot {
+    apply(&app, &shared, |state, now, _| {
+        google_calendar::import_event(&mut state.tracker.tasks, &event, &day, now);
+    })
+    .0
+}
+
 #[tauri::command]
 pub async fn github_gh_available() -> bool {
     github::gh_token().await.is_some()

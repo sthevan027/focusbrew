@@ -3,6 +3,8 @@ mod autostart;
 mod commands;
 mod config;
 mod github;
+mod google_calendar;
+mod google_sync;
 mod note_window;
 mod notes;
 mod shortcuts;
@@ -273,6 +275,29 @@ fn spawn_github_refresh_loop(app: AppHandle) {
     });
 }
 
+const GOOGLE_SYNC_EVERY: Duration = Duration::from_secs(5 * 60);
+
+/// Keeps today's Google Agenda sync running while connected (see `refresh_google_now`).
+fn spawn_google_sync_loop(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        loop {
+            let connected = {
+                let shared = app.state::<Shared>();
+                let state = shared.lock();
+                state.config.google_connected
+            };
+            if connected {
+                if let Err(e) = commands::refresh_google_now(&app).await {
+                    let shared = app.state::<Shared>();
+                    shared.lock().google_error = Some(e);
+                }
+            }
+            tokio::time::sleep(GOOGLE_SYNC_EVERY).await;
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // The shortcuts themselves come from the settings and are registered in
@@ -332,6 +357,10 @@ pub fn run() {
             commands::github_gh_available,
             commands::connect_github_with_gh,
             commands::clear_github_token,
+            commands::google_connect,
+            commands::google_disconnect,
+            commands::google_list_day_events,
+            commands::google_import_event,
             commands::refresh_github,
             commands::import_github_item_as_task,
             commands::set_widget_expanded,
@@ -420,7 +449,8 @@ pub fn run() {
             }
             spawn_tick_loop(handle.clone());
             widget::spawn_hover_loop(handle.clone());
-            spawn_github_refresh_loop(handle);
+            spawn_github_refresh_loop(handle.clone());
+            spawn_google_sync_loop(handle);
             // Nothing is being edited yet: free the images no note uses.
             {
                 let notes = app.state::<notes::NotesShared>();

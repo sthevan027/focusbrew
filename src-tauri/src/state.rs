@@ -31,6 +31,12 @@ pub struct AppState {
     pub github_events: Vec<GithubEvent>,
     /// Where the last successful GitHub token came from (gh CLI or a saved PAT).
     pub github_source: Option<TokenSource>,
+    /// The Google session's access token; kept in memory only. The refresh
+    /// token lives in the OS keyring.
+    pub google_access_token: Option<String>,
+    pub google_error: Option<String>,
+    /// Epoch ms of the last good Google sync (0 = never).
+    pub google_last_sync_ms: i64,
 }
 
 impl AppState {
@@ -49,6 +55,19 @@ impl AppState {
             github_days: HashMap::new(),
             github_events: Vec::new(),
             github_source: None,
+            google_access_token: None,
+            google_error: None,
+            google_last_sync_ms: 0,
+        }
+    }
+
+    /// Keeps the tasks, but unlinks them: their events belong to the old account.
+    pub fn disconnect_google(&mut self) {
+        self.config.google_connected = false;
+        self.google_access_token = None;
+        self.google_error = None;
+        for task in &mut self.tracker.tasks {
+            task.google_event_id = None;
         }
     }
 
@@ -127,6 +146,9 @@ pub struct StateSnapshot {
     pub github_events: Vec<GithubEvent>,
     pub github_source: Option<TokenSource>,
     pub shortcut_warning: Option<String>,
+    pub google_connected: bool,
+    pub google_error: Option<String>,
+    pub google_last_sync_ms: i64,
 }
 
 fn days_before(day: &str, n: i64) -> String {
@@ -151,6 +173,9 @@ impl From<&AppState> for StateSnapshot {
             github_events: state.github_events.clone(),
             github_source: state.github_source,
             shortcut_warning: state.shortcut_warning.clone(),
+            google_connected: state.config.google_connected,
+            google_error: state.google_error.clone(),
+            google_last_sync_ms: state.google_last_sync_ms,
         }
     }
 }
@@ -171,6 +196,9 @@ impl AppState {
             github_days: HashMap::new(),
             github_events: Vec::new(),
             github_source: None,
+            google_access_token: None,
+            google_error: None,
+            google_last_sync_ms: 0,
         }
     }
 }
@@ -305,5 +333,33 @@ mod github_refresh_tests {
         let mut state = AppState::for_test();
         assert!(!state.fail_github_refresh("me", "sem token".into()));
         assert_eq!(state.github_error, None);
+    }
+}
+
+#[cfg(test)]
+mod google_tests {
+    use super::*;
+
+    #[test]
+    fn disconnecting_google_clears_the_in_memory_token_and_error() {
+        let mut state = AppState::for_test();
+        state.config.google_connected = true;
+        state.google_access_token = Some("tok".to_string());
+        state.google_error = Some("algo deu errado antes".to_string());
+        state.disconnect_google();
+        assert!(!state.config.google_connected);
+        assert_eq!(state.google_access_token, None);
+        assert_eq!(state.google_error, None);
+    }
+
+    #[test]
+    fn disconnecting_unlinks_the_tasks_from_their_google_events() {
+        let mut state = AppState::for_test();
+        let mut task = crate::tracker::tasks::new_task("Tarefa", crate::tracker::tasks::TaskSource::Manual, 25, "2026-10-12").unwrap();
+        task.google_event_id = Some("evt".into());
+        state.tracker.tasks.push(task);
+        state.disconnect_google();
+        assert_eq!(state.tracker.tasks.len(), 1);
+        assert_eq!(state.tracker.tasks[0].google_event_id, None);
     }
 }

@@ -15,6 +15,8 @@ const task = (id: string, day: string, extra: Partial<Task> = {}): Task => ({
   done_at: null,
   project: null,
   url: null,
+  google_event_id: null,
+  updated_at: 0,
   ...extra,
 });
 
@@ -91,6 +93,11 @@ describe("tabsFor", () => {
   it("today has everything", () => {
     expect(tabsFor(today, today, true)).toEqual(["tasks", "summary", "github"]);
     expect(tabsFor(today, today, false)).toEqual(["tasks", "summary"]);
+  });
+  it("the agenda tab shows on today and future days once Google is connected", () => {
+    expect(tabsFor("2026-10-06", today, false, true)).toEqual(["tasks", "agenda"]);
+    expect(tabsFor(today, today, false, true)).toEqual(["tasks", "summary", "agenda"]);
+    expect(tabsFor("2026-10-04", today, false, true)).toEqual(["summary"]);
   });
 });
 

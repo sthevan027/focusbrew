@@ -13,6 +13,8 @@ pub struct AppConfig {
     /// Turned off by "Desconectar" so gh doesn't silently reconnect.
     #[serde(default = "default_true")]
     pub github_use_gh: bool,
+    /// A Google account is connected (its refresh token lives in the keyring).
+    pub google_connected: bool,
     /// Minutes given to a new task.
     pub default_minutes: u32,
     /// Notification when a block runs to its end.
@@ -147,6 +149,7 @@ impl Default for AppConfig {
         Self {
             github_login: None,
             github_use_gh: true,
+            google_connected: false,
             default_minutes: DEFAULT_MINUTES,
             notify_on_finish: true,
             notch_style: NotchStyle::default(),

@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Note } from "./note";
-import type { AppConfig, GithubItem, MonitorChoice, StateSnapshot } from "./types";
+import type { AppConfig, CalendarEventView, GithubItem, MonitorChoice, StateSnapshot } from "./types";
 
 export const currentWindowLabel = () => getCurrentWindow().label;
 
@@ -40,6 +40,12 @@ export const saveGithubToken = (token: string) => invoke<string>("save_github_to
 export const githubGhAvailable = () => invoke<boolean>("github_gh_available");
 export const connectGithubWithGh = () => invoke<string>("connect_github_with_gh");
 export const clearGithubToken = () => invoke<void>("clear_github_token");
+export const googleConnect = () => invoke<StateSnapshot>("google_connect");
+export const googleDisconnect = () => invoke<StateSnapshot>("google_disconnect");
+export const googleListDayEvents = (day: string) =>
+  invoke<CalendarEventView[]>("google_list_day_events", { day });
+export const googleImportEvent = (event: CalendarEventView, day: string) =>
+  invoke<StateSnapshot>("google_import_event", { event, day });
 export const refreshGithub = () => invoke<StateSnapshot>("refresh_github");
 export const importGithubItemAsTask = (item: GithubItem, day?: string) =>
   invoke<StateSnapshot>("import_github_item_as_task", {
