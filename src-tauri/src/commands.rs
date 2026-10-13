@@ -360,12 +360,37 @@ fn pull_remote(app: &AppHandle, id: &str, title: String, done: bool) {
 /// Same as ticking the task in the UI, so a task finished on Google stops its timer too.
 fn set_done(app: &AppHandle, id: &str, done: bool) {
     let shared = app.state::<Shared>();
-    let mut state = shared.lock();
-    let needs_toggle = state.tracker.tasks.iter().any(|t| t.id == id && t.done != done);
+    let needs_toggle = {
+        let mut state = shared.lock();
+        let needs_toggle = state.tracker.tasks.iter().any(|t| t.id == id && t.done != done);
+        if needs_toggle {
+            state.tracker.toggle_task(id, now_ms(), &today_key());
+            state.save_tracker();
+        }
+        needs_toggle
+    };
     if needs_toggle {
-        state.tracker.toggle_task(id, now_ms(), &today_key());
+        push_title_to_google(app, id);
     }
-    state.save_tracker();
+}
+
+/// Sends the task's current title (with the ✓ when done) to its Google event
+/// right away, instead of waiting for the next sync cycle.
+fn push_title_to_google(app: &AppHandle, id: &str) {
+    let app = app.clone();
+    let id = id.to_string();
+    tauri::async_runtime::spawn(async move {
+        let (event_id, title) = {
+            let shared = app.state::<Shared>();
+            let state = shared.lock();
+            let Some(task) = state.tracker.tasks.iter().find(|t| t.id == id) else { return };
+            let Some(event_id) = task.google_event_id.clone() else { return };
+            (event_id, google_sync::event_title_for(task))
+        };
+        let shared = app.state::<Shared>();
+        let Ok(token) = google_access_token(&shared).await else { return };
+        let _ = google_calendar::patch_event_title(&token, &event_id, &title).await;
+    });
 }
 
 /// The token for Google calls: this session's, or a fresh one from the saved
