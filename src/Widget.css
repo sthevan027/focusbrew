@@ -136,12 +136,15 @@
 /* ---- notch "ears": concave curves where the box or panel meets the screen
    edge. Pure CSS: a transparent quarter circle (radius 14) cut out of a
    square painted in the shell's color. Not shown on the parked bar. ---- */
+.shell-frame {
+  --ear: 14px;
+}
 .shell-frame::before,
 .shell-frame::after {
   content: "";
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: var(--ear);
+  height: var(--ear);
   pointer-events: none;
   transition: opacity 160ms;
 }
@@ -154,36 +157,36 @@
 .widget-root[data-edge="top"] .shell-frame::before {
   top: 0;
   right: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 .widget-root[data-edge="top"] .shell-frame::after {
   top: 0;
   left: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 
 /* left edge: one ear above and one below the shape */
 .widget-root[data-edge="left"] .shell-frame::before {
   left: 0;
   bottom: 100%;
-  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 100% 0, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 .widget-root[data-edge="left"] .shell-frame::after {
   left: 0;
   top: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 
 /* right edge: one ear above and one below the shape */
 .widget-root[data-edge="right"] .shell-frame::before {
   right: 0;
   bottom: 100%;
-  background: radial-gradient(circle at 0 0, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 0 0, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 .widget-root[data-edge="right"] .shell-frame::after {
   right: 0;
   top: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 /* ---- the shape: one element that morphs bar -> box -> panel ---- */
 .shell {
@@ -273,6 +276,21 @@
   text-overflow: ellipsis;
 }
 
+/* Only music playing: bigger, sharper ears and rounder bottom corners. The corners
+   that touch the screen edge keep their placement. */
+.shell-frame[data-round="all"] {
+  --ear: 22px;
+}
+.widget-root .shell-frame[data-round="all"] .shell {
+  --rad: 14px;
+}
+
+/* With the media controls beside it, the task title takes the room in between. */
+.notch-title.grow {
+  flex: 1;
+  max-width: none;
+}
+
 /* Minimal on the top: only the countdown, in the middle. */
 .notch-box.center {
   justify-content: center;
@@ -302,6 +320,156 @@
 .notch-box.side.inline .side-time {
   flex-direction: row;
   font-size: 18px;
+}
+
+/* ---- media (Windows SMTC): cover, title and transport controls ---- */
+.notch-box.media {
+  gap: 10px;
+  padding: 0 14px;
+}
+.media-cover {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #8a8a90;
+}
+.media-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+.media-title {
+  min-width: 0;
+  flex: 1;
+  color: #c9c9ce;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.media-controls {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.media-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.media-controls button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+/* Standing on the left/right edges there's no room for a row: cover and play/pause, stacked. */
+[data-edge="left"] .notch-box.media,
+[data-edge="right"] .notch-box.media {
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 4px;
+}
+[data-edge="left"] .media-title,
+[data-edge="right"] .media-title,
+[data-edge="left"] .media-controls button:not(:nth-child(2)),
+[data-edge="right"] .media-controls button:not(:nth-child(2)) {
+  display: none;
+}
+
+/* The panel's Música tab: the bigger cover, the title and artist, the controls. */
+.media-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0 8px;
+}
+.media-tab-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #8a8a90;
+}
+.media-tab-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-tab-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  text-align: center;
+}
+.media-tab-info strong {
+  max-width: 480px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.media-tab-info span {
+  color: #8a8a90;
+  font-size: 12px;
+}
+.media-tab-progress {
+  width: 240px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.media-tab-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+.media-tab-controls {
+  display: flex;
+  gap: 10px;
+}
+.media-tab-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.media-tab-controls button:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 @keyframes pulse {

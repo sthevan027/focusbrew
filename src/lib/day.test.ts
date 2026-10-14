@@ -99,6 +99,17 @@ describe("tabsFor", () => {
     expect(tabsFor(today, today, false, true)).toEqual(["tasks", "summary", "agenda"]);
     expect(tabsFor("2026-10-04", today, false, true)).toEqual(["summary"]);
   });
+  it("the media tab shows on today and future days while media plays, like the agenda", () => {
+    expect(tabsFor(today, today, false, false, true)).toEqual(["tasks", "summary", "media"]);
+    expect(tabsFor("2026-10-06", today, false, false, true)).toEqual(["tasks", "media"]);
+    expect(tabsFor(today, today, false, false, false)).toEqual(["tasks", "summary"]);
+  });
+  it("the media tab never shows on a past day", () => {
+    expect(tabsFor("2026-10-04", today, false, false, true)).toEqual(["summary"]);
+  });
+  it("github, agenda and media stack in that order when all apply", () => {
+    expect(tabsFor(today, today, true, true, true)).toEqual(["tasks", "summary", "github", "agenda", "media"]);
+  });
 });
 
 describe("plannedByDay", () => {

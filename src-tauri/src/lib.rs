@@ -5,6 +5,7 @@ mod config;
 mod github;
 mod google_calendar;
 mod google_sync;
+mod media;
 mod note_window;
 mod notes;
 mod shortcuts;
@@ -89,7 +90,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
         changed
     };
     let window_layout = widget::window_layout(&state.config);
-    let zone = widget::hot_zone(&state.config, state.tracker.timer.status());
+    let zone = widget::hot_zone(&state.config, state.tracker.timer.status(), state.media.is_some());
     let panel = widget::panel_zone(&state.config);
     let monitor = state.config.monitor.clone();
     let edge = state.config.widget_edge;
@@ -212,6 +213,8 @@ fn spawn_tick_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
+            // Read before taking the lock; the SMTC calls block, so keep them off the loop.
+            let playing = tauri::async_runtime::spawn_blocking(media::current).await.ok().flatten();
             let now = now_ms();
             let today = today_key();
             let mut to_notify: Option<Finished> = None;
@@ -222,6 +225,10 @@ fn spawn_tick_loop(app: AppHandle) {
                 let last = state.last_tick_ms;
                 state.last_tick_ms = now;
                 let before = state.tracker.timer.clone();
+                let media_changed = state.media != playing;
+                if media_changed {
+                    state.set_media(playing);
+                }
                 let finished = state.tracker.tick(now, last, &today);
                 if finished.is_some() {
                     state.save_tracker();
@@ -235,7 +242,7 @@ fn spawn_tick_loop(app: AppHandle) {
                 if new_day {
                     state.last_day = today.clone();
                 }
-                if finished.is_some() || state.tracker.timer != before || new_day {
+                if finished.is_some() || state.tracker.timer != before || new_day || media_changed {
                     sync_ui(&app, &state);
                 }
                 alerts = check_alerts(&mut state, now, &today);
@@ -339,6 +346,10 @@ pub fn run() {
         .manage(notes::NotesShared(Mutex::new(notes::load())))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
+            commands::media_play,
+            commands::media_pause,
+            commands::media_next,
+            commands::media_previous,
             commands::add_task,
             commands::toggle_task,
             commands::remove_task,

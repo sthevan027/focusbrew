@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { NotchStyle, SideCountStyle, WidgetEdge, WidgetScale } from "../lib/types";
+import type { NotchStyle, SideCountStyle, WidgetEdge } from "../lib/types";
 import { ACCENT_PRESETS, normalizeHex } from "./colors";
 import Row from "./Row";
 import type { SectionProps } from "./Row";
@@ -8,12 +8,6 @@ import Switch from "./Switch";
 const STYLES: { id: NotchStyle; label: string }[] = [
   { id: "standard", label: "Standard" },
   { id: "minimal", label: "Minimal" },
-];
-
-const SCALES: { id: WidgetScale; label: string }[] = [
-  { id: "small", label: "Pequeno" },
-  { id: "medium", label: "Médio" },
-  { id: "large", label: "Grande" },
 ];
 
 const EDGES: { id: WidgetEdge; label: string }[] = [
@@ -126,20 +120,12 @@ export default function NotchSection({ config, set }: SectionProps) {
             />
           </div>
         </Row>
-        <Row title="Tamanho" hint="Da barra, da caixa e do painel.">
-          <div className="segmented" role="radiogroup" aria-label="Tamanho do widget">
-            {SCALES.map((scale) => (
-              <button
-                key={scale.id}
-                type="button"
-                role="radio"
-                aria-checked={config.widget_scale === scale.id}
-                onClick={() => set({ widget_scale: scale.id })}
-              >
-                {scale.label}
-              </button>
-            ))}
-          </div>
+        <Row title="Controles de música" hint="Anterior, play/pause e próxima no notch enquanto um bloco roda e a música toca.">
+          <Switch
+            label="Controles de música"
+            checked={config.notch_media_controls}
+            onChange={(notch_media_controls) => set({ notch_media_controls })}
+          />
         </Row>
         <Row title="Posição" hint="Em qual borda da tela o widget fica colado. Nas laterais a barra fica em pé.">
           <div className="segmented" role="radiogroup" aria-label="Posição do widget">

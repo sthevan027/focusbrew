@@ -10,6 +10,7 @@ const ctx = (over: Partial<ShapeContext> = {}): ShapeContext => ({
   edge: "top",
   sideCount: "stacked",
   noteOpen: false,
+  hasMedia: false,
   ...over,
 });
 
@@ -17,6 +18,28 @@ const EDGES: WidgetEdge[] = ["top", "left", "right"];
 const STATUSES: TimerStatus[] = ["idle", "running", "paused"];
 
 // Must match IDLE_ZONE / RUNNING_ZONE / OPEN_SIZE in src-tauri/src/widget.rs.
+describe("pickShape with media", () => {
+  it("is the bar when idle with no media, same as before", () => {
+    const shape = pickShape(ctx({ status: "idle", hasMedia: false }));
+    expect(shape.kind).toBe("bar");
+  });
+
+  it("is the box when idle but media is playing", () => {
+    const shape = pickShape(ctx({ status: "idle", hasMedia: true }));
+    expect(shape.kind).toBe("box");
+  });
+
+  it("is the box when the timer runs even without media, same as before", () => {
+    const shape = pickShape(ctx({ status: "running", hasMedia: false }));
+    expect(shape.kind).toBe("box");
+  });
+
+  it("is the box when both the timer runs and media plays", () => {
+    const shape = pickShape(ctx({ status: "running", hasMedia: true }));
+    expect(shape.kind).toBe("box");
+  });
+});
+
 describe("pickShape", () => {
   it("is nothing when the widget is hidden, whatever else is going on", () => {
     for (const edge of EDGES) {
