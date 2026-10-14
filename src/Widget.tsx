@@ -77,6 +77,10 @@ export default function Widget() {
   useEffect(() => {
     setTab(defaultTab(hasTask, hasMedia));
   }, [hasTask, hasMedia]);
+  // The media box has buttons to click: hovering it must not open the panel over them.
+  useEffect(() => {
+    hover.setCanOpen(!(tab === "media" && hasMedia));
+  }, [tab, hasMedia]);
   useEffect(() => {
     const hit = hitRef.current;
     if (!hit) return;
