@@ -304,6 +304,82 @@
   font-size: 18px;
 }
 
+/* ---- media (Windows SMTC): cover, title and transport controls ---- */
+.notch-box.media {
+  gap: 10px;
+  padding: 0 14px;
+}
+.media-cover {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #8a8a90;
+}
+.media-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 1s linear;
+}
+.media-title {
+  min-width: 0;
+  flex: 1;
+  color: #c9c9ce;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.media-controls {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.media-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.media-controls button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+/* Standing on the left/right edges there's no room for a row: cover and play/pause, stacked. */
+[data-edge="left"] .notch-box.media,
+[data-edge="right"] .notch-box.media {
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 4px;
+}
+[data-edge="left"] .media-title,
+[data-edge="right"] .media-title,
+[data-edge="left"] .media-controls button:not(:nth-child(2)),
+[data-edge="right"] .media-controls button:not(:nth-child(2)) {
+  display: none;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.4;

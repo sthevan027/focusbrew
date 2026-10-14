@@ -9,6 +9,8 @@ import NoteEditor from "./note/NoteEditor";
 import type { NoteRequest } from "./note/NoteEditor";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
+import { defaultTab, nextTab } from "./widget/mediaTabs";
+import type { BoxTab } from "./widget/mediaTabs";
 import ProgressLine from "./widget/ProgressLine";
 import { afterNoteClose, shouldHold } from "./widget/holding";
 import { useHoverOpen, useIdleClose, useMotion, useNow } from "./widget/hooks";
@@ -65,6 +67,28 @@ export default function Widget() {
       })
     : null;
   const motion = useMotion(shape?.kind ?? "hidden");
+
+  // Which of the task and the media the box shows: the task by default, Ctrl+Scroll flips it.
+  const [tab, setTab] = useState<BoxTab>("task");
+  const hasTask = state ? state.timer.status !== "idle" : false;
+  const hasMedia = Boolean(state?.media);
+  const ready = state !== null;
+  const hitRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setTab(defaultTab(hasTask, hasMedia));
+  }, [hasTask, hasMedia]);
+  useEffect(() => {
+    const hit = hitRef.current;
+    if (!hit) return;
+    // A native listener, not React's onWheel: React's is passive, so it can't cancel the zoom that Ctrl+Scroll does.
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setTab((current) => nextTab(current, hasTask, hasMedia, e.deltaY));
+    };
+    hit.addEventListener("wheel", onWheel, { passive: false });
+    return () => hit.removeEventListener("wheel", onWheel);
+  }, [hasTask, hasMedia, ready]);
 
   // Typing, dragging (from the list) or a pin keep the panel open.
   const holdFromList = (hold: boolean) => {
@@ -201,6 +225,7 @@ export default function Widget() {
     <div className="widget-root" data-edge={config.widget_edge} style={style}>
       <div className="scaled">
         <div
+          ref={hitRef}
           className="hit"
           style={{ width: shape.hit.width, height: shape.hit.height }}
           onMouseEnter={hover.onMouseEnter}
@@ -218,7 +243,7 @@ export default function Widget() {
                   <NoteEditor request={note.request} placement="overlay" config={config} onClose={closeNote} />
                 </div>
               ) : phase === "closed" ? (
-                <Notch state={state} now={now} />
+                <Notch state={state} now={now} activeTab={tab} />
               ) : (
                 <Panel
                   state={state}
