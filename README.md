@@ -224,50 +224,8 @@ progresso, PRs e issues do GitHub virando tarefa, a nota rápida com `Ctrl+Alt+N
 e a grade de atividade.
 
 <p align="center">
-  <img src="docs/screenshots/video-painel.jpg" alt="Vídeo do site: painel com as tarefas do dia" width="420">
-  <img src="docs/screenshots/video-linha.jpg" alt="Vídeo do site: a caixa com a contagem e a linha de progresso se enchendo" width="420">
+  <img src="docs/screenshots/video-painel.jpg" alt="Vídeo do site: painel com as tarefas do dia" width="560">
 </p>
-<p align="center">
-  <img src="docs/screenshots/video-github.jpg" alt="Vídeo do site: PR do GitHub virando tarefa com um clique" width="420">
-  <img src="docs/screenshots/video-nota.jpg" alt="Vídeo do site: nota rápida com texto e desenho" width="420">
-</p>
-<p align="center">
-  <img src="docs/screenshots/video-grade.jpg" alt="Vídeo do site: a grade de atividade acende e a sequência sobe" width="420">
-  <img src="docs/screenshots/video-download.jpg" alt="Vídeo do site: final com o download do instalador" width="420">
-</p>
-
-```bash
-cd site
-bun install
-bun run dev      # http://localhost:5173
-bun run test     # contas da release (vitest)
-bun run build    # tsc + vite build, saída em site/dist
-```
-
-### Refazer o vídeo
-
-A fonte do vídeo é uma composição [Remotion](https://www.remotion.dev) em
-`hero-video/` (1920x1080, 30 fps), com o notch e o painel redesenhados nos
-tamanhos e cores reais do app. A narração (`narracao.mp3`) e a trilha
-(`trilha.mp3`) ficam em `hero-video/public/`; as legendas e as ações são
-cronometradas pelo tempo de cada frase da narração em `hero-video/src/Hero.tsx`,
-então trocar a narração pede ajustar esses tempos.
-
-```bash
-cd hero-video
-bun install
-bun run render     # out/hero.mp4
-```
-
-Depois copie pro site, no formato que o `<video>` espera (H.264 padrão com
-`faststart`, WebM e o poster):
-
-```bash
-M=../site/public/media
-ffmpeg -y -i out/hero.mp4 -vf "scale=in_range=full:out_range=tv,format=yuv420p" -c:v libx264 -crf 21 -preset slow -movflags +faststart -c:a aac -b:a 160k $M/hero.mp4
-ffmpeg -y -i $M/hero.mp4 -c:v libvpx-vp9 -crf 34 -b:v 0 -row-mt 1 -c:a libopus -b:a 96k $M/hero.webm
-ffmpeg -y -ss 5.9 -i $M/hero.mp4 -frames:v 1 -vf scale=1280:-1 -q:v 3 $M/poster.jpg
-```
 
 ## Desenvolvimento
 
