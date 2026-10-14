@@ -40,7 +40,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDOUJDRUU0NjVBQTM3RjkKUldUNU42cGw1TTZiL0JzK1dETFFmOG9mUzB1SkJTSGVNbFY0cG8ybFFzUFI2cW5LSVlxNlNCOTkK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMTg1NjFDN0UyNDFGNDcKUldSSEh5UitIRllZSUxaVmVTaEV1SVJmREpYdHptN2d5ZmREa1RGSEFpamlFdm8yajI5K1JvSEgK",
       "endpoints": [
         "https://github.com/sthevan027/focusbrew/releases/latest/download/latest.json"
       ]
