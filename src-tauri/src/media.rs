@@ -43,6 +43,117 @@ pub fn clamp_position(position_secs: u32, duration_secs: u32) -> u32 {
     position_secs.min(duration_secs)
 }
 
+#[cfg(windows)]
+mod smtc {
+    use super::{clamp_position, to_data_url, MediaStatus, MediaView};
+    use windows::Media::Control::{
+        GlobalSystemMediaTransportControlsSession as Session,
+        GlobalSystemMediaTransportControlsSessionManager as SessionManager,
+        GlobalSystemMediaTransportControlsSessionMediaProperties as MediaProperties,
+        GlobalSystemMediaTransportControlsSessionPlaybackStatus as PlaybackStatus,
+    };
+    use windows::Storage::Streams::DataReader;
+
+    fn to_status(status: PlaybackStatus) -> Option<MediaStatus> {
+        match status {
+            PlaybackStatus::Playing => Some(MediaStatus::Playing),
+            PlaybackStatus::Paused => Some(MediaStatus::Paused),
+            _ => None, // Stopped/Changing/Closed: tratado como "sem mídia" por quem chama
+        }
+    }
+
+    async fn session() -> Option<Session> {
+        let manager = SessionManager::RequestAsync().ok()?.await.ok()?;
+        manager.GetCurrentSession().ok()
+    }
+
+    async fn read_cover(props: &MediaProperties) -> Option<Vec<u8>> {
+        let thumb = props.Thumbnail().ok()?;
+        let stream = thumb.OpenReadAsync().ok()?.await.ok()?;
+        let size = stream.Size().ok()? as u32;
+        let reader = DataReader::CreateDataReader(&stream).ok()?;
+        reader.LoadAsync(size).ok()?.await.ok()?;
+        let mut buf = vec![0u8; size as usize];
+        reader.ReadBytes(&mut buf).ok()?;
+        Some(buf)
+    }
+
+    /// A mídia tocando agora, ou `None` sem nenhuma sessão ativa (nada tocando,
+    /// ou o Windows não acha nenhum app com controle de mídia registrado).
+    pub async fn current() -> Option<MediaView> {
+        let session = session().await?;
+        let status = to_status(session.GetPlaybackInfo().ok()?.PlaybackStatus().ok()?)?;
+        let props = session.TryGetMediaPropertiesAsync().ok()?.await.ok()?;
+        let title = props.Title().ok()?.to_string();
+        let artist = props.Artist().map(|a| a.to_string()).unwrap_or_default();
+        let cover = read_cover(&props).await;
+
+        let timeline = session.GetTimelineProperties().ok()?;
+        let position_secs = timeline.Position().ok().map(|t| (t.Duration / 10_000_000) as u32).unwrap_or(0);
+        let duration_secs = timeline.EndTime().ok().map(|t| (t.Duration / 10_000_000) as u32).unwrap_or(0);
+
+        Some(MediaView {
+            title,
+            artist,
+            cover_data_url: to_data_url(cover.as_deref()),
+            position_secs: clamp_position(position_secs, duration_secs),
+            duration_secs,
+            status,
+        })
+    }
+
+    pub async fn play() -> Result<(), String> {
+        let s = session().await.ok_or("sem sessão de mídia ativa")?;
+        s.TryPlayAsync().map_err(|e| e.to_string())?.await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn pause() -> Result<(), String> {
+        let s = session().await.ok_or("sem sessão de mídia ativa")?;
+        s.TryPauseAsync().map_err(|e| e.to_string())?.await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn next() -> Result<(), String> {
+        let s = session().await.ok_or("sem sessão de mídia ativa")?;
+        s.TrySkipNextAsync().map_err(|e| e.to_string())?.await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn previous() -> Result<(), String> {
+        let s = session().await.ok_or("sem sessão de mídia ativa")?;
+        s.TrySkipPreviousAsync().map_err(|e| e.to_string())?.await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+mod smtc {
+    use super::MediaView;
+
+    pub async fn current() -> Option<MediaView> {
+        None
+    }
+
+    pub async fn play() -> Result<(), String> {
+        Err("controle de mídia só existe no Windows".into())
+    }
+
+    pub async fn pause() -> Result<(), String> {
+        Err("controle de mídia só existe no Windows".into())
+    }
+
+    pub async fn next() -> Result<(), String> {
+        Err("controle de mídia só existe no Windows".into())
+    }
+
+    pub async fn previous() -> Result<(), String> {
+        Err("controle de mídia só existe no Windows".into())
+    }
+}
+
+pub use smtc::{current, next, pause, play, previous};
+
 #[cfg(test)]
 mod tests {
     use super::*;
