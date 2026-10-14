@@ -90,7 +90,7 @@ pub fn sync_ui(app: &AppHandle, state: &AppState) {
         changed
     };
     let window_layout = widget::window_layout(&state.config);
-    let zone = widget::hot_zone(&state.config, state.tracker.timer.status());
+    let zone = widget::hot_zone(&state.config, state.tracker.timer.status(), state.media.is_some());
     let panel = widget::panel_zone(&state.config);
     let monitor = state.config.monitor.clone();
     let edge = state.config.widget_edge;
