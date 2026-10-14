@@ -273,16 +273,13 @@
   text-overflow: ellipsis;
 }
 
-/* Only music playing: a rounded box on its own, not the notch with its flares. */
+/* Only music playing: the box's rounded corners are bigger and the notch's flares are gone.
+   The corners that touch the screen edge keep their placement. */
 .shell-frame[data-round="all"]::before,
 .shell-frame[data-round="all"]::after {
   display: none;
 }
 .widget-root .shell-frame[data-round="all"] .shell {
-  --k-tl: 1;
-  --k-tr: 1;
-  --k-br: 1;
-  --k-bl: 1;
   --rad: 14px;
 }
 
