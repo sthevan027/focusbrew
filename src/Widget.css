@@ -136,12 +136,15 @@
 /* ---- notch "ears": concave curves where the box or panel meets the screen
    edge. Pure CSS: a transparent quarter circle (radius 14) cut out of a
    square painted in the shell's color. Not shown on the parked bar. ---- */
+.shell-frame {
+  --ear: 14px;
+}
 .shell-frame::before,
 .shell-frame::after {
   content: "";
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: var(--ear);
+  height: var(--ear);
   pointer-events: none;
   transition: opacity 160ms;
 }
@@ -154,36 +157,36 @@
 .widget-root[data-edge="top"] .shell-frame::before {
   top: 0;
   right: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 .widget-root[data-edge="top"] .shell-frame::after {
   top: 0;
   left: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 
 /* left edge: one ear above and one below the shape */
 .widget-root[data-edge="left"] .shell-frame::before {
   left: 0;
   bottom: 100%;
-  background: radial-gradient(circle at 100% 0, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 100% 0, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 .widget-root[data-edge="left"] .shell-frame::after {
   left: 0;
   top: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 
 /* right edge: one ear above and one below the shape */
 .widget-root[data-edge="right"] .shell-frame::before {
   right: 0;
   bottom: 100%;
-  background: radial-gradient(circle at 0 0, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 0 0, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 .widget-root[data-edge="right"] .shell-frame::after {
   right: 0;
   top: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--shell-bg) 14px);
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear));
 }
 /* ---- the shape: one element that morphs bar -> box -> panel ---- */
 .shell {
@@ -273,11 +276,10 @@
   text-overflow: ellipsis;
 }
 
-/* Only music playing: the box's rounded corners are bigger and the notch's flares are gone.
-   The corners that touch the screen edge keep their placement. */
-.shell-frame[data-round="all"]::before,
-.shell-frame[data-round="all"]::after {
-  display: none;
+/* Only music playing: bigger, sharper ears and rounder bottom corners. The corners
+   that touch the screen edge keep their placement. */
+.shell-frame[data-round="all"] {
+  --ear: 22px;
 }
 .widget-root .shell-frame[data-round="all"] .shell {
   --rad: 14px;
