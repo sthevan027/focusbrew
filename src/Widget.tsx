@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import type { StateSnapshot } from "./lib/types";
 import { fire, getState, onCursorOutside, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
 import { SCALE_FACTOR } from "./lib/scale";
@@ -10,6 +10,7 @@ import type { NoteRequest } from "./note/NoteEditor";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import { defaultTab, nextTab } from "./widget/mediaTabs";
+import { touchesEdge } from "./widget/edgeTouch";
 import type { BoxTab } from "./widget/mediaTabs";
 import ProgressLine from "./widget/ProgressLine";
 import { afterNoteClose, shouldHold } from "./widget/holding";
@@ -81,6 +82,13 @@ export default function Widget() {
   useEffect(() => {
     hover.setCanOpen(!(tab === "media" && hasMedia));
   }, [tab, hasMedia]);
+  // With the media box up, pressing the cursor against the screen edge the widget is stuck to opens the panel.
+  const mediaBoxShown = tab === "media" && hasMedia;
+  const onEdgeMove = (e: MouseEvent<HTMLDivElement>) => {
+    if (touchesEdge(state?.config.widget_edge ?? "top", e.currentTarget.getBoundingClientRect(), e.clientX, e.clientY)) {
+      hover.openNow();
+    }
+  };
   useEffect(() => {
     const hit = hitRef.current;
     if (!hit) return;
@@ -234,6 +242,7 @@ export default function Widget() {
           style={{ width: shape.hit.width, height: shape.hit.height }}
           onMouseEnter={hover.onMouseEnter}
           onMouseLeave={hover.onMouseLeave}
+          onMouseMove={mediaBoxShown ? onEdgeMove : undefined}
           onClick={phase === "closed" && !note.open ? () => pin(true) : undefined}
         >
           <div
