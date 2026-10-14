@@ -5,6 +5,7 @@ mod config;
 mod github;
 mod google_calendar;
 mod google_sync;
+mod media;
 mod note_window;
 mod notes;
 mod shortcuts;
