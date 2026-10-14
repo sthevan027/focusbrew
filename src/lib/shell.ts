@@ -43,6 +43,8 @@ export interface ShapeContext {
   sideCount: SideCountStyle;
   /** A quick note is open over the widget. */
   noteOpen: boolean;
+  /** Something is playing in Windows right now (SMTC). */
+  hasMedia: boolean;
 }
 
 export interface Shape {
@@ -58,11 +60,11 @@ export interface Shape {
  * hidden > open note > open panel > running/paused box > parked bar. While closing, the
  * shape is already the closed one (it shrinks before the window does).
  */
-export function pickShape({ visible, status, phase, edge, sideCount, noteOpen }: ShapeContext): Shape {
+export function pickShape({ visible, status, phase, edge, sideCount, noteOpen, hasMedia }: ShapeContext): Shape {
   if (!visible) return { kind: "hidden", shell: NONE, hit: NONE };
   if (noteOpen) return { kind: "note", shell: NOTE, hit: NOTE };
   if (phase === "open") return { kind: "panel", shell: PANEL, hit: PANEL };
-  if (status !== "idle") {
+  if (status !== "idle" || hasMedia) {
     const box = edge === "top" ? BOX : sideCount === "inline" ? SIDE_INLINE : SIDE_STACKED;
     return { kind: "box", shell: box, hit: box };
   }

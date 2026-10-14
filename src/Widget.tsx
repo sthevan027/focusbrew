@@ -61,6 +61,7 @@ export default function Widget() {
         edge: state.config.widget_edge,
         sideCount: state.config.side_count_style,
         noteOpen: note.open,
+        hasMedia: Boolean(state.media),
       })
     : null;
   const motion = useMotion(shape?.kind ?? "hidden");
