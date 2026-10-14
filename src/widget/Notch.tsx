@@ -55,14 +55,15 @@ export default function Notch({ state, now, activeTab }: Props) {
   }
 
   const task = tasks.find((t) => t.id === timer.task_id);
+  const showControls = Boolean(media) && config.notch_media_controls;
   return (
     <div className={`notch-box ${timer.status}`}>
       <span className="notch-clock">
         <ClockIcon />
         <span className="notch-time">{formatClock(left)}</span>
       </span>
-      <span className={media ? "notch-title grow" : "notch-title"}>{task?.title ?? ""}</span>
-      {media && <MediaControls playing={media.status === "playing"} />}
+      <span className={showControls ? "notch-title grow" : "notch-title"}>{task?.title ?? ""}</span>
+      {showControls && media && <MediaControls playing={media.status === "playing"} />}
     </div>
   );
 }

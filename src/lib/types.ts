@@ -2,7 +2,6 @@ export type WidgetEdge = "top" | "left" | "right";
 /** The countdown in the standing bar on the left/right edges. */
 export type SideCountStyle = "stacked" | "inline";
 export type NotchStyle = "standard" | "minimal";
-export type WidgetScale = "small" | "medium" | "large";
 /** Where a quick note opens: over the panel or in its own window. */
 export type NotePlacement = "overlay" | "window";
 
@@ -15,7 +14,8 @@ export interface AppConfig {
   progress_line: boolean;
   rgb_line: boolean;
   accent_color: string;
-  widget_scale: WidgetScale;
+  /** Previous / play-pause / next on the notch while a block runs and media plays. */
+  notch_media_controls: boolean;
   widget_visible: boolean;
   /** The screen edge the widget is glued to. */
   widget_edge: WidgetEdge;

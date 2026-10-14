@@ -273,6 +273,19 @@
   text-overflow: ellipsis;
 }
 
+/* Only music playing: a rounded box on its own, not the notch with its flares. */
+.shell-frame[data-round="all"]::before,
+.shell-frame[data-round="all"]::after {
+  display: none;
+}
+.widget-root .shell-frame[data-round="all"] .shell {
+  --k-tl: 1;
+  --k-tr: 1;
+  --k-br: 1;
+  --k-bl: 1;
+  --rad: 14px;
+}
+
 /* With the media controls beside it, the task title takes the room in between. */
 .notch-title.grow {
   flex: 1;

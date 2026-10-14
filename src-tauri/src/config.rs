@@ -20,13 +20,15 @@ pub struct AppConfig {
     /// Notification when a block runs to its end.
     pub notify_on_finish: bool,
     pub notch_style: NotchStyle,
+    /// Previous / play-pause / next on the notch while a block runs and media plays.
+    #[serde(default = "default_true")]
+    pub notch_media_controls: bool,
     /// The line that fills around the widget while a block runs.
     pub progress_line: bool,
     /// Rainbow instead of the accent color on that line.
     pub rgb_line: bool,
     /// "#RRGGBB"; invalid values are replaced by `DEFAULT_ACCENT`.
     pub accent_color: String,
-    pub widget_scale: WidgetScale,
     pub widget_visible: bool,
     /// The screen edge the widget is glued to.
     pub widget_edge: WidgetEdge,
@@ -89,21 +91,12 @@ pub enum NotchStyle {
     Minimal,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WidgetScale {
-    Small,
-    #[default]
-    Medium,
-    Large,
-}
-
-impl WidgetScale {
-    pub fn factor(self) -> f64 {
-        match self {
-            WidgetScale::Small => 0.85,
-            WidgetScale::Medium => 1.0,
-            WidgetScale::Large => 1.25,
+impl AppConfig {
+    /// The size is fixed by the notch style: Standard is the medium size, Minimal the small one.
+    pub fn scale_factor(&self) -> f64 {
+        match self.notch_style {
+            NotchStyle::Standard => 1.0,
+            NotchStyle::Minimal => 0.85,
         }
     }
 }
@@ -156,7 +149,7 @@ impl Default for AppConfig {
             progress_line: true,
             rgb_line: false,
             accent_color: DEFAULT_ACCENT.to_string(),
-            widget_scale: WidgetScale::default(),
+            notch_media_controls: true,
             widget_visible: true,
             widget_edge: WidgetEdge::default(),
             side_count_style: SideCountStyle::default(),
@@ -257,7 +250,7 @@ mod tests {
         assert!(c.progress_line);
         assert!(!c.rgb_line);
         assert_eq!(c.accent_color, "#0A84FF");
-        assert_eq!(c.widget_scale, WidgetScale::Medium);
+        assert!(c.notch_media_controls);
         assert!(c.widget_visible);
     }
 
@@ -319,10 +312,19 @@ mod tests {
     }
 
     #[test]
-    fn the_scales_are_small_medium_large() {
-        assert_eq!(WidgetScale::Small.factor(), 0.85);
-        assert_eq!(WidgetScale::Medium.factor(), 1.0);
-        assert_eq!(WidgetScale::Large.factor(), 1.25);
+    fn the_size_follows_the_notch_style() {
+        let standard = AppConfig { notch_style: NotchStyle::Standard, ..AppConfig::default() };
+        let minimal = AppConfig { notch_style: NotchStyle::Minimal, ..AppConfig::default() };
+        assert_eq!(standard.scale_factor(), 1.0);
+        assert_eq!(minimal.scale_factor(), 0.85);
+    }
+
+    #[test]
+    fn an_old_config_with_a_widget_scale_still_loads() {
+        let old = r#"{"widget_scale":"large","notch_style":"minimal"}"#;
+        let c: AppConfig = serde_json::from_str(old).unwrap();
+        assert_eq!(c.notch_style, NotchStyle::Minimal);
+        assert_eq!(c.scale_factor(), 0.85);
     }
 
     #[test]
@@ -375,7 +377,6 @@ mod tests {
     #[test]
     fn the_enums_are_written_in_lower_case() {
         assert_eq!(serde_json::to_string(&NotchStyle::Minimal).unwrap(), "\"minimal\"");
-        assert_eq!(serde_json::to_string(&WidgetScale::Large).unwrap(), "\"large\"");
     }
 
     #[test]

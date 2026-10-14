@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent } from "react";
 import type { StateSnapshot } from "./lib/types";
 import { fire, getState, onCursorOutside, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
-import { SCALE_FACTOR } from "./lib/scale";
+import { scaleFactor } from "./lib/scale";
 import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import NoteEditor from "./note/NoteEditor";
@@ -78,12 +78,15 @@ export default function Widget() {
   useEffect(() => {
     setTab(defaultTab(hasTask, hasMedia));
   }, [hasTask, hasMedia]);
-  // The box has media buttons to click (task or media tab alike): hovering it must not open the panel over them.
+  // The box shows media buttons (the media box, or the task box with the setting on): hovering it must not
+  // open the panel over them. Pressing the cursor against the screen edge still does.
+  const controlsShown = hasMedia && (tab === "media" || !hasTask || Boolean(state?.config.notch_media_controls));
   useEffect(() => {
-    hover.setCanOpen(!hasMedia);
-  }, [hasMedia]);
-  // With media playing, pressing the cursor against the screen edge the widget is stuck to opens the panel.
-  const mediaBoxShown = hasMedia;
+    hover.setCanOpen(!controlsShown);
+  }, [controlsShown]);
+  const mediaBoxShown = controlsShown;
+  // Only music playing: the closed box is the medium size whatever the notch style, and rounded.
+  const mediaOnlyBox = !hasTask && hasMedia && phase === "closed" && !note.open;
   const onEdgeMove = (e: MouseEvent<HTMLDivElement>) => {
     if (touchesEdge(state?.config.widget_edge ?? "top", e.currentTarget.getBoundingClientRect(), e.clientX, e.clientY)) {
       hover.openNow();
@@ -228,7 +231,7 @@ export default function Widget() {
   const shownPhase: PanelPhase = note.open ? "open" : phase;
   const style = {
     "--accent": config.accent_color,
-    "--s": SCALE_FACTOR[config.widget_scale],
+    "--s": scaleFactor(config.notch_style, mediaOnlyBox),
     "--grow-ms": `${GROW_MS}ms`,
     "--shrink-ms": `${SHRINK_MS}ms`,
   } as CSSProperties;
@@ -247,6 +250,7 @@ export default function Widget() {
         >
           <div
             className={`shell-frame ${shownPhase} ${timer.status} ${motion}`}
+            data-round={mediaOnlyBox ? "all" : undefined}
             data-kind={shape.kind}
             style={{ width: shape.shell.width, height: shape.shell.height }}
           >
