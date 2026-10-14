@@ -78,12 +78,12 @@ export default function Widget() {
   useEffect(() => {
     setTab(defaultTab(hasTask, hasMedia));
   }, [hasTask, hasMedia]);
-  // The media box has buttons to click: hovering it must not open the panel over them.
+  // The box has media buttons to click (task or media tab alike): hovering it must not open the panel over them.
   useEffect(() => {
-    hover.setCanOpen(!(tab === "media" && hasMedia));
-  }, [tab, hasMedia]);
-  // With the media box up, pressing the cursor against the screen edge the widget is stuck to opens the panel.
-  const mediaBoxShown = tab === "media" && hasMedia;
+    hover.setCanOpen(!hasMedia);
+  }, [hasMedia]);
+  // With media playing, pressing the cursor against the screen edge the widget is stuck to opens the panel.
+  const mediaBoxShown = hasMedia;
   const onEdgeMove = (e: MouseEvent<HTMLDivElement>) => {
     if (touchesEdge(state?.config.widget_edge ?? "top", e.currentTarget.getBoundingClientRect(), e.clientX, e.clientY)) {
       hover.openNow();

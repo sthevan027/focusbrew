@@ -3,6 +3,7 @@ import { notchLayout } from "../lib/notch";
 import { clockParts, formatClock, remainingSecs } from "../lib/progress";
 import { ClockIcon } from "./icons";
 import MediaBox from "./MediaBox";
+import MediaControls from "./MediaControls";
 import type { BoxTab } from "./mediaTabs";
 
 interface Props {
@@ -60,7 +61,8 @@ export default function Notch({ state, now, activeTab }: Props) {
         <ClockIcon />
         <span className="notch-time">{formatClock(left)}</span>
       </span>
-      <span className="notch-title">{task?.title ?? ""}</span>
+      <span className={media ? "notch-title grow" : "notch-title"}>{task?.title ?? ""}</span>
+      {media && <MediaControls playing={media.status === "playing"} />}
     </div>
   );
 }

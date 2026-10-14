@@ -273,6 +273,12 @@
   text-overflow: ellipsis;
 }
 
+/* With the media controls beside it, the task title takes the room in between. */
+.notch-title.grow {
+  flex: 1;
+  max-width: none;
+}
+
 /* Minimal on the top: only the countdown, in the middle. */
 .notch-box.center {
   justify-content: center;
