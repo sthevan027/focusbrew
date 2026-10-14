@@ -37,9 +37,15 @@ pub struct AppState {
     pub google_error: Option<String>,
     /// Epoch ms of the last good Google sync (0 = never).
     pub google_last_sync_ms: i64,
+    /// What Windows is playing right now (SMTC), or `None` when nothing is.
+    pub media: Option<crate::media::MediaView>,
 }
 
 impl AppState {
+    pub fn set_media(&mut self, view: Option<crate::media::MediaView>) {
+        self.media = view;
+    }
+
     pub fn load() -> Self {
         let mut list = tasks::load();
         tasks::fill_missing_days(&mut list, &today_key());
@@ -58,6 +64,7 @@ impl AppState {
             google_access_token: None,
             google_error: None,
             google_last_sync_ms: 0,
+            media: None,
         }
     }
 
@@ -149,6 +156,7 @@ pub struct StateSnapshot {
     pub google_connected: bool,
     pub google_error: Option<String>,
     pub google_last_sync_ms: i64,
+    pub media: Option<crate::media::MediaView>,
 }
 
 fn days_before(day: &str, n: i64) -> String {
@@ -176,6 +184,7 @@ impl From<&AppState> for StateSnapshot {
             google_connected: state.config.google_connected,
             google_error: state.google_error.clone(),
             google_last_sync_ms: state.google_last_sync_ms,
+            media: state.media.clone(),
         }
     }
 }
@@ -199,6 +208,7 @@ impl AppState {
             google_access_token: None,
             google_error: None,
             google_last_sync_ms: 0,
+            media: None,
         }
     }
 }
@@ -206,6 +216,23 @@ impl AppState {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
+
+    #[test]
+    fn set_media_replaces_whatever_was_there_including_clearing_it() {
+        let mut state = AppState::for_test();
+        let view = crate::media::MediaView {
+            title: "Faixa".into(),
+            artist: "Artista".into(),
+            cover_data_url: None,
+            position_secs: 10,
+            duration_secs: 200,
+            status: crate::media::MediaStatus::Playing,
+        };
+        state.set_media(Some(view.clone()));
+        assert_eq!(state.media, Some(view));
+        state.set_media(None);
+        assert_eq!(state.media, None);
+    }
 
     #[test]
     fn days_before_counts_back_across_months() {

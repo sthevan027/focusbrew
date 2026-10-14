@@ -6,6 +6,7 @@ use crate::config::{self, AppConfig};
 use crate::github;
 use crate::google_calendar;
 use crate::google_sync::{self, SyncAction};
+use crate::media;
 use crate::note_window;
 use crate::notes::{self, Note, NotesShared};
 use crate::state::{AppState, StateSnapshot};
@@ -19,6 +20,27 @@ use crate::{notify_finished, sync_ui, Shared};
 pub fn get_state(shared: State<'_, Shared>) -> StateSnapshot {
     let state = shared.lock();
     StateSnapshot::from(&*state)
+}
+
+// The SMTC calls block, so they run on a blocking thread, not the async runtime.
+#[tauri::command]
+pub async fn media_play() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(media::play).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn media_pause() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(media::pause).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn media_next() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(media::next).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn media_previous() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(media::previous).await.map_err(|e| e.to_string())?
 }
 
 /// Locks the state, runs `change`, saves tasks/log and publishes the result.

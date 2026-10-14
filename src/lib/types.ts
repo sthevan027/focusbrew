@@ -121,6 +121,19 @@ export interface GithubEvent {
 
 export type GithubTokenSource = "gh" | "manual";
 
+export type MediaStatus = "playing" | "paused";
+
+/** What Windows is playing (SMTC), from any app. */
+export interface MediaView {
+  title: string;
+  artist: string;
+  /** A `data:` URL of the cover, or null when the app sends none. */
+  cover_data_url: string | null;
+  position_secs: number;
+  duration_secs: number;
+  status: MediaStatus;
+}
+
 export interface StateSnapshot {
   tasks: Task[];
   timer: TimerView;
@@ -141,4 +154,5 @@ export interface StateSnapshot {
   google_connected: boolean;
   google_error: string | null;
   google_last_sync_ms: number;
+  media: MediaView | null;
 }
