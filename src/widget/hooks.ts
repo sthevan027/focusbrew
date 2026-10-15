@@ -60,6 +60,9 @@ export function useHoverOpen(
   const openRef = useRef(false);
   const inside = useRef(false);
   const holding = useRef(false);
+  // Off while the box shows something to click (the media controls): the hover
+  // would otherwise open the panel over them before the click lands.
+  const canOpen = useRef(true);
   const timer = useRef<number | null>(null);
 
   const clear = () => {
@@ -79,7 +82,7 @@ export function useHoverOpen(
     clear();
     const step = hoverStep({ inside: inside.current, open: openRef.current, holding: holding.current });
     if (step === "open") {
-      timer.current = window.setTimeout(() => apply(true), openDelay);
+      if (canOpen.current) timer.current = window.setTimeout(() => apply(true), openDelay);
     } else if (step === "close") {
       timer.current = window.setTimeout(() => {
         if (!inside.current && !holding.current) apply(false);
@@ -101,6 +104,10 @@ export function useHoverOpen(
     },
     setHolding: (value: boolean) => {
       holding.current = value;
+      schedule();
+    },
+    setCanOpen: (value: boolean) => {
+      canOpen.current = value;
       schedule();
     },
     /** Opens right away, no hover delay (a click on the bar). */

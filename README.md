@@ -209,6 +209,24 @@ clique em **Mais informações → Executar assim mesmo**.
 
 Pra desinstalar: **Configurações → Apps → Apps instalados → focusbrew**.
 
+## Site
+
+A página de divulgação fica em `site/` (Vite + React + TypeScript, com Bun) e é
+publicada na Netlify (o `netlify.toml` da raiz aponta pra `site/`). Tem o botão
+**Baixar para Windows**, que lê a última release na API do GitHub (e cai pra
+v0.4.1 se a API falhar), "Como funciona", prints do painel, privacidade,
+instalação (com o aviso do SmartScreen) e as novidades de cada versão. Cores e
+fonte são as do próprio app.
+
+No topo da página tem um **vídeo de 27 s, com narração e trilha**, mostrando o
+uso de verdade: a barra no topo da tela, o painel, o play com a linha de
+progresso, PRs e issues do GitHub virando tarefa, a nota rápida com `Ctrl+Alt+N`
+e a grade de atividade.
+
+<p align="center">
+  <img src="docs/screenshots/video-painel.jpg" alt="Vídeo do site: painel com as tarefas do dia" width="560">
+</p>
+
 ## Desenvolvimento
 
 Pré-requisitos: [Rust](https://www.rust-lang.org/tools/install) + o Visual
@@ -277,6 +295,8 @@ src-tauri/src/
   commands.rs     os comandos que a interface chama
   github.rs       login pelo gh/token, PRs e issues, contribuições, atividade
   lib.rs          bandeja, atalhos, o relógio de 1 s, notificações
+site/             a landing page (Vite + React + TS), publicada na Netlify
+hero-video/       a fonte (Remotion) do vídeo do site; netlify.toml fica na raiz
 src/
   Widget.tsx      a janela do widget (a forma que vira barra, caixa ou painel)
   widget/         Panel, TaskList, TaskRow, DaySummaryView, ActivityPanel, GithubTab

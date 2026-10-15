@@ -2,10 +2,15 @@ import type { StateSnapshot } from "../lib/types";
 import { notchLayout } from "../lib/notch";
 import { clockParts, formatClock, remainingSecs } from "../lib/progress";
 import { ClockIcon } from "./icons";
+import MediaBox from "./MediaBox";
+import MediaControls from "./MediaControls";
+import type { BoxTab } from "./mediaTabs";
 
 interface Props {
   state: StateSnapshot;
   now: number;
+  /** Which of the two things the box shows when both have something (task by default). */
+  activeTab: BoxTab;
 }
 
 /**
@@ -13,9 +18,11 @@ interface Props {
  * Running or paused, by `notchLayout`: Standard on the top has the countdown on
  * one side and the task on the other; Minimal has only the countdown, centered.
  * On the left/right edges the standing bar shows just the countdown.
+ * With media playing and the media tab active, the box shows the media instead.
  */
-export default function Notch({ state, now }: Props) {
-  const { timer, config, tasks } = state;
+export default function Notch({ state, now, activeTab }: Props) {
+  const { timer, config, tasks, media } = state;
+  if (activeTab === "media" && media) return <MediaBox media={media} />;
   if (timer.status === "idle") return null;
 
   const layout = notchLayout(config.notch_style, config.widget_edge);
@@ -48,13 +55,15 @@ export default function Notch({ state, now }: Props) {
   }
 
   const task = tasks.find((t) => t.id === timer.task_id);
+  const showControls = Boolean(media) && config.notch_media_controls;
   return (
     <div className={`notch-box ${timer.status}`}>
       <span className="notch-clock">
         <ClockIcon />
         <span className="notch-time">{formatClock(left)}</span>
       </span>
-      <span className="notch-title">{task?.title ?? ""}</span>
+      <span className={showControls ? "notch-title grow" : "notch-title"}>{task?.title ?? ""}</span>
+      {showControls && media && <MediaControls playing={media.status === "playing"} />}
     </div>
   );
 }

@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import type { StateSnapshot } from "./lib/types";
 import { fire, getState, onCursorOutside, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
-import { SCALE_FACTOR } from "./lib/scale";
+import { scaleFactor } from "./lib/scale";
 import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import NoteEditor from "./note/NoteEditor";
 import type { NoteRequest } from "./note/NoteEditor";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
+import { defaultTab, nextTab } from "./widget/mediaTabs";
+import { touchesEdge } from "./widget/edgeTouch";
+import type { BoxTab } from "./widget/mediaTabs";
 import ProgressLine from "./widget/ProgressLine";
 import { afterNoteClose, shouldHold } from "./widget/holding";
 import { useHoverOpen, useIdleClose, useMotion, useNow } from "./widget/hooks";
@@ -61,9 +64,46 @@ export default function Widget() {
         edge: state.config.widget_edge,
         sideCount: state.config.side_count_style,
         noteOpen: note.open,
+        hasMedia: Boolean(state.media),
       })
     : null;
   const motion = useMotion(shape?.kind ?? "hidden");
+
+  // Which of the task and the media the box shows: the task by default, Ctrl+Scroll flips it.
+  const [tab, setTab] = useState<BoxTab>("task");
+  const hasTask = state ? state.timer.status !== "idle" : false;
+  const hasMedia = Boolean(state?.media);
+  const ready = state !== null;
+  const hitRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setTab(defaultTab(hasTask, hasMedia));
+  }, [hasTask, hasMedia]);
+  // The box shows media buttons (the media box, or the task box with the setting on): hovering it must not
+  // open the panel over them. Pressing the cursor against the screen edge still does.
+  const controlsShown = hasMedia && (tab === "media" || !hasTask || Boolean(state?.config.notch_media_controls));
+  useEffect(() => {
+    hover.setCanOpen(!controlsShown);
+  }, [controlsShown]);
+  const mediaBoxShown = controlsShown;
+  // Only music playing: the closed box is the medium size whatever the notch style, and rounded.
+  const mediaOnlyBox = !hasTask && hasMedia && phase === "closed" && !note.open;
+  const onEdgeMove = (e: MouseEvent<HTMLDivElement>) => {
+    if (touchesEdge(state?.config.widget_edge ?? "top", e.currentTarget.getBoundingClientRect(), e.clientX, e.clientY)) {
+      hover.openNow();
+    }
+  };
+  useEffect(() => {
+    const hit = hitRef.current;
+    if (!hit) return;
+    // A native listener, not React's onWheel: React's is passive, so it can't cancel the zoom that Ctrl+Scroll does.
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setTab((current) => nextTab(current, hasTask, hasMedia, e.deltaY));
+    };
+    hit.addEventListener("wheel", onWheel, { passive: false });
+    return () => hit.removeEventListener("wheel", onWheel);
+  }, [hasTask, hasMedia, ready]);
 
   // Typing, dragging (from the list) or a pin keep the panel open.
   const holdFromList = (hold: boolean) => {
@@ -191,7 +231,7 @@ export default function Widget() {
   const shownPhase: PanelPhase = note.open ? "open" : phase;
   const style = {
     "--accent": config.accent_color,
-    "--s": SCALE_FACTOR[config.widget_scale],
+    "--s": scaleFactor(config.notch_style, mediaOnlyBox),
     "--grow-ms": `${GROW_MS}ms`,
     "--shrink-ms": `${SHRINK_MS}ms`,
   } as CSSProperties;
@@ -200,14 +240,17 @@ export default function Widget() {
     <div className="widget-root" data-edge={config.widget_edge} style={style}>
       <div className="scaled">
         <div
+          ref={hitRef}
           className="hit"
           style={{ width: shape.hit.width, height: shape.hit.height }}
           onMouseEnter={hover.onMouseEnter}
           onMouseLeave={hover.onMouseLeave}
+          onMouseMove={mediaBoxShown ? onEdgeMove : undefined}
           onClick={phase === "closed" && !note.open ? () => pin(true) : undefined}
         >
           <div
             className={`shell-frame ${shownPhase} ${timer.status} ${motion}`}
+            data-round={mediaOnlyBox ? "all" : undefined}
             data-kind={shape.kind}
             style={{ width: shape.shell.width, height: shape.shell.height }}
           >
@@ -217,7 +260,7 @@ export default function Widget() {
                   <NoteEditor request={note.request} placement="overlay" config={config} onClose={closeNote} />
                 </div>
               ) : phase === "closed" ? (
-                <Notch state={state} now={now} />
+                <Notch state={state} now={now} activeTab={tab} />
               ) : (
                 <Panel
                   state={state}

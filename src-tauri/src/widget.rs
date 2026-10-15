@@ -315,8 +315,11 @@ pub struct Layout {
     pub visible: bool,
 }
 
-fn scaled(config: &AppConfig, (w, h): (f64, f64)) -> Layout {
-    let scale = config.widget_scale.factor();
+fn scaled(config: &AppConfig, size: (f64, f64)) -> Layout {
+    scaled_by(config, config.scale_factor(), size)
+}
+
+fn scaled_by(config: &AppConfig, scale: f64, (w, h): (f64, f64)) -> Layout {
     Layout {
         width: (w * scale).round(),
         height: (h * scale).round(),
@@ -338,9 +341,11 @@ pub fn panel_zone(config: &AppConfig) -> Layout {
 /// The area that catches the mouse while the panel is closed. On the side
 /// edges everything stands up: the parked bar is 14 wide and 140 tall, and a
 /// running block is the standing countdown bar (size by `side_count_style`).
-pub fn hot_zone(config: &AppConfig, status: TimerStatus) -> Layout {
+pub fn hot_zone(config: &AppConfig, status: TimerStatus, has_media: bool) -> Layout {
     let side = config.widget_edge != WidgetEdge::Top;
-    let size = match (status == TimerStatus::Idle, side) {
+    // Media playing draws the box even with the timer parked, so the mouse zone must match it.
+    let parked = status == TimerStatus::Idle && !has_media;
+    let size = match (parked, side) {
         (true, false) => IDLE_ZONE,
         (true, true) => (IDLE_ZONE.1, IDLE_ZONE.0),
         (false, false) => RUNNING_ZONE,
@@ -349,18 +354,21 @@ pub fn hot_zone(config: &AppConfig, status: TimerStatus) -> Layout {
             SideCountStyle::Inline => SIDE_INLINE_ZONE,
         },
     };
-    scaled(config, size)
+    // Only music playing: the box is the medium size whatever the notch style (like the front end).
+    let media_only = status == TimerStatus::Idle && has_media;
+    let scale = if media_only { 1.0 } else { config.scale_factor() };
+    scaled_by(config, scale, size)
 }
 
 #[cfg(test)]
 mod layout_tests {
     use super::*;
-    use crate::config::{AppConfig, SideCountStyle, WidgetEdge, WidgetScale};
+    use crate::config::{AppConfig, NotchStyle, SideCountStyle, WidgetEdge};
 
     const EDGES: [WidgetEdge; 3] = [WidgetEdge::Top, WidgetEdge::Left, WidgetEdge::Right];
 
-    fn cfg(scale: WidgetScale) -> AppConfig {
-        AppConfig { widget_scale: scale, ..AppConfig::default() }
+    fn cfg(notch_style: NotchStyle) -> AppConfig {
+        AppConfig { notch_style, ..AppConfig::default() }
     }
 
     fn cfg_edge(edge: WidgetEdge) -> AppConfig {
@@ -384,15 +392,14 @@ mod layout_tests {
 
     #[test]
     fn the_window_is_always_the_note_size() {
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Medium))), (560.0, 380.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Small))), (476.0, 323.0));
-        assert_eq!(size(window_layout(&cfg(WidgetScale::Large))), (700.0, 475.0));
+        assert_eq!(size(window_layout(&cfg(NotchStyle::Standard))), (560.0, 380.0));
+        assert_eq!(size(window_layout(&cfg(NotchStyle::Minimal))), (476.0, 323.0));
     }
 
     // Review fix I1: with the panel open (not the note) the 80 px under it must stay click-through.
     #[test]
     fn the_open_panel_zone_is_the_panel_not_the_whole_note_sized_window() {
-        let c = cfg(WidgetScale::Medium);
+        let c = cfg(NotchStyle::Standard);
         let a = area(0, 0, 1920, 1080, 1.0);
         let window = physical_bounds(a, &window_layout(&c), WidgetEdge::Top);
         let panel = physical_bounds(a, &panel_zone(&c), WidgetEdge::Top);
@@ -411,52 +418,62 @@ mod layout_tests {
 
     #[test]
     fn the_mouse_zone_follows_the_state() {
-        let c = cfg(WidgetScale::Medium);
-        assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (140.0, 14.0));
-        assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (320.0, 44.0));
-        assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (320.0, 44.0));
+        let c = cfg(NotchStyle::Standard);
+        assert_eq!(size(hot_zone(&c, TimerStatus::Idle, false)), (140.0, 14.0));
+        assert_eq!(size(hot_zone(&c, TimerStatus::Running, false)), (320.0, 44.0));
+        assert_eq!(size(hot_zone(&c, TimerStatus::Paused, false)), (320.0, 44.0));
+    }
+
+    #[test]
+    fn media_alone_gets_the_box_zone_not_the_parked_bar() {
+        // The box is drawn for media even with the timer parked; a parked-bar zone
+        // would let clicks on the buttons pass through to the window below.
+        let c = cfg(NotchStyle::Standard);
+        assert_eq!(size(hot_zone(&c, TimerStatus::Idle, true)), (320.0, 44.0));
+        let side = cfg_edge(WidgetEdge::Left);
+        assert_eq!(size(hot_zone(&side, TimerStatus::Idle, true)), (56.0, 88.0));
+    }
+
+    #[test]
+    fn music_alone_is_the_medium_box_whatever_the_style() {
+        assert_eq!(size(hot_zone(&cfg(NotchStyle::Minimal), TimerStatus::Idle, true)), (320.0, 44.0));
+        // with the timer running the style's size still applies
+        assert_eq!(size(hot_zone(&cfg(NotchStyle::Minimal), TimerStatus::Running, true)), (272.0, 37.0));
     }
 
     #[test]
     fn the_mouse_zone_follows_the_scale() {
-        assert_eq!(size(hot_zone(&cfg(WidgetScale::Small), TimerStatus::Idle)), (119.0, 12.0));
-        assert_eq!(size(hot_zone(&cfg(WidgetScale::Small), TimerStatus::Running)), (272.0, 37.0));
-        assert_eq!(size(hot_zone(&cfg(WidgetScale::Large), TimerStatus::Running)), (400.0, 55.0));
+        assert_eq!(size(hot_zone(&cfg(NotchStyle::Minimal), TimerStatus::Idle, false)), (119.0, 12.0));
+        assert_eq!(size(hot_zone(&cfg(NotchStyle::Minimal), TimerStatus::Running, false)), (272.0, 37.0));
     }
 
     #[test]
     fn the_parked_bar_stands_up_on_the_sides() {
         for edge in [WidgetEdge::Left, WidgetEdge::Right] {
             let c = cfg_edge(edge);
-            assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (14.0, 140.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Idle, false)), (14.0, 140.0), "{edge:?}");
             // the running bar stands up too: stacked countdown by default
-            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (56.0, 88.0), "{edge:?}");
-            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (56.0, 88.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running, false)), (56.0, 88.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Paused, false)), (56.0, 88.0), "{edge:?}");
         }
-        assert_eq!(size(hot_zone(&cfg_edge(WidgetEdge::Top), TimerStatus::Idle)), (140.0, 14.0));
-        let small = AppConfig { widget_edge: WidgetEdge::Left, widget_scale: WidgetScale::Small, ..AppConfig::default() };
-        assert_eq!(size(hot_zone(&small, TimerStatus::Idle)), (12.0, 119.0));
+        assert_eq!(size(hot_zone(&cfg_edge(WidgetEdge::Top), TimerStatus::Idle, false)), (140.0, 14.0));
+        let small = AppConfig { widget_edge: WidgetEdge::Left, notch_style: NotchStyle::Minimal, ..AppConfig::default() };
+        assert_eq!(size(hot_zone(&small, TimerStatus::Idle, false)), (12.0, 119.0));
     }
 
     #[test]
     fn the_inline_countdown_makes_a_wider_standing_bar_only_on_the_sides() {
         for edge in [WidgetEdge::Left, WidgetEdge::Right] {
             let c = AppConfig { widget_edge: edge, side_count_style: SideCountStyle::Inline, ..AppConfig::default() };
-            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (72.0, 104.0), "{edge:?}");
-            assert_eq!(size(hot_zone(&c, TimerStatus::Paused)), (72.0, 104.0), "{edge:?}");
-            assert_eq!(size(hot_zone(&c, TimerStatus::Idle)), (14.0, 140.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running, false)), (72.0, 104.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Paused, false)), (72.0, 104.0), "{edge:?}");
+            assert_eq!(size(hot_zone(&c, TimerStatus::Idle, false)), (14.0, 140.0), "{edge:?}");
         }
         // on the top the box is the same whatever the style
         for style in [SideCountStyle::Stacked, SideCountStyle::Inline] {
             let c = AppConfig { side_count_style: style, ..AppConfig::default() };
-            assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (320.0, 44.0));
+            assert_eq!(size(hot_zone(&c, TimerStatus::Running, false)), (320.0, 44.0));
         }
-    }
-
-    #[test]
-    fn the_standing_bar_follows_the_scale() {
-        let c = AppConfig { widget_edge: WidgetEdge::Left, widget_scale: WidgetScale::Large, ..AppConfig::default() };
-        assert_eq!(size(hot_zone(&c, TimerStatus::Running)), (70.0, 110.0));
     }
 
     #[test]
@@ -468,10 +485,10 @@ mod layout_tests {
 
     #[test]
     fn the_zone_and_the_window_share_the_same_top_center() {
-        let c = cfg(WidgetScale::Medium);
+        let c = cfg(NotchStyle::Standard);
         let a = area(0, 0, 1920, 1080, 1.0);
         let window = physical_bounds(a, &window_layout(&c), WidgetEdge::Top);
-        let zone = physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Top);
+        let zone = physical_bounds(a, &hot_zone(&c, TimerStatus::Running, false), WidgetEdge::Top);
         assert_eq!(window, (680, 0, 560, 380));
         assert_eq!(zone, (800, 0, 320, 44));
     }
@@ -481,8 +498,8 @@ mod layout_tests {
         let c = cfg_edge(WidgetEdge::Left);
         let a = area(0, 0, 1920, 1080, 1.0);
         assert_eq!(physical_bounds(a, &window_layout(&c), WidgetEdge::Left), (0, 350, 560, 380));
-        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Left), (0, 496, 56, 88));
-        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle), WidgetEdge::Left), (0, 470, 14, 140));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running, false), WidgetEdge::Left), (0, 496, 56, 88));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle, false), WidgetEdge::Left), (0, 470, 14, 140));
     }
 
     #[test]
@@ -490,8 +507,8 @@ mod layout_tests {
         let c = cfg_edge(WidgetEdge::Right);
         let a = area(0, 0, 1920, 1080, 1.0);
         assert_eq!(physical_bounds(a, &window_layout(&c), WidgetEdge::Right), (1360, 350, 560, 380));
-        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running), WidgetEdge::Right), (1864, 496, 56, 88));
-        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle), WidgetEdge::Right), (1906, 470, 14, 140));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Running, false), WidgetEdge::Right), (1864, 496, 56, 88));
+        assert_eq!(physical_bounds(a, &hot_zone(&c, TimerStatus::Idle, false), WidgetEdge::Right), (1906, 470, 14, 140));
     }
 
     #[test]
@@ -563,12 +580,12 @@ mod layout_tests {
     fn the_mouse_zone_is_always_inside_the_window() {
         let a = area(0, 0, 1920, 1080, 1.0);
         for edge in EDGES {
-            for scale in [WidgetScale::Small, WidgetScale::Medium, WidgetScale::Large] {
+            for notch_style in [NotchStyle::Minimal, NotchStyle::Standard] {
                 for status in [TimerStatus::Idle, TimerStatus::Running, TimerStatus::Paused] {
-                    let c = AppConfig { widget_edge: edge, widget_scale: scale, ..AppConfig::default() };
+                    let c = AppConfig { widget_edge: edge, notch_style, ..AppConfig::default() };
                     let window = physical_bounds(a, &window_layout(&c), edge);
-                    let zone = physical_bounds(a, &hot_zone(&c, status), edge);
-                    assert!(inside(window, zone), "{edge:?} {scale:?}: zone {zone:?} outside window {window:?}");
+                    let zone = physical_bounds(a, &hot_zone(&c, status, false), edge);
+                    assert!(inside(window, zone), "{edge:?} {notch_style:?}: zone {zone:?} outside window {window:?}");
                 }
             }
         }

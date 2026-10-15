@@ -82,3 +82,25 @@ export const CheckIcon = ({ size = 12 }: IconProps) => (
     <path d="M3.5 8.5l3 3 6-6.5" />
   </svg>
 );
+
+export const MusicNoteIcon = ({ size = 14 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" {...stroke}>
+    <path d="M6.2 11.8V3.4l6.3-1.4v8.4" />
+    <circle cx="4.6" cy="11.8" r="1.6" />
+    <circle cx="11" cy="10" r="1.6" />
+  </svg>
+);
+
+export const PreviousIcon = ({ size = 12 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+    <rect x="2.8" y="3.2" width="1.7" height="9.6" rx="0.5" />
+    <path d="M13.2 3.4v9.2a.5.5 0 0 1-.8.4L6.2 8.4a.5.5 0 0 1 0-.8l6.2-4.6a.5.5 0 0 1 .8.4z" />
+  </svg>
+);
+
+export const NextIcon = ({ size = 12 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+    <rect x="11.5" y="3.2" width="1.7" height="9.6" rx="0.5" />
+    <path d="M2.8 3.4v9.2a.5.5 0 0 0 .8.4l6.2-4.6a.5.5 0 0 0 0-.8L3.6 3a.5.5 0 0 0-.8.4z" />
+  </svg>
+);

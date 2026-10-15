@@ -11,6 +11,7 @@ import { AgendaTab } from "./AgendaTab";
 import DaySummaryView from "./DaySummaryView";
 import GithubTab from "./GithubTab";
 import { ChevronIcon, NoteIcon, PinIcon } from "./icons";
+import MediaTab from "./MediaTab";
 import TaskList from "./TaskList";
 
 interface Props {
@@ -25,7 +26,7 @@ interface Props {
   onNote: () => void;
 }
 
-const TAB_LABEL: Record<PanelTab, string> = { tasks: "Tarefas", summary: "Resumo", github: "GitHub", agenda: "Agenda" };
+const TAB_LABEL: Record<PanelTab, string> = { tasks: "Tarefas", summary: "Resumo", github: "GitHub", agenda: "Agenda", media: "Música" };
 
 export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onHold, onNote }: Props) {
   const { today } = state;
@@ -40,7 +41,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
     flashTimer.current = window.setTimeout(() => setFlashDay(null), 900);
   };
   useEffect(() => () => window.clearTimeout(flashTimer.current), []);
-  const tabs = tabsFor(day, today, Boolean(state.config.github_login), state.config.google_connected);
+  const tabs = tabsFor(day, today, Boolean(state.config.github_login), state.config.google_connected, Boolean(state.media));
   const tab = tabs.includes(wanted) ? wanted : tabs[0];
 
   let stats: string;
@@ -127,6 +128,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
         {tab === "summary" && <DaySummaryView state={state} day={day} />}
         {tab === "github" && <GithubTab state={state} day={day} />}
         {tab === "agenda" && <AgendaTab state={state} day={day} />}
+        {tab === "media" && state.media && <MediaTab media={state.media} />}
         <div className="divider" />
         <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} flashDay={flashDay} />
       </div>

@@ -32,6 +32,10 @@ export const reorderTasks = (ids: string[]) => invoke<StateSnapshot>("reorder_ta
 export const startTask = (id: string) => invoke<StateSnapshot>("start_task", { id });
 export const toggleTimerPause = () => invoke<StateSnapshot>("toggle_pause");
 export const stopTimer = () => invoke<StateSnapshot>("stop_timer");
+export const mediaPlay = () => invoke<void>("media_play");
+export const mediaPause = () => invoke<void>("media_pause");
+export const mediaNext = () => invoke<void>("media_next");
+export const mediaPrevious = () => invoke<void>("media_previous");
 
 export const updateSettings = (newConfig: AppConfig) =>
   invoke<StateSnapshot>("update_settings", { newConfig });

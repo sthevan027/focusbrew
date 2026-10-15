@@ -1,0 +1,61 @@
+import { useState } from "react";
+import { pt } from "../content/pt";
+import { formatSize, installerUrl, REPO_URL, type ReleaseInfo } from "../lib/release";
+import { isWindows } from "../lib/platform";
+
+function DownloadButton({ release }: { release?: ReleaseInfo }) {
+  const t = pt.hero;
+  const [windows] = useState(() => typeof navigator === "undefined" || isWindows(navigator));
+  if (!windows) {
+    return (
+      <div>
+        <p className="windows-only">{t.ctaWindowsOnly}</p>
+        <a className="cta cta-ghost" href={REPO_URL} rel="noopener">{t.ctaGithub}</a>
+      </div>
+    );
+  }
+  const meta = release?.version;
+  return (
+    <a className="cta" href={installerUrl(release)} rel="noopener">
+      <span aria-hidden="true">▦</span> {t.cta}
+      {meta && <span className="cta-meta mono">{meta}</span>}
+    </a>
+  );
+}
+
+export function Hero({ release }: { release?: ReleaseInfo }) {
+  const t = pt.hero;
+  return (
+    <section className="hero" id="top">
+      <div className="grid-bg" aria-hidden="true" />
+      <div className="container hero-grid">
+        <div>
+          <span className="badge"><span className="accent" aria-hidden="true">▦</span> {t.badge}</span>
+          <h1>{t.titleA}<span className="accent">{t.titleB}</span></h1>
+          <p className="lead">{t.subtitle}</p>
+          <DownloadButton release={release} />
+          <p className="tiny muted hero-meta">
+            {t.metaBefore}
+            {release?.installer && ` · ${formatSize(release.installer.sizeBytes)}`}
+            {t.metaAfter}
+          </p>
+        </div>
+        <figure className="stage">
+          {/* Telas reais do app (docs/screenshots/), montadas em vídeo com narração — ver spec §7.3. */}
+          <video
+            className="stage-video"
+            controls
+            playsInline
+            preload="metadata"
+            poster="media/poster.jpg"
+            aria-label={t.videoLabel}
+          >
+            <source src="media/hero.webm" type="video/webm" />
+            <source src="media/hero.mp4" type="video/mp4" />
+          </video>
+          <figcaption className="stage-cap tiny muted">{t.videoCaption}</figcaption>
+        </figure>
+      </div>
+    </section>
+  );
+}
