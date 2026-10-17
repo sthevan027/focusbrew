@@ -28,9 +28,31 @@ interface Props {
 
 const TAB_LABEL: Record<PanelTab, string> = { tasks: "Tarefas", summary: "Resumo", github: "GitHub", agenda: "Agenda", media: "Música" };
 
+// The last tab picked is remembered across restarts and across the note window.
+const TAB_KEY = "focusbrew.panelTab";
+const TAB_IDS = Object.keys(TAB_LABEL) as PanelTab[];
+
+function savedTab(): PanelTab {
+  try {
+    const saved = localStorage.getItem(TAB_KEY);
+    if (saved && (TAB_IDS as string[]).includes(saved)) return saved as PanelTab;
+  } catch {
+    // Storage blocked: start on the tasks tab.
+  }
+  return "tasks";
+}
+
 export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onHold, onNote }: Props) {
   const { today } = state;
-  const [wanted, setWanted] = useState<PanelTab>("tasks");
+  const [wanted, setWanted] = useState<PanelTab>(savedTab);
+  const pickTab = (t: PanelTab) => {
+    setWanted(t);
+    try {
+      localStorage.setItem(TAB_KEY, t);
+    } catch {
+      // Not saved; the tab still changes for this session.
+    }
+  };
   const [dropDay, setDropDay] = useState<string | null>(null);
   // The square a task was just moved to blinks once, so it doesn't just vanish.
   const [flashDay, setFlashDay] = useState<string | null>(null);
@@ -97,7 +119,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
                 role="tab"
                 aria-selected={t === tab}
                 className={t === tab ? "tab active" : "tab"}
-                onClick={() => setWanted(t)}
+                onClick={() => pickTab(t)}
               >
                 {TAB_LABEL[t]}
               </button>
