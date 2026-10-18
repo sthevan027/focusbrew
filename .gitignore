@@ -29,3 +29,6 @@ src-tauri/gen
 
 # Scripts locais de apoio (não vão pro GitHub)
 scripts/
+
+# Activity tracker service build output
+src-tauri-service/target/
