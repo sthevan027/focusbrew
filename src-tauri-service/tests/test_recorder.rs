@@ -6,6 +6,26 @@ fn t(secs: i64) -> DateTime<Utc> {
 }
 
 #[test]
+fn checkpoint_writes_span_so_far_and_keeps_segment_open() {
+    let mut r = Recorder::default();
+    r.observe(Some(("Code.exe", false)), t(0));
+
+    let part = r.checkpoint(t(60)).expect("checkpoint writes the span so far");
+    assert_eq!(part.started_at, t(0));
+    assert_eq!(part.ended_at, Some(t(60)));
+
+    assert!(r.observe(Some(("Code.exe", false)), t(61)).is_none(), "same app keeps going");
+    let rest = r.finish(t(120)).expect("remainder is flushed");
+    assert_eq!(rest.started_at, t(60), "no gap and no overlap with the checkpointed span");
+    assert_eq!(rest.ended_at, Some(t(120)));
+}
+
+#[test]
+fn checkpoint_without_open_segment_writes_nothing() {
+    assert!(Recorder::default().checkpoint(t(1)).is_none());
+}
+
+#[test]
 fn same_app_and_idle_state_keeps_segment_open() {
     let mut r = Recorder::default();
     assert!(r.observe(Some(("Code.exe", false)), t(0)).is_none());

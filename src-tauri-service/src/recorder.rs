@@ -42,6 +42,25 @@ impl Recorder {
         self.close(now)
     }
 
+    /// Writes the span so far and keeps the segment open from `now`. Without this, a long
+    /// session with no app switch would reach the database only when it ended.
+    pub fn checkpoint(&mut self, now: DateTime<Utc>) -> Option<ActivityRecord> {
+        let cur = self.current.as_mut()?;
+        if now <= cur.started_at {
+            return None;
+        }
+        let record = ActivityRecord {
+            id: None,
+            app_name: cur.app_name.clone(),
+            started_at: cur.started_at,
+            ended_at: Some(now),
+            is_idle: cur.is_idle,
+            created_at: now,
+        };
+        cur.started_at = now;
+        Some(record)
+    }
+
     fn close(&mut self, now: DateTime<Utc>) -> Option<ActivityRecord> {
         let cur = self.current.take()?;
         if now <= cur.started_at {
