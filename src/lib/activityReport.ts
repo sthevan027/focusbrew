@@ -58,3 +58,32 @@ export interface ActivityConfig {
   retention_days: number;
   service_port: number;
 }
+
+/** Remove a extensão `.exe` do nome do app para exibição (o banco continua com o nome completo). */
+export function appDisplayName(appName: string): string {
+  return appName.replace(/\.exe$/i, "");
+}
+
+/**
+ * Windows shell/UI helper processes that pop up as a side effect of something else
+ * (a keyboard shortcut, the search box, text input) rather than something the user
+ * chose to open and use. Hidden from every Activity Tracking view, not just logged
+ * differently — the time isn't meaningful as "app usage".
+ */
+const SYSTEM_PROCESS_BLOCKLIST = new Set([
+  "searchhost.exe",
+  "shellexperiencehost.exe",
+  "startmenuexperiencehost.exe",
+  "textinputhost.exe",
+  "lockapp.exe",
+  "snippingtool.exe",
+]);
+
+export function isSystemProcess(appName: string): boolean {
+  return SYSTEM_PROCESS_BLOCKLIST.has(appName.toLowerCase());
+}
+
+/** Drops system/shell helper processes; use before showing an apps list to the user. */
+export function filterSystemProcesses(apps: ActivityApp[]): ActivityApp[] {
+  return apps.filter((a) => !isSystemProcess(a.app_name));
+}

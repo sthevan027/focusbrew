@@ -439,12 +439,10 @@
 .settings .activity-summary div { background: #ffffff0d; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
 .settings .activity-summary span { font-size: 12px; color: #8a8a90; }
 .settings .activity-summary strong { font-size: 18px; font-weight: 600; }
-.settings .activity-chart { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.settings .activity-chart li { display: grid; grid-template-columns: 130px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; }
-.settings .activity-bar-track { background: #ffffff0d; border-radius: 4px; height: 10px; overflow: hidden; }
-.settings .activity-bar { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
-.settings .activity-bar-label, .settings .activity-bar-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.settings .activity-bar-value { text-align: right; color: #8a8a90; }
+.settings .activity-chart { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.settings .activity-chart li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #ffffff0d; }
+.settings .activity-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d0d0d5; }
+.settings .activity-bar-value { font-size: 15px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 .settings .activity-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .settings .activity-table th, .settings .activity-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ffffff14; }
 .settings .activity-table th button { background: none; border: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; padding: 0; }

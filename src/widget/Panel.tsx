@@ -7,6 +7,7 @@ import { addDays, dayLabel, tabsFor, tasksForDay } from "../lib/day";
 import type { PanelTab } from "../lib/day";
 import { daySummary } from "../lib/summary";
 import ActivityPanel from "./ActivityPanel";
+import ActivitySummaryWidget from "./ActivitySummaryWidget";
 import { AgendaTab } from "./AgendaTab";
 import DaySummaryView from "./DaySummaryView";
 import GithubTab from "./GithubTab";
@@ -143,7 +144,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
         </button>
       </header>
 
-      <div className="panel-body">
+      <div className={tab === "media" ? "panel-body media-panel" : "panel-body"}>
         {tab === "tasks" && (
           <TaskList state={state} day={day} now={now} onHold={onHold} onDropDay={setDropDay} onMoved={onMoved} />
         )}
@@ -151,8 +152,18 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
         {tab === "github" && <GithubTab state={state} day={day} />}
         {tab === "agenda" && <AgendaTab state={state} day={day} />}
         {tab === "media" && state.media && <MediaTab media={state.media} />}
-        <div className="divider" />
-        <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} flashDay={flashDay} />
+        {tab === "summary" && (
+          <>
+            <div className="divider" />
+            <ActivitySummaryWidget day={day} />
+          </>
+        )}
+        {tab !== "summary" && tab !== "media" && (
+          <>
+            <div className="divider" />
+            <ActivityPanel state={state} selected={day} onSelect={onDay} dropDay={dropDay} flashDay={flashDay} />
+          </>
+        )}
       </div>
     </div>
   );

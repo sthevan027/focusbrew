@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  appDisplayName,
+  filterSystemProcesses,
   formatDuration,
   periodRange,
   type ActivityApp,
@@ -63,7 +65,7 @@ export default function ActivityReport() {
     };
   }, [period, custom, customValid]);
 
-  const apps = useMemo(() => report?.apps ?? [], [report]);
+  const apps = useMemo(() => filterSystemProcesses(report?.apps ?? []), [report]);
   const activeTotal = apps.reduce((sum, a) => sum + a.seconds, 0);
   const idleTotal = report?.idle_seconds ?? 0;
   const activePercent = activeTotal + idleTotal > 0 ? Math.round((activeTotal / (activeTotal + idleTotal)) * 100) : 0;
@@ -76,7 +78,6 @@ export default function ActivityReport() {
         .slice(0, CHART_APPS),
     [apps],
   );
-  const chartMax = chartApps[0]?.seconds ?? 0;
 
   const rows = useMemo(() => {
     const visible = showAll ? apps : apps.filter((a) => a.seconds >= MIN_SHOWN_SECONDS);
@@ -158,10 +159,7 @@ export default function ActivityReport() {
         <ul className="activity-chart" aria-label="Tempo por app">
           {chartApps.map((a) => (
             <li key={a.app_name}>
-              <span className="activity-bar-label">{a.app_name}</span>
-              <span className="activity-bar-track">
-                <span className="activity-bar" style={{ width: `${(a.seconds / chartMax) * 100}%` }} />
-              </span>
+              <span className="activity-bar-label">{appDisplayName(a.app_name)}</span>
               <span className="activity-bar-value">{formatDuration(a.seconds)}</span>
             </li>
           ))}
@@ -197,7 +195,7 @@ export default function ActivityReport() {
             <tbody>
               {rows.map((a) => (
                 <tr key={a.app_name}>
-                  <td>{a.app_name}</td>
+                  <td>{appDisplayName(a.app_name)}</td>
                   <td>{formatDuration(a.seconds)}</td>
                   <td>{a.sessions}</td>
                 </tr>
