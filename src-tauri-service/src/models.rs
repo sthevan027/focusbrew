@@ -27,3 +27,13 @@ impl Default for Config {
         }
     }
 }
+
+/// Idle threshold is clamped to the 1–60 minute range the UI offers.
+pub fn clamp_idle_threshold(minutes: u32) -> u32 {
+    minutes.clamp(1, 60)
+}
+
+/// Retention is clamped to 30–365 days; the UI offers 30, 90 and 180.
+pub fn clamp_retention_days(days: u32) -> u32 {
+    days.clamp(30, 365)
+}

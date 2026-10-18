@@ -2,6 +2,9 @@ use crate::models::ActivityRecord;
 use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use rusqlite::{params, Connection};
 
+/// Seconds one activity row contributes inside `[?1, ?2)`; both bound as fixed-width timestamps.
+const OVERLAP_SECS: &str = "(MIN(julianday(COALESCE(ended_at, ?2)), julianday(?2)) - MAX(julianday(started_at), julianday(?1))) * 86400";
+
 pub struct Storage {
     pub db: Connection,
 }
@@ -74,21 +77,19 @@ impl Storage {
         to: DateTime<Utc>,
         app_filter: Option<&str>,
     ) -> Result<Vec<(String, u32, u32)>, String> {
+        let sql = format!(
+            "SELECT
+                MIN(app_name) AS app,
+                CAST(ROUND(SUM({OVERLAP_SECS})) AS INTEGER) AS seconds,
+                COUNT(*) AS sessions
+             FROM activities
+             WHERE is_idle = 0 AND started_at < ?2 AND COALESCE(ended_at, ?2) > ?1
+             GROUP BY LOWER(app_name)
+             ORDER BY seconds DESC"
+        );
         let mut stmt = self
             .db
-            .prepare(
-                "SELECT
-                    MIN(app_name) AS app,
-                    CAST(ROUND(SUM(
-                        (MIN(julianday(COALESCE(ended_at, ?2)), julianday(?2))
-                         - MAX(julianday(started_at), julianday(?1))) * 86400
-                    )) AS INTEGER) AS seconds,
-                    COUNT(*) AS sessions
-                 FROM activities
-                 WHERE is_idle = 0 AND started_at < ?2 AND COALESCE(ended_at, ?2) > ?1
-                 GROUP BY LOWER(app_name)
-                 ORDER BY seconds DESC",
-            )
+            .prepare(&sql)
             .map_err(|e| format!("Failed to prepare query: {e}"))?;
 
         let rows = stmt
@@ -134,5 +135,19 @@ impl Storage {
             .execute("DELETE FROM activities WHERE started_at < ?1", params![fmt_ts(cutoff)])
             .map_err(|e| format!("Failed to cleanup: {e}"))?;
         Ok(())
+    }
+}
+
+impl Storage {
+    /// Idle time inside `[from, to)`, clipped to the range like `query_activities`.
+    pub fn query_idle_seconds(&self, from: DateTime<Utc>, to: DateTime<Utc>) -> Result<u32, String> {
+        let sql = format!(
+            "SELECT COALESCE(CAST(ROUND(SUM({OVERLAP_SECS})) AS INTEGER), 0)
+             FROM activities
+             WHERE is_idle = 1 AND started_at < ?2 AND COALESCE(ended_at, ?2) > ?1"
+        );
+        self.db
+            .query_row(&sql, params![fmt_ts(from), fmt_ts(to)], |row| row.get(0))
+            .map_err(|e| format!("Idle query failed: {e}"))
     }
 }
