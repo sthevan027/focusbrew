@@ -25,6 +25,11 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 export const SECTION_ICONS = {
+  activity: () => (
+    <Icon>
+      <polyline points="3 17 9 11 13 15 21 6" />
+    </Icon>
+  ),
   focus: () => (
     <Icon>
       <circle cx="12" cy="13.5" r="7.5" />

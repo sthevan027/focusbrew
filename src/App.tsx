@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { AppConfig, StateSnapshot } from "./lib/types";
 import { fire, getState, onStateChanged, updateSettings } from "./lib/tauri";
+import ActivityReport from "./components/ActivityReport";
+import ActivitySettings from "./components/ActivitySettings";
 import GithubPanel from "./components/GithubPanel";
 import GoogleCalendarPanel from "./components/GoogleCalendarPanel";
 import FocusSection from "./settings/FocusSection";
@@ -12,12 +14,13 @@ import { SECTION_ICONS } from "./settings/icons";
 import { useUpdateStatus } from "./settings/useUpdateStatus";
 import "./App.css";
 
-type Section = "focus" | "notes" | "notch" | "general" | "github" | "google";
+type Section = "focus" | "notes" | "notch" | "activity" | "general" | "github" | "google";
 
 const SECTIONS: { id: Section; label: string; color: string }[] = [
   { id: "focus", label: "Foco", color: "#ff9f0a" },
   { id: "notes", label: "Notas", color: "#bf5af2" },
   { id: "notch", label: "Notch", color: "#ff375f" },
+  { id: "activity", label: "Atividade", color: "#64d2ff" },
   { id: "general", label: "Geral", color: "#8e8e93" },
   { id: "github", label: "GitHub", color: "#30d158" },
   { id: "google", label: "Google Agenda", color: "#0a84ff" },
@@ -87,6 +90,12 @@ export default function App() {
             shortcutWarning={state.shortcut_warning}
             update={update}
           />
+        )}
+        {section === "activity" && (
+          <>
+            <ActivityReport />
+            <ActivitySettings />
+          </>
         )}
         {section === "github" && <GithubPanel state={state} />}
         {section === "google" && <GoogleCalendarPanel state={state} />}

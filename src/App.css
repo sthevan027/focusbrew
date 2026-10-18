@@ -425,3 +425,32 @@
 .settings .notes-card:hover .notes-del, .settings .notes-del:focus-visible { opacity: 1; }
 .settings .notes-confirm { position: absolute; top: 6px; right: 6px; display: flex; gap: 8px; align-items: center; background: #000c; border-radius: 6px; padding: 2px 8px; font-size: 12px; }
 .settings .notes-confirm button { border: none; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+
+/* Atividade: relatório por app e configurações do serviço de rastreamento */
+.settings .activity-report,
+.settings .activity-settings { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.settings .activity-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.settings .activity-periods { display: flex; gap: 6px; flex-wrap: wrap; }
+.settings .activity-periods button { border: 1px solid #ffffff1f; background: #ffffff0d; color: inherit; font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 8px; cursor: pointer; }
+.settings .activity-periods button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.settings .activity-range { display: flex; gap: 6px; }
+.settings .activity-range input { background: #ffffff0d; color: inherit; border: 1px solid #ffffff1f; border-radius: 6px; padding: 4px 6px; font: inherit; }
+.settings .activity-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.settings .activity-summary div { background: #ffffff0d; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.settings .activity-summary span { font-size: 12px; color: #8a8a90; }
+.settings .activity-summary strong { font-size: 18px; font-weight: 600; }
+.settings .activity-chart { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.settings .activity-chart li { display: grid; grid-template-columns: 130px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; }
+.settings .activity-bar-track { background: #ffffff0d; border-radius: 4px; height: 10px; overflow: hidden; }
+.settings .activity-bar { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.settings .activity-bar-label, .settings .activity-bar-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings .activity-bar-value { text-align: right; color: #8a8a90; }
+.settings .activity-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.settings .activity-table th, .settings .activity-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ffffff14; }
+.settings .activity-table th button { background: none; border: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+.settings .activity-showall { font-size: 12px; color: #8a8a90; display: flex; gap: 6px; align-items: center; }
+.settings .activity-setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; }
+.settings .activity-setting input[type="range"] { flex: 0 0 200px; accent-color: var(--accent); }
+.settings .activity-setting select { background: #ffffff0d; color: inherit; border: 1px solid #ffffff1f; border-radius: 6px; padding: 4px 6px; font: inherit; }
+.settings .activity-muted { color: #8a8a90; font-size: 13px; margin: 0; }
+.settings .activity-warning { color: #ff9f0a; font-size: 13px; margin: 0; }

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { ActivityConfig, ActivityReportData } from "./activityReport";
 import type { Note } from "./note";
 import type { AppConfig, CalendarEventView, GithubItem, MonitorChoice, StateSnapshot } from "./types";
 
@@ -96,3 +97,10 @@ export const onOpenNote = (cb: (id: string | null) => void) =>
 /** The cursor has been off the open panel for a while (the page may have missed the mouseleave). */
 export const onCursorOutside = (cb: () => void) => getCurrentWebviewWindow().listen("widget-cursor-outside", () => cb());
 export const onNoteFlash = (cb: () => void) => getCurrentWebviewWindow().listen("note-flash", () => cb());
+
+export const getActivityReport = (from: Date, to: Date) =>
+  invoke<ActivityReportData>("get_activity_report", { from: from.toISOString(), to: to.toISOString() });
+export const getActivityConfig = () => invoke<ActivityConfig>("get_activity_config");
+export const updateActivityConfig = (patch: { idleThresholdMinutes?: number; retentionDays?: number }) =>
+  invoke<ActivityConfig>("update_activity_config", patch);
+export const getActivityServiceStatus = () => invoke<boolean>("get_activity_service_status");
