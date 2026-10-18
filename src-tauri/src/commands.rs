@@ -2,6 +2,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::activity_tracking::{self, client::ActivityClient, models::{ActivityReport, ConfigResponse, ConfigUpdate}};
 use crate::config::{self, AppConfig};
 use crate::github;
 use crate::google_calendar;
@@ -654,4 +655,55 @@ pub fn close_note_window(app: AppHandle) {
 #[tauri::command]
 pub fn set_note_overlay_open(open: bool) {
     note_window::set_overlay_open(open);
+}
+
+// ---- Activity Tracking: reads and settings come from the tracker service on 127.0.0.1 ----
+
+const ACTIVITY_PORT: u16 = 8765;
+
+#[derive(serde::Serialize)]
+pub struct ActivityReportDto {
+    pub apps: Vec<ActivityReport>,
+    pub idle_seconds: u32,
+}
+
+fn parse_instant(raw: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .map_err(|_| format!("invalid date: {raw}"))
+}
+
+/// Active time per app in `[from, to)`. Missing bounds default to today (local) through tomorrow.
+#[tauri::command]
+pub async fn get_activity_report(from: Option<String>, to: Option<String>) -> Result<ActivityReportDto, String> {
+    let from = match from {
+        Some(raw) => parse_instant(&raw)?,
+        None => activity_tracking::local_midnight(chrono::Local::now().date_naive()),
+    };
+    let to = match to {
+        Some(raw) => parse_instant(&raw)?,
+        None => chrono::Utc::now() + chrono::Duration::days(1),
+    };
+    let res = ActivityClient::new(ACTIVITY_PORT).get_activities(from, to).await?;
+    Ok(ActivityReportDto { apps: res.data, idle_seconds: res.idle_seconds })
+}
+
+#[tauri::command]
+pub async fn get_activity_config() -> Result<ConfigResponse, String> {
+    ActivityClient::new(ACTIVITY_PORT).get_config().await
+}
+
+/// Either value may be omitted; the service clamps idle to 1–60 and retention to 30–365.
+#[tauri::command]
+pub async fn update_activity_config(
+    idle_threshold_minutes: Option<u32>,
+    retention_days: Option<u32>,
+) -> Result<ConfigResponse, String> {
+    let update = ConfigUpdate { idle_threshold_minutes, retention_days };
+    ActivityClient::new(ACTIVITY_PORT).set_config(update).await
+}
+
+#[tauri::command]
+pub async fn get_activity_service_status() -> bool {
+    ActivityClient::new(ACTIVITY_PORT).health().await
 }

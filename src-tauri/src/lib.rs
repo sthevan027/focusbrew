@@ -1,3 +1,4 @@
+mod activity_tracking;
 mod alerts;
 mod autostart;
 mod commands;
@@ -346,6 +347,10 @@ pub fn run() {
         .manage(notes::NotesShared(Mutex::new(notes::load())))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
+            commands::get_activity_report,
+            commands::get_activity_config,
+            commands::update_activity_config,
+            commands::get_activity_service_status,
             commands::media_play,
             commands::media_pause,
             commands::media_next,
