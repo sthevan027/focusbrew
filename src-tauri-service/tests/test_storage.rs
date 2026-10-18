@@ -13,8 +13,72 @@ fn record(app: &str, start: chrono::DateTime<Utc>, secs: i64) -> ActivityRecord 
         started_at: start,
         ended_at: Some(start + Duration::seconds(secs)),
         is_idle: false,
+        continued: false,
         created_at: start,
     }
+}
+
+#[test]
+fn test_query_activities_counts_sessions_not_checkpoints() {
+    let storage = Storage::open_memory().unwrap();
+    // Two hours in one app, stored as 120 one-minute checkpoint pieces.
+    for i in 0..120 {
+        let mut piece = record("Code.exe", base() + Duration::seconds(i * 60), 60);
+        piece.continued = i > 0;
+        storage.write_activity(&piece).unwrap();
+    }
+
+    let results = storage.query_activities(base(), base() + Duration::days(1), None).unwrap();
+
+    assert_eq!(results[0].1, 7200);
+    assert_eq!(results[0].2, 1, "one session, not one per checkpoint");
+}
+
+#[test]
+fn test_query_activities_range_starting_mid_session_still_counts_one_session() {
+    let storage = Storage::open_memory().unwrap();
+    for i in 0..3 {
+        let mut piece = record("Code.exe", base() + Duration::seconds(i * 60), 60);
+        piece.continued = true; // the session began before the range
+        storage.write_activity(&piece).unwrap();
+    }
+
+    let results = storage.query_activities(base(), base() + Duration::days(1), None).unwrap();
+
+    assert_eq!(results[0].1, 180);
+    assert_eq!(results[0].2, 1);
+}
+
+#[test]
+fn test_new_upgrades_a_database_created_before_the_continued_column() {
+    let path = std::env::temp_dir().join(format!("focusbrew-old-schema-{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    {
+        let old = rusqlite::Connection::open(&path).unwrap();
+        old.execute_batch(
+            "CREATE TABLE activities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                app_name TEXT NOT NULL,
+                started_at DATETIME NOT NULL,
+                ended_at DATETIME,
+                is_idle INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO activities (app_name, started_at, ended_at)
+            VALUES ('Old.exe', '2026-10-17T12:00:00.000Z', '2026-10-17T12:10:00.000Z');",
+        )
+        .unwrap();
+    }
+
+    let storage = Storage::new(path.to_str().unwrap()).unwrap();
+    storage.write_activity(&record("New.exe", base(), 60)).unwrap();
+    let results = storage
+        .query_activities(base() - Duration::hours(1), base() + Duration::days(1), None)
+        .unwrap();
+
+    assert_eq!(results.len(), 2, "old rows survive and new rows are accepted");
+    drop(storage);
+    let _ = std::fs::remove_file(&path);
 }
 
 #[test]

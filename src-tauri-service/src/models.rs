@@ -8,6 +8,9 @@ pub struct ActivityRecord {
     pub started_at: DateTime<Utc>,
     pub ended_at: Option<DateTime<Utc>>,
     pub is_idle: bool,
+    /// True for a checkpoint piece that continues an earlier piece of the same session.
+    #[serde(default)]
+    pub continued: bool,
     pub created_at: DateTime<Utc>,
 }
 

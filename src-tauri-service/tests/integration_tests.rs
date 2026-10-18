@@ -22,7 +22,8 @@ async fn get_json(state: &AppState, uri: &str) -> serde_json::Value {
 
 /// Feeds observations through the recorder, as the collector loop does, and stores what it emits.
 async fn collect(state: &AppState, timeline: &[(DateTime<Utc>, Option<(&str, bool)>)]) {
-    let mut recorder = Recorder::default();
+    // The timelines here jump minutes at a time; a wide gap limit keeps them from reading as suspends.
+    let mut recorder = Recorder::with_max_gap(Duration::days(1));
     for (now, obs) in timeline {
         if let Some(record) = recorder.observe(*obs, *now) {
             state.storage.lock().await.write_activity(&record).unwrap();

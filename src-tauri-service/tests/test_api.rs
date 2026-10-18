@@ -36,6 +36,7 @@ async fn seed(state: &AppState) {
             started_at: base,
             ended_at: Some(base + Duration::seconds(600)),
             is_idle: false,
+            continued: false,
             created_at: base,
         })
         .unwrap();
@@ -46,6 +47,7 @@ async fn seed(state: &AppState) {
             started_at: base + Duration::seconds(600),
             ended_at: Some(base + Duration::seconds(900)),
             is_idle: true,
+            continued: false,
             created_at: base,
         })
         .unwrap();

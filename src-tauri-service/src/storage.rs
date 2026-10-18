@@ -39,6 +39,7 @@ impl Storage {
                     started_at DATETIME NOT NULL,
                     ended_at DATETIME,
                     is_idle INTEGER DEFAULT 0,
+                    continued INTEGER NOT NULL DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS config (
@@ -50,18 +51,39 @@ impl Storage {
                 CREATE INDEX IF NOT EXISTS idx_activities_app ON activities(app_name);
                 ",
             )
-            .map_err(|e| format!("Failed to init schema: {e}"))
+            .map_err(|e| format!("Failed to init schema: {e}"))?;
+        self.add_continued_column_if_missing()
+    }
+
+    /// Databases written before sessions were told apart from checkpoints lack the column.
+    fn add_continued_column_if_missing(&self) -> Result<(), String> {
+        let present: bool = self
+            .db
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_table_info('activities') WHERE name = 'continued')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| format!("Failed to inspect schema: {e}"))?;
+        if !present {
+            self.db
+                .execute("ALTER TABLE activities ADD COLUMN continued INTEGER NOT NULL DEFAULT 0", [])
+                .map_err(|e| format!("Failed to migrate schema: {e}"))?;
+        }
+        Ok(())
     }
 
     pub fn write_activity(&self, record: &ActivityRecord) -> Result<(), String> {
         self.db
             .execute(
-                "INSERT INTO activities (app_name, started_at, ended_at, is_idle) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO activities (app_name, started_at, ended_at, is_idle, continued)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![
                     record.app_name,
                     fmt_ts(record.started_at),
                     record.ended_at.map(fmt_ts),
                     record.is_idle as i32,
+                    record.continued as i32,
                 ],
             )
             .map_err(|e| format!("Failed to write activity: {e}"))?;
@@ -81,7 +103,7 @@ impl Storage {
             "SELECT
                 MIN(app_name) AS app,
                 CAST(ROUND(SUM({OVERLAP_SECS})) AS INTEGER) AS seconds,
-                COUNT(*) AS sessions
+                MAX(1, SUM(CASE WHEN continued = 0 THEN 1 ELSE 0 END)) AS sessions
              FROM activities
              WHERE is_idle = 0 AND started_at < ?2 AND COALESCE(ended_at, ?2) > ?1
              GROUP BY LOWER(app_name)
