@@ -676,6 +676,7 @@ fn parse_instant(raw: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
 /// Active time per app in `[from, to)`. Missing bounds default to today (local) through tomorrow.
 #[tauri::command]
 pub async fn get_activity_report(from: Option<String>, to: Option<String>) -> Result<ActivityReportDto, String> {
+    let client = ActivityClient::new(ACTIVITY_PORT);
     let from = match from {
         Some(raw) => parse_instant(&raw)?,
         None => activity_tracking::local_midnight(chrono::Local::now().date_naive()),
@@ -684,7 +685,7 @@ pub async fn get_activity_report(from: Option<String>, to: Option<String>) -> Re
         Some(raw) => parse_instant(&raw)?,
         None => chrono::Utc::now() + chrono::Duration::days(1),
     };
-    let res = ActivityClient::new(ACTIVITY_PORT).get_activities(from, to).await?;
+    let res = client.get_activities(from, to).await?;
     Ok(ActivityReportDto { apps: res.data, idle_seconds: res.idle_seconds })
 }
 

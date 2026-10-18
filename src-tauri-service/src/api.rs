@@ -3,6 +3,7 @@ use crate::storage::Storage;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
+    middleware,
     routing::get,
     Json, Router,
 };
@@ -50,8 +51,35 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/activities", get(get_activities))
         .route("/api/config", get(get_config).post(post_config))
         .route("/api/health", get(get_health))
+        .layer(middleware::from_fn(validate_host_header))
         .with_state(state)
 }
+
+// Middleware: Validate Host header to prevent DNS rebinding attacks.
+// This API is only ever called by this process's own reqwest client (Tauri backend),
+// never by browser JS, so CORS headers are not needed here.
+async fn validate_host_header(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, StatusCode> {
+    let host = req
+        .headers()
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    // Accept localhost:8765, 127.0.0.1:8765, or no host (local IPC/tests)
+    if !host.is_empty()
+        && !host.starts_with("localhost")
+        && !host.starts_with("127.0.0.1")
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(next.run(req).await)
+}
+
 
 fn parse_ts(raw: &str) -> Result<DateTime<Utc>, StatusCode> {
     DateTime::parse_from_rfc3339(raw)
@@ -120,5 +148,9 @@ async fn post_config(
 }
 
 async fn get_health(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "status": "ok", "uptime_secs": state.started.elapsed().as_secs() }))
+    Json(json!({
+        "status": "ok",
+        "uptime_secs": state.started.elapsed().as_secs(),
+        "version": "1.0.0"
+    }))
 }

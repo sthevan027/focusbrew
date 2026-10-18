@@ -1,6 +1,7 @@
 use chrono::{DateTime, SecondsFormat, Utc};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::time::Duration;
 
 use super::models::{ActivitiesResponse, ConfigResponse, ConfigUpdate};
@@ -79,6 +80,23 @@ impl ActivityClient {
             .await
             .map(|r| r.status().is_success())
             .unwrap_or(false)
+    }
+
+    /// Service version reported by /api/health, if the service supports it.
+    /// None means the service is offline or predates this field — callers should
+    /// treat that as "unknown", not as a failure (older services are still functional).
+    pub async fn get_version(&self) -> Option<String> {
+        self.client
+            .get(format!("{}/api/health", self.base_url))
+            .send()
+            .await
+            .ok()?
+            .json::<Value>()
+            .await
+            .ok()?
+            .get("version")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
     }
 }
 
