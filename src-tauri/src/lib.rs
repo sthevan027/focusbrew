@@ -284,6 +284,7 @@ fn spawn_github_refresh_loop(app: AppHandle) {
 }
 
 const GOOGLE_SYNC_EVERY: Duration = Duration::from_secs(5 * 60);
+const GOOGLE_RECONNECT_MESSAGE: &str = "A conexão com o Google expirou. Conecte de novo em Configurações.";
 
 /// Keeps today's Google Agenda sync running while connected (see `refresh_google_now`).
 fn spawn_google_sync_loop(app: AppHandle) {
@@ -298,7 +299,18 @@ fn spawn_google_sync_loop(app: AppHandle) {
             if connected {
                 if let Err(e) = commands::refresh_google_now(&app).await {
                     let shared = app.state::<Shared>();
-                    shared.lock().google_error = Some(e);
+                    let mut state = shared.lock();
+                    if google_calendar::is_revoked_grant(&e) {
+                        // Retrying cannot fix a revoked grant: forget the saved token and ask
+                        // for a new connection. Task links stay, so reconnecting resumes the sync.
+                        let _ = google_calendar::clear_refresh_token();
+                        state.config.google_connected = false;
+                        state.google_access_token = None;
+                        let _ = config::save(&state.config);
+                        state.google_error = Some(GOOGLE_RECONNECT_MESSAGE.to_string());
+                    } else {
+                        state.google_error = Some(e);
+                    }
                 }
             }
             tokio::time::sleep(GOOGLE_SYNC_EVERY).await;

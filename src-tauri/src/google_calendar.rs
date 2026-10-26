@@ -259,6 +259,12 @@ pub fn newer_wins(local_updated_ms: i64, remote_updated_ms: i64) -> Winner {
     }
 }
 
+/// Google answers `invalid_grant` when the saved refresh token no longer works
+/// (revoked, expired, or access withdrawn). Retrying cannot fix that.
+pub fn is_revoked_grant(error: &str) -> bool {
+    error.contains("invalid_grant")
+}
+
 pub fn save_refresh_token(token: &str) -> Result<(), String> {
     let entry = keyring::Entry::new(SERVICE, ACCOUNT).map_err(|e| e.to_string())?;
     entry.set_password(token).map_err(|e| e.to_string())
@@ -437,6 +443,13 @@ mod tests {
         assert!(!pair.challenge.contains('+'));
         assert!(!pair.challenge.contains('/'));
         assert!(!pair.challenge.contains('='));
+    }
+
+    #[test]
+    fn a_revoked_grant_is_recognised_and_other_failures_are_not() {
+        let revoked = r#"falha ao renovar o token (HTTP 400 Bad Request): {"error": "invalid_grant"}"#;
+        assert!(is_revoked_grant(revoked));
+        assert!(!is_revoked_grant("falha ao renovar o token (HTTP 500): erro interno"));
     }
 
     #[test]
