@@ -1387,7 +1387,7 @@
   outline-offset: 1px;
 }
 .cell.flash {
-  animation: flash 900ms ease-out;
+  animation: flash 220ms ease-out;
 }
 @keyframes flash {
   0%,

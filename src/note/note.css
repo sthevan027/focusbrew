@@ -19,7 +19,7 @@
   inset: 0;
   pointer-events: none;
   border: 2px solid var(--accent, #0a84ff);
-  animation: note-flash 450ms ease-out;
+  animation: note-flash 250ms ease-out;
 }
 @keyframes note-flash {
   from { opacity: 1; }

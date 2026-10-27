@@ -92,7 +92,7 @@ export default function NoteEditor({ request, placement, config, onClose }: Prop
   useEffect(() => {
     const un = onNoteFlash(() => {
       setFlash(true);
-      window.setTimeout(() => setFlash(false), 450);
+      window.setTimeout(() => setFlash(false), 250);
     });
     return () => void un.then((f) => f());
   }, []);
