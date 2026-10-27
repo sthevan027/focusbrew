@@ -152,13 +152,14 @@
 @keyframes note-fade { from { opacity: 0; } }
 
 /* ---- keyboard focus: one visible ring for everything reachable by Tab
-   (accent, 2px, offset 2px). Only :focus-visible, so mouse clicks stay clean. ---- */
+   (accent, 2px, offset 2px). Only :focus-visible, so mouse clicks stay clean.
+   Text inputs and textareas are left out: they match :focus-visible on click
+   too, and already mark focus with their own border. ---- */
 .note-editor :is(
   button,
   a[href],
-  input,
+  input:is([type="checkbox"], [type="radio"], [type="range"], [type="button"]),
   select,
-  textarea,
   summary,
   [role="button"],
   [role="tab"],
