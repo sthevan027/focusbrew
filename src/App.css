@@ -461,3 +461,21 @@
 .settings .activity-setting select { background: #ffffff0d; color: inherit; border: 1px solid #ffffff1f; border-radius: 6px; padding: 4px 6px; font: inherit; }
 .settings .activity-muted { color: #8a8a90; font-size: 13px; margin: 0; }
 .settings .activity-warning { color: #ff9f0a; font-size: 13px; margin: 0; }
+
+/* ---- keyboard focus: one visible ring for everything reachable by Tab
+   (accent, 2px, offset 2px). Only :focus-visible, so mouse clicks stay clean. ---- */
+.settings :is(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--accent, #0a84ff);
+  outline-offset: 2px;
+}

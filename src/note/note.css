@@ -150,3 +150,21 @@
   }
 }
 @keyframes note-fade { from { opacity: 0; } }
+
+/* ---- keyboard focus: one visible ring for everything reachable by Tab
+   (accent, 2px, offset 2px). Only :focus-visible, so mouse clicks stay clean. ---- */
+.note-editor :is(
+  button,
+  a[href],
+  input,
+  select,
+  textarea,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--accent, #0a84ff);
+  outline-offset: 2px;
+}
