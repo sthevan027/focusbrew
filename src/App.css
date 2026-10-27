@@ -46,8 +46,10 @@
   text-align: left;
   cursor: pointer;
 }
-.settings .nav-item:hover {
-  background: #232326;
+@media (hover: hover) and (pointer: fine) {
+  .settings .nav-item:hover {
+    background: #232326;
+  }
 }
 .settings .nav-item.active {
   background: var(--accent);
@@ -236,8 +238,10 @@
   font-size: 13px;
   cursor: pointer;
 }
-.settings .update-button:hover:not(:disabled) {
-  background: #38383c;
+@media (hover: hover) and (pointer: fine) {
+  .settings .update-button:hover:not(:disabled) {
+    background: #38383c;
+  }
 }
 .settings .update-button:focus-visible {
   outline: none;
@@ -344,8 +348,10 @@
   font: inherit;
   cursor: pointer;
 }
-.settings .github-panel button:hover {
-  background: #38383c;
+@media (hover: hover) and (pointer: fine) {
+  .settings .github-panel button:hover {
+    background: #38383c;
+  }
 }
 .settings .github-panel button:disabled {
   opacity: 0.6;
@@ -422,7 +428,10 @@
 .settings .notes-open strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .settings .notes-open span { color: #8a8a90; font-size: 11px; }
 .settings .notes-del { position: absolute; top: 6px; right: 8px; border: none; background: #000a; border-radius: 6px; color: #fff; width: 20px; height: 20px; cursor: pointer; opacity: 0; }
-.settings .notes-card:hover .notes-del, .settings .notes-del:focus-visible { opacity: 1; }
+.settings .notes-del:focus-visible { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .settings .notes-card:hover .notes-del { opacity: 1; }
+}
 .settings .notes-confirm { position: absolute; top: 6px; right: 6px; display: flex; gap: 8px; align-items: center; background: #000c; border-radius: 6px; padding: 2px 8px; font-size: 12px; }
 .settings .notes-confirm button { border: none; background: none; color: var(--accent); font: inherit; cursor: pointer; }
 

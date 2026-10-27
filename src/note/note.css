@@ -55,7 +55,9 @@
   border-radius: 6px;
   color: #b8b8be;
 }
-.note-btn:hover { background: #26262a; color: #f2f2f3; }
+@media (hover: hover) and (pointer: fine) {
+  .note-btn:hover { background: #26262a; color: #f2f2f3; }
+}
 .note-btn.active { background: var(--accent, #0a84ff); color: #fff; }
 .note-btn:disabled { opacity: 0.35; cursor: default; }
 .note-sep { width: 1px; height: 14px; background: #2a2a2d; margin: 0 3px; }
@@ -127,7 +129,9 @@
 .note-item-title { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
 .note-item-date { color: #8a8a90; font-size: 11px; }
 .note-item-del { position: absolute; top: 4px; right: 4px; opacity: 0; }
-.note-item:hover .note-item-del { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .note-item:hover .note-item-del { opacity: 1; }
+}
 .note-confirm { position: absolute; top: 4px; right: 4px; display: flex; gap: 6px; align-items: center; background: #26262a; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
 .note-confirm button { color: var(--accent, #0a84ff); }
 .note-thumb { position: relative; width: 100%; aspect-ratio: 560 / 320; overflow: hidden; border-radius: 4px; background: #0b0b0d; }

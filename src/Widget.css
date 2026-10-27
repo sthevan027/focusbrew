@@ -379,8 +379,10 @@
   color: inherit;
   cursor: pointer;
 }
-.media-controls button:hover {
-  background: rgba(255, 255, 255, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .media-controls button:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 /* Standing on the left/right edges there's no room for a row: cover and play/pause, stacked. */
 [data-edge="left"] .notch-box.media,
@@ -467,8 +469,10 @@
   color: inherit;
   cursor: pointer;
 }
-.media-tab-controls button:hover {
-  background: rgba(255, 255, 255, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .media-tab-controls button:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 .media-tab-controls .media-tab-previous {
   width: 40px;
@@ -615,9 +619,11 @@
   border-radius: 6px;
   color: #8a8a90;
 }
-.day-nav button:hover {
-  background: #1a1a1d;
-  color: #f2f2f3;
+@media (hover: hover) and (pointer: fine) {
+  .day-nav button:hover {
+    background: #1a1a1d;
+    color: #f2f2f3;
+  }
 }
 .day-nav .day-label {
   padding: 0 6px;
@@ -642,8 +648,10 @@
   color: #8a8a90;
   font-weight: 600;
 }
-.tab:hover {
-  color: #f2f2f3;
+@media (hover: hover) and (pointer: fine) {
+  .tab:hover {
+    color: #f2f2f3;
+  }
 }
 .tab.active {
   background: #2a2a2d;
@@ -665,8 +673,10 @@
   border-radius: 6px;
   color: #5a5a60;
 }
-.pin:hover {
-  color: #f2f2f3;
+@media (hover: hover) and (pointer: fine) {
+  .pin:hover {
+    color: #f2f2f3;
+  }
 }
 .pin.pinned {
   color: var(--accent);
@@ -757,8 +767,10 @@
   border-radius: 10px;
   transition: background-color 120ms;
 }
-.task-row:hover {
-  --row-bg: #202024;
+@media (hover: hover) and (pointer: fine) {
+  .task-row:hover {
+    --row-bg: #202024;
+  }
 }
 /* While a row is dragged the others slide out of its way (transform only). */
 .task-list.reordering .task-row {
@@ -825,10 +837,15 @@
   transition: opacity 120ms;
 }
 /* Keyboard focus only: a clicked play button keeps focus and must not pin them. */
-.task-row:hover .row-actions,
 .task-row:has(:focus-visible) .row-actions {
   opacity: 1;
   pointer-events: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .task-row:hover .row-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .task-row.dragging .row-actions {
   opacity: 0;
@@ -896,9 +913,11 @@
   color: inherit;
   transition: background-color 120ms;
 }
-.minutes-value:hover {
-  background: #34343a;
-  color: #f2f2f3;
+@media (hover: hover) and (pointer: fine) {
+  .minutes-value:hover {
+    background: #34343a;
+    color: #f2f2f3;
+  }
 }
 /* `.task-row` in front: `.todo input` (the add field) would otherwise stretch it to 100%. */
 .task-row .minutes-edit {
@@ -935,8 +954,10 @@
   font-size: 15px;
   line-height: 1;
 }
-.remove:hover {
-  color: #ff453a;
+@media (hover: hover) and (pointer: fine) {
+  .remove:hover {
+    color: #ff453a;
+  }
 }
 
 .handle {
@@ -976,9 +997,11 @@
   border-radius: 5px;
   color: #8a8a90;
 }
-.move:hover {
-  background: #26262a;
-  color: #f2f2f3;
+@media (hover: hover) and (pointer: fine) {
+  .move:hover {
+    background: #26262a;
+    color: #f2f2f3;
+  }
 }
 
 /* ---- the day summary ---- */
@@ -1100,9 +1123,11 @@
   border-radius: 4px;
   color: #8a8a90;
 }
-.task-note .link:hover {
-  background: #26262a;
-  color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .task-note .link:hover {
+    background: #26262a;
+    color: var(--accent);
+  }
 }
 
 /* ---- the GitHub tab ---- */
@@ -1140,8 +1165,10 @@
   min-width: 0;
   text-align: left;
 }
-.gh-title:hover .gh-name {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .gh-title:hover .gh-name {
+    text-decoration: underline;
+  }
 }
 .gh-kind {
   flex: none;
@@ -1195,8 +1222,10 @@
   color: #f2f2f3;
   font-weight: 600;
 }
-.gh-action:hover {
-  background: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .gh-action:hover {
+    background: var(--accent);
+  }
 }
 
 /* ---- Activity Tracking summary (Resumo tab) ---- */
@@ -1246,8 +1275,10 @@
   cursor: pointer;
   padding: 2px;
 }
-.activity-summary-nav button:hover {
-  color: #c9c9ce;
+@media (hover: hover) and (pointer: fine) {
+  .activity-summary-nav button:hover {
+    color: #c9c9ce;
+  }
 }
 .activity-summary-totals {
   margin: 0;
@@ -1333,8 +1364,10 @@
   background: #2a2a2d;
   cursor: pointer;
 }
-.cell:hover {
-  outline: 1px solid #8a8a90;
+@media (hover: hover) and (pointer: fine) {
+  .cell:hover {
+    outline: 1px solid #8a8a90;
+  }
 }
 .cell.future {
   background: transparent;
@@ -1413,8 +1446,10 @@
   border-radius: 2px;
   cursor: default;
 }
-.legend .cell:hover {
-  outline: none;
+@media (hover: hover) and (pointer: fine) {
+  .legend .cell:hover {
+    outline: none;
+  }
 }
 .legend .cell:first-of-type {
   margin-left: 3px;
