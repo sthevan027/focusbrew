@@ -265,9 +265,10 @@ const GOOGLE_CLIENT_ID: &str = "10792334375-halgr8bommvuu24vlt51ljksdh1llo5s.app
 pub async fn google_connect(app: AppHandle, shared: State<'_, Shared>) -> Result<StateSnapshot, String> {
     let redirect_uri = format!("http://127.0.0.1:{GOOGLE_OAUTH_PORT}/callback");
     let pair = google_calendar::generate_pkce();
-    let url = google_calendar::authorize_url(&pair.challenge, &redirect_uri, GOOGLE_CLIENT_ID);
+    let oauth_state = google_calendar::generate_state();
+    let url = google_calendar::authorize_url(&pair.challenge, &redirect_uri, GOOGLE_CLIENT_ID, &oauth_state);
     app.opener().open_url(&url, None::<&str>).map_err(|e| e.to_string())?;
-    let code = tauri::async_runtime::spawn_blocking(move || google_calendar::listen_for_code(GOOGLE_OAUTH_PORT))
+    let code = tauri::async_runtime::spawn_blocking(move || google_calendar::listen_for_code(GOOGLE_OAUTH_PORT, &oauth_state))
         .await
         .map_err(|e| e.to_string())??;
     let tokens = google_calendar::exchange_code(&code, &pair.verifier, &redirect_uri, GOOGLE_CLIENT_ID).await?;

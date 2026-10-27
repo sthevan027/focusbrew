@@ -35,15 +35,25 @@ pub fn generate_pkce() -> PkcePair {
     PkcePair { verifier, challenge }
 }
 
+/// Um `state` novo pra cada tentativa de login: 32 bytes aleatórios em
+/// base64url. Amarra o redirect à tentativa que o app abriu (RFC 6749 §10.12).
+pub fn generate_state() -> String {
+    let mut bytes = Vec::with_capacity(32);
+    for _ in 0..2 {
+        bytes.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
+    }
+    base64url(&bytes)
+}
+
 /// A URL que o navegador abre pra autorizar o FocusBrew.
-pub fn authorize_url(challenge: &str, redirect_uri: &str, client_id: &str) -> String {
+pub fn authorize_url(challenge: &str, redirect_uri: &str, client_id: &str, state: &str) -> String {
     let encoded_redirect = urlencoding::encode(redirect_uri);
     let encoded_scope = urlencoding::encode("https://www.googleapis.com/auth/calendar.events");
     format!(
         "https://accounts.google.com/o/oauth2/v2/auth?\
          client_id={client_id}&redirect_uri={encoded_redirect}&response_type=code&\
          scope={encoded_scope}&code_challenge={challenge}&code_challenge_method=S256&\
-         access_type=offline&prompt=consent"
+         access_type=offline&prompt=consent&state={state}"
     )
 }
 
@@ -51,21 +61,53 @@ pub fn authorize_url(challenge: &str, redirect_uri: &str, client_id: &str) -> St
 /// `GET /callback?code=...&scope=... HTTP/1.1`. `None` quando não tem
 /// `code` (usuário negou, ou a linha não é uma requisição de verdade).
 pub fn extract_code_from_request_line(line: &str) -> Option<String> {
+    extract_query_param(line, "code")
+}
+
+/// Mesma leitura da linha de requisição, pro parâmetro `state` do redirect.
+pub fn extract_state_from_request_line(line: &str) -> Option<String> {
+    extract_query_param(line, "state")
+}
+
+fn extract_query_param(line: &str, name: &str) -> Option<String> {
     let path = line.strip_prefix("GET ")?.split(' ').next()?;
     let query = path.split_once('?')?.1;
     for pair in query.split('&') {
-        if let Some(value) = pair.strip_prefix("code=") {
-            return urlencoding::decode(value).ok().map(|c| c.into_owned());
+        if let Some((key, value)) = pair.split_once('=') {
+            if key == name {
+                return urlencoding::decode(value).ok().map(|v| v.into_owned());
+            }
         }
     }
     None
 }
 
+/// Comparação em tempo constante (sem parar no primeiro byte diferente), pra não vazar o
+/// `state` esperado pelo tempo de resposta.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Só devolve o `code` quando o `state` do redirect é o que o app gerou.
+/// `state` ausente ou diferente é recusado antes de qualquer troca de código.
+pub fn validate_callback(line: &str, expected_state: &str) -> Result<String, String> {
+    let received = extract_state_from_request_line(line);
+    let state_ok = received.as_deref().is_some_and(|s| constant_time_eq(s.as_bytes(), expected_state.as_bytes()));
+    if !state_ok {
+        return Err("state do OAuth inválido: redirect não pertence a esta tentativa de login".to_string());
+    }
+    extract_code_from_request_line(line).ok_or_else(|| "autorização negada ou sem código no redirect".to_string())
+}
+
 /// Escuta uma única conexão em `127.0.0.1:{port}`, lê a primeira linha da
 /// requisição do redirect do Google, responde com uma página simples de
 /// "pode fechar essa aba" e devolve o código (ou erro se a porta já está
-/// ocupada, a conexão cair, ou a página pedida não tiver `code`).
-pub fn listen_for_code(port: u16) -> Result<String, String> {
+/// ocupada, a conexão cair, o `state` não bater com `expected_state`, ou a
+/// página pedida não tiver `code`).
+pub fn listen_for_code(port: u16, expected_state: &str) -> Result<String, String> {
     use std::io::{BufRead, BufReader, Write};
     use std::net::TcpListener;
 
@@ -75,8 +117,11 @@ pub fn listen_for_code(port: u16) -> Result<String, String> {
     let mut request_line = String::new();
     reader.read_line(&mut request_line).map_err(|e| e.to_string())?;
 
-    let code = extract_code_from_request_line(request_line.trim_end());
-    let body = "<html><body>Pode fechar essa aba e voltar pro FocusBrew.</body></html>";
+    let code = validate_callback(request_line.trim_end(), expected_state);
+    let body = match &code {
+        Ok(_) => "<html><body>Pode fechar essa aba e voltar pro FocusBrew.</body></html>",
+        Err(_) => "<html><body>Não foi possível conectar o Google. Volte pro FocusBrew e tente de novo.</body></html>",
+    };
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
         body.len(),
@@ -84,7 +129,7 @@ pub fn listen_for_code(port: u16) -> Result<String, String> {
     );
     let _ = stream.write_all(response.as_bytes());
 
-    code.ok_or_else(|| "autorização negada ou sem código no redirect".to_string())
+    code
 }
 
 use serde::{Deserialize, Serialize};
@@ -454,11 +499,12 @@ mod tests {
 
     #[test]
     fn authorize_url_has_the_required_query_params() {
-        let url = authorize_url("chal123", "http://127.0.0.1:53682/callback", "client-id.apps.googleusercontent.com");
+        let url = authorize_url("chal123", "http://127.0.0.1:53682/callback", "client-id.apps.googleusercontent.com", "st4te_-x");
         assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?"));
         assert!(url.contains("client_id=client-id.apps.googleusercontent.com"));
         assert!(url.contains("code_challenge=chal123"));
         assert!(url.contains("code_challenge_method=S256"));
+        assert!(url.contains("state=st4te_-x"));
         assert!(url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A53682%2Fcallback"));
         assert!(url.contains("scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar.events"));
     }
@@ -467,6 +513,40 @@ mod tests {
     fn extracts_the_code_from_a_real_browser_redirect_request_line() {
         let line = "GET /callback?code=4%2F0AX4XfWi&scope=... HTTP/1.1";
         assert_eq!(extract_code_from_request_line(line), Some("4/0AX4XfWi".to_string()));
+    }
+
+    #[test]
+    fn generated_state_is_32_random_bytes_in_base64url() {
+        let a = generate_state();
+        assert_eq!(a.len(), 43);
+        assert!(!a.contains(['+', '/', '=']));
+        assert_ne!(a, generate_state());
+    }
+
+    #[test]
+    fn a_callback_with_the_expected_state_returns_the_code() {
+        let line = "GET /callback?state=abc123&code=4%2F0AX4XfWi&scope=x HTTP/1.1";
+        assert_eq!(validate_callback(line, "abc123"), Ok("4/0AX4XfWi".to_string()));
+    }
+
+    #[test]
+    fn a_callback_with_the_wrong_state_is_rejected_without_a_code() {
+        let line = "GET /callback?state=attacker&code=4%2Fstolen HTTP/1.1";
+        assert!(validate_callback(line, "abc123").is_err());
+    }
+
+    #[test]
+    fn a_callback_without_state_is_rejected() {
+        let line = "GET /callback?code=4%2Fstolen HTTP/1.1";
+        assert!(validate_callback(line, "abc123").is_err());
+        // Prefixo do state esperado também não vale.
+        assert!(validate_callback("GET /callback?state=abc&code=x HTTP/1.1", "abc123").is_err());
+    }
+
+    #[test]
+    fn a_denied_authorization_with_a_valid_state_has_no_code() {
+        let line = "GET /callback?state=abc123&error=access_denied HTTP/1.1";
+        assert!(validate_callback(line, "abc123").is_err());
     }
 
     #[test]
