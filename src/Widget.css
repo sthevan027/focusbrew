@@ -1469,3 +1469,22 @@
 .cell.level-4 {
   background: var(--accent);
 }
+
+/* ---- reduced motion: no pulse, no spinning hue, no flash movement. Kept
+   after the rules it overrides so the cascade picks it. The widget growing
+   is handled by the block near the top. ---- */
+@media (prefers-reduced-motion: reduce) {
+  .notch-box.paused .notch-time {
+    animation: none;
+  }
+  .progress-fill.rgb {
+    animation: none;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+  }
+  .cell.flash {
+    animation: none;
+    background: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
