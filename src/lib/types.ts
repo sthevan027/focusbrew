@@ -38,6 +38,8 @@ export interface AppConfig {
   /** A pinned panel closes by itself after this many idle seconds; 0 = never (15, 30 or 60). */
   panel_autoclose_secs: number;
   google_connected: boolean;
+  /** Activity Tracking (local service); off by default, experimental. */
+  activity_tracking_enabled: boolean;
 }
 
 export interface CalendarEventView {

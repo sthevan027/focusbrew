@@ -69,6 +69,16 @@ export default function GeneralSection({
         <Row title="Iniciar com o Windows" hint="O focusbrew abre sozinho quando você entra no Windows.">
           <Switch label="Iniciar com o Windows" checked={config.launch_at_login} onChange={toggleLaunch} />
         </Row>
+        <Row
+          title="Activity Tracking (em teste)"
+          hint="Mostra o tempo por app no Resumo e a seção Atividade. Recurso em teste: precisa do serviço de rastreamento rodando neste computador."
+        >
+          <Switch
+            label="Activity Tracking"
+            checked={config.activity_tracking_enabled}
+            onChange={(activity_tracking_enabled) => set({ activity_tracking_enabled })}
+          />
+        </Row>
       </div>
 
       <div className="group">
