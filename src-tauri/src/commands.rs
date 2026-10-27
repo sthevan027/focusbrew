@@ -617,10 +617,35 @@ pub struct ImagePayload {
     pub data_base64: String,
 }
 
+/// Paths of the last files dropped on a window, as reported by the OS drag-and-drop
+/// event. `read_image_file` only reads from this list, so the front end cannot ask
+/// for an arbitrary file on disk.
+#[derive(Default)]
+pub struct DroppedPaths(pub std::sync::Mutex<Vec<std::path::PathBuf>>);
+
+impl DroppedPaths {
+    /// Replaces the list with the paths of a new drop.
+    pub fn record(&self, paths: &[std::path::PathBuf]) {
+        if let Ok(mut list) = self.0.lock() {
+            *list = paths.to_vec();
+        }
+    }
+
+    fn contains(&self, path: &std::path::Path) -> bool {
+        self.0.lock().map(|list| list.iter().any(|p| p == path)).unwrap_or(false)
+    }
+}
+
 /// An image file dropped on the note (the path comes from the OS drag-and-drop).
 #[tauri::command]
-pub fn read_image_file(path: String) -> Result<ImagePayload, String> {
-    let path = std::path::PathBuf::from(path);
+pub fn read_image_file(path: String, dropped: State<'_, DroppedPaths>) -> Result<ImagePayload, String> {
+    read_dropped_image(&dropped, std::path::PathBuf::from(path))
+}
+
+fn read_dropped_image(dropped: &DroppedPaths, path: std::path::PathBuf) -> Result<ImagePayload, String> {
+    if !dropped.contains(&path) {
+        return Err("arquivo não veio de um arrastar e soltar".to_string());
+    }
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
@@ -708,4 +733,54 @@ pub async fn update_activity_config(
 #[tauri::command]
 pub async fn get_activity_service_status() -> bool {
     ActivityClient::new(ACTIVITY_PORT).health().await
+}
+
+#[cfg(test)]
+mod dropped_image_tests {
+    use super::*;
+
+    fn temp_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("focusbrew-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    #[test]
+    fn a_path_outside_the_dropped_list_is_refused() {
+        let file = temp_file("secret.png", b"png");
+        let dropped = DroppedPaths::default();
+        assert!(read_dropped_image(&dropped, file.clone()).is_err());
+        dropped.record(&[std::path::PathBuf::from("/other/place.png")]);
+        assert!(read_dropped_image(&dropped, file).is_err());
+    }
+
+    #[test]
+    fn a_dropped_path_is_read() {
+        let file = temp_file("photo.PNG", b"png-bytes");
+        let dropped = DroppedPaths::default();
+        dropped.record(&[file.clone()]);
+        let payload = read_dropped_image(&dropped, file).unwrap();
+        assert_eq!(payload.ext, "png");
+        assert_eq!(payload.data_base64, B64.encode(b"png-bytes"));
+    }
+
+    #[test]
+    fn a_new_drop_replaces_the_previous_list() {
+        let first = temp_file("a.png", b"a");
+        let second = temp_file("b.png", b"b");
+        let dropped = DroppedPaths::default();
+        dropped.record(&[first.clone()]);
+        dropped.record(&[second]);
+        assert!(read_dropped_image(&dropped, first).is_err());
+    }
+
+    #[test]
+    fn a_dropped_file_with_a_non_image_extension_is_still_refused() {
+        let file = temp_file("notes.txt", b"hello");
+        let dropped = DroppedPaths::default();
+        dropped.record(&[file.clone()]);
+        assert!(read_dropped_image(&dropped, file).is_err());
+    }
 }

@@ -357,6 +357,7 @@ pub fn run() {
         .plugin(global_shortcut_plugin)
         .manage(Shared(Mutex::new(AppState::load())))
         .manage(notes::NotesShared(Mutex::new(notes::load())))
+        .manage(commands::DroppedPaths::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::get_activity_report,
@@ -491,6 +492,10 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // `read_image_file` only reads what the OS handed over in a drop.
+            if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
+                window.state::<commands::DroppedPaths>().record(paths);
+            }
             // Closing a window just hides it — the app keeps living in the tray.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 window.hide().ok();
