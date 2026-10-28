@@ -152,7 +152,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
         {tab === "github" && <GithubTab state={state} day={day} />}
         {tab === "agenda" && <AgendaTab state={state} day={day} />}
         {tab === "media" && state.media && <MediaTab media={state.media} />}
-        {tab === "summary" && (
+        {tab === "summary" && state.config.activity_tracking_enabled && (
           <>
             <div className="divider" />
             <ActivitySummaryWidget day={day} />

@@ -699,9 +699,28 @@ fn parse_instant(raw: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
         .map_err(|_| format!("invalid date: {raw}"))
 }
 
+/// Every call to the service goes through here: with Activity Tracking off
+/// nothing is sent to 127.0.0.1.
+fn ensure_activity_enabled(config: &AppConfig) -> Result<(), String> {
+    if config.activity_tracking_enabled {
+        Ok(())
+    } else {
+        Err("Activity Tracking está desligado nas Configurações".to_string())
+    }
+}
+
+fn activity_enabled(shared: &Shared) -> Result<(), String> {
+    ensure_activity_enabled(&shared.lock().config)
+}
+
 /// Active time per app in `[from, to)`. Missing bounds default to today (local) through tomorrow.
 #[tauri::command]
-pub async fn get_activity_report(from: Option<String>, to: Option<String>) -> Result<ActivityReportDto, String> {
+pub async fn get_activity_report(
+    from: Option<String>,
+    to: Option<String>,
+    shared: State<'_, Shared>,
+) -> Result<ActivityReportDto, String> {
+    activity_enabled(&shared)?;
     let client = ActivityClient::new(ACTIVITY_PORT);
     let from = match from {
         Some(raw) => parse_instant(&raw)?,
@@ -716,7 +735,8 @@ pub async fn get_activity_report(from: Option<String>, to: Option<String>) -> Re
 }
 
 #[tauri::command]
-pub async fn get_activity_config() -> Result<ConfigResponse, String> {
+pub async fn get_activity_config(shared: State<'_, Shared>) -> Result<ConfigResponse, String> {
+    activity_enabled(&shared)?;
     ActivityClient::new(ACTIVITY_PORT).get_config().await
 }
 
@@ -725,14 +745,30 @@ pub async fn get_activity_config() -> Result<ConfigResponse, String> {
 pub async fn update_activity_config(
     idle_threshold_minutes: Option<u32>,
     retention_days: Option<u32>,
+    shared: State<'_, Shared>,
 ) -> Result<ConfigResponse, String> {
+    activity_enabled(&shared)?;
     let update = ConfigUpdate { idle_threshold_minutes, retention_days };
     ActivityClient::new(ACTIVITY_PORT).set_config(update).await
 }
 
 #[tauri::command]
-pub async fn get_activity_service_status() -> bool {
-    ActivityClient::new(ACTIVITY_PORT).health().await
+pub async fn get_activity_service_status(shared: State<'_, Shared>) -> Result<bool, String> {
+    activity_enabled(&shared)?;
+    Ok(ActivityClient::new(ACTIVITY_PORT).health().await)
+}
+
+#[cfg(test)]
+mod activity_flag_tests {
+    use super::*;
+
+    #[test]
+    fn the_service_is_not_called_while_activity_tracking_is_off() {
+        let mut config = AppConfig::default();
+        assert!(ensure_activity_enabled(&config).is_err());
+        config.activity_tracking_enabled = true;
+        assert!(ensure_activity_enabled(&config).is_ok());
+    }
 }
 
 #[cfg(test)]

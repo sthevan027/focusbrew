@@ -56,6 +56,10 @@ pub struct AppConfig {
     /// A pinned panel closes by itself after this many seconds without any
     /// interaction (0 = never; 15, 30 or 60).
     pub panel_autoclose_secs: u32,
+    /// Activity Tracking (the local service on 127.0.0.1): off by default, an
+    /// experimental feature. Off = no section in Settings, no summary in the
+    /// panel and no call to the service.
+    pub activity_tracking_enabled: bool,
 }
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
@@ -163,6 +167,7 @@ impl Default for AppConfig {
             note_placement: NotePlacement::default(),
             launch_at_login: false,
             panel_autoclose_secs: 0,
+            activity_tracking_enabled: false,
         }
     }
 }
@@ -269,6 +274,13 @@ mod tests {
         assert!(!c.github_use_gh);
         assert_eq!(c.accent_color, "#0A84FF");
         assert_eq!(c.default_minutes, 25);
+    }
+
+    #[test]
+    fn activity_tracking_is_off_for_old_files_and_by_default() {
+        assert!(!AppConfig::default().activity_tracking_enabled);
+        assert!(!parse(r##"{"accent_color":"#112233"}"##).activity_tracking_enabled);
+        assert!(parse(r##"{"activity_tracking_enabled":true}"##).activity_tracking_enabled);
     }
 
     #[test]

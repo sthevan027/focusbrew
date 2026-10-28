@@ -58,17 +58,19 @@ export default function App() {
     pending.current++;
     fire(updateSettings(next).finally(() => pending.current--));
   };
-  const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
+  // "Atividade" only exists while Activity Tracking is turned on (Geral).
+  const sections = SECTIONS.filter((s) => s.id !== "activity" || state.config.activity_tracking_enabled);
+  const current = sections.find((s) => s.id === section) ?? sections[0];
 
   return (
     <div className="settings" style={{ "--accent": state.config.accent_color } as CSSProperties}>
       <nav className="sidebar" aria-label="Configurações">
         <div className="brand">focusbrew</div>
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <button
             key={s.id}
             type="button"
-            className={s.id === section ? "nav-item active" : "nav-item"}
+            className={s.id === current.id ? "nav-item active" : "nav-item"}
             onClick={() => setSection(s.id)}
           >
             <span className="nav-glyph" style={{ background: s.color }}>
@@ -80,10 +82,10 @@ export default function App() {
       </nav>
       <main className="content">
         <h1>{current.label}</h1>
-        {section === "focus" && <FocusSection config={state.config} set={set} />}
-        {section === "notes" && <NotesSection config={state.config} set={set} />}
-        {section === "notch" && <NotchSection config={state.config} set={set} />}
-        {section === "general" && (
+        {current.id === "focus" && <FocusSection config={state.config} set={set} />}
+        {current.id === "notes" && <NotesSection config={state.config} set={set} />}
+        {current.id === "notch" && <NotchSection config={state.config} set={set} />}
+        {current.id === "general" && (
           <GeneralSection
             config={state.config}
             set={set}
@@ -91,14 +93,14 @@ export default function App() {
             update={update}
           />
         )}
-        {section === "activity" && (
+        {current.id === "activity" && (
           <>
             <ActivityReport />
             <ActivitySettings />
           </>
         )}
-        {section === "github" && <GithubPanel state={state} />}
-        {section === "google" && <GoogleCalendarPanel state={state} />}
+        {current.id === "github" && <GithubPanel state={state} />}
+        {current.id === "google" && <GoogleCalendarPanel state={state} />}
       </main>
     </div>
   );
