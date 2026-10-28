@@ -61,7 +61,7 @@ export default function Panel({ state, now, day, onDay, pinned, onTogglePin, onH
   const onMoved = (target: string) => {
     window.clearTimeout(flashTimer.current);
     setFlashDay(target);
-    flashTimer.current = window.setTimeout(() => setFlashDay(null), 900);
+    flashTimer.current = window.setTimeout(() => setFlashDay(null), 220);
   };
   useEffect(() => () => window.clearTimeout(flashTimer.current), []);
   const tabs = tabsFor(day, today, Boolean(state.config.github_login), state.config.google_connected, Boolean(state.media));

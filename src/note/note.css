@@ -19,7 +19,7 @@
   inset: 0;
   pointer-events: none;
   border: 2px solid var(--accent, #0a84ff);
-  animation: note-flash 450ms ease-out;
+  animation: note-flash 250ms ease-out;
 }
 @keyframes note-flash {
   from { opacity: 1; }
@@ -55,7 +55,9 @@
   border-radius: 6px;
   color: #b8b8be;
 }
-.note-btn:hover { background: #26262a; color: #f2f2f3; }
+@media (hover: hover) and (pointer: fine) {
+  .note-btn:hover { background: #26262a; color: #f2f2f3; }
+}
 .note-btn.active { background: var(--accent, #0a84ff); color: #fff; }
 .note-btn:disabled { opacity: 0.35; cursor: default; }
 .note-sep { width: 1px; height: 14px; background: #2a2a2d; margin: 0 3px; }
@@ -127,9 +129,43 @@
 .note-item-title { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
 .note-item-date { color: #8a8a90; font-size: 11px; }
 .note-item-del { position: absolute; top: 4px; right: 4px; opacity: 0; }
-.note-item:hover .note-item-del { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .note-item:hover .note-item-del { opacity: 1; }
+}
 .note-confirm { position: absolute; top: 4px; right: 4px; display: flex; gap: 6px; align-items: center; background: #26262a; border-radius: 6px; padding: 2px 6px; font-size: 12px; }
 .note-confirm button { color: var(--accent, #0a84ff); }
 .note-thumb { position: relative; width: 100%; aspect-ratio: 560 / 320; overflow: hidden; border-radius: 4px; background: #0b0b0d; }
 .note-thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .note-thumb p { position: absolute; inset: 0; margin: 0; padding: 4px 6px; font-size: 9px; line-height: 11px; color: #b8b8be; white-space: pre-wrap; overflow: hidden; pointer-events: none; }
+
+/* Reduced motion: the flash is a color change that stays for its duration, and
+   the history panel fades in without sliding. */
+@media (prefers-reduced-motion: reduce) {
+  .note-editor.flash::after {
+    animation: none;
+    opacity: 1;
+  }
+  .note-history {
+    animation-name: note-fade;
+  }
+}
+@keyframes note-fade { from { opacity: 0; } }
+
+/* ---- keyboard focus: one visible ring for everything reachable by Tab
+   (accent, 2px, offset 2px). Only :focus-visible, so mouse clicks stay clean.
+   Text inputs and textareas are left out: they match :focus-visible on click
+   too, and already mark focus with their own border. ---- */
+.note-editor :is(
+  button,
+  a[href],
+  input:is([type="checkbox"], [type="radio"], [type="range"], [type="button"]),
+  select,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--accent, #0a84ff);
+  outline-offset: 2px;
+}
