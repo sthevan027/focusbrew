@@ -1,0 +1,72 @@
+/* focusbrew design tokens — PROPOSTA (ainda não importado por nenhum CSS do app).
+ *
+ * Origem: auditoria de src/App.css, src/Widget.css e src/note/note.css (28/10/2026).
+ * Cada token lista entre parênteses os valores soltos que ele absorve.
+ * Dark-only: o app não tem tema claro.
+ */
+:root {
+  /* ---- Superfícies: degraus de elevação, do mais fundo para o mais alto ---- */
+  --fb-bg-0: #0b0b0d; /* shell do widget, campo de edição embutido (#000 do shell cai aqui) */
+  --fb-bg-1: #141416; /* sidebar das configurações, linha do resumo (#161618, #121215, #101013) */
+  --fb-bg-2: #1a1a1d; /* janela de configurações, trilho das abas, linha de tarefa (#1c1c1e, #1c1c1f) */
+  --fb-bg-3: #232326; /* cards e grupos, hover de item (#202024, #26262a, #26262b) */
+  --fb-bg-4: #2e2e32; /* controles, aba ativa, divisores (#2a2a2d, #34343a) */
+  --fb-bg-5: #3a3a3e; /* switch desligado, borda de controle, hover de controle (#38383c) */
+
+  /* ---- Sobreposições translúcidas (capas de mídia, hover em botão redondo) ---- */
+  --fb-overlay-1: rgba(255, 255, 255, 0.06); /* (#ffffff0d) */
+  --fb-overlay-2: rgba(255, 255, 255, 0.08); /* (#ffffff14) */
+  --fb-overlay-3: rgba(255, 255, 255, 0.12); /* (#ffffff1f) */
+
+  /* ---- Texto ---- */
+  --fb-text: #f2f2f3; /* título, valor */
+  --fb-text-2: #c9c9ce; /* corpo secundário (#d6d6da, #d0d0d5, #e5e5ea, #b8b8be) */
+  --fb-text-muted: #8a8a90; /* dica, rótulo, ícone inativo */
+  --fb-text-faint: #5a5a60; /* alça de arrastar, pin, placeholder (#6a6a70) */
+
+  /* ---- Cor de ação: o usuário escolhe; o app define --accent na janela ---- */
+  --fb-accent: var(--accent, #0a84ff);
+  --fb-on-accent: #fff;
+
+  /* ---- Estado (paleta de sistema da Apple, a mesma dos 6 presets de accent) ---- */
+  --fb-success: #30d158;
+  --fb-warning: #ff9f0a;
+  --fb-danger: #ff453a; /* borda, ícone, hover de remover */
+  --fb-danger-text: #ff6961; /* texto de erro sobre fundo escuro */
+  --fb-danger-border: #5c2b2b; /* botão secundário destrutivo */
+
+  /* ---- Tipografia ---- */
+  --fb-font: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --fb-text-xs: 11px; /* (9px, 10px) */
+  --fb-text-sm: 12px;
+  --fb-text-md: 13px; /* (14px) corpo */
+  --fb-text-lg: 15px; /* (16px) marca, título de bloco */
+  --fb-text-xl: 18px; /* título de seção */
+  --fb-text-2xl: 21px; /* (20px) destaque */
+
+  /* ---- Raio ---- */
+  --fb-radius-xs: 4px; /* (1px, 2px, 3px, 3.5px, 5px) chip de código */
+  --fb-radius-sm: 6px; /* botão pequeno, aba */
+  --fb-radius-md: 8px; /* controle, input (9px, 10px) */
+  --fb-radius-lg: 12px; /* grupo, card */
+  --fb-radius-full: 999px; /* o 50% de hoje: check, play, swatch */
+
+  /* ---- Espaçamento: grade de 4 com 2 e 6 como meios passos ---- */
+  --fb-space-0: 2px; /* (3px) */
+  --fb-space-1: 4px; /* (5px) */
+  --fb-space-2: 6px;
+  --fb-space-3: 8px;
+  --fb-space-4: 12px; /* (10px) */
+  --fb-space-5: 16px; /* (14px) */
+
+  /* ---- Movimento (já existiam em Widget.css; só ganham nome) ---- */
+  --fb-ease: cubic-bezier(0.32, 0.72, 0, 1); /* fechar e encolher: decidido */
+  --fb-ease-soft: cubic-bezier(0.3, 0, 0.2, 1);
+  --fb-spring: cubic-bezier(0.34, 1.2, 0.64, 1); /* abrir e crescer: elástico */
+
+  /* ---- Elevação ---- */
+  --fb-shadow-drag: 0 8px 18px rgba(0, 0, 0, 0.45); /* linha de tarefa arrastada */
+}
+
+/* Fora do sistema, de propósito: a geometria do notch (--s, --ear, --rad, --k-tl/tr/br/bl)
+ * em Widget.css descreve a forma da janela, não o estilo. Fica como está. */

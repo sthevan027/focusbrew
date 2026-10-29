@@ -32,3 +32,7 @@ scripts/
 
 # Activity tracker service build output
 src-tauri-service/target/
+
+
+.claude
+.impeccable
