@@ -390,8 +390,7 @@ src-tauri/src/
 src-tauri-service/  o serviço focusbrew-tracker (Activity Tracking): olha o app em
                   primeiro plano a cada segundo, grava em SQLite (activity.db) e
                   responde pela API local; install-autostart.ps1 instala no login
-site/             a landing page (Vite + React + TS), publicada na Netlify
-hero-video/       a fonte (Remotion) do vídeo do site; netlify.toml fica na raiz
+site/             a landing page (Vite + React + TS), publicada na Netlify; netlify.toml fica na raiz
 tools/            make-latest-json.ts: gera o latest.json da release
 src/
   Widget.tsx      a janela do widget (a forma que vira barra, caixa ou painel)
