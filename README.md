@@ -92,7 +92,8 @@ alfinete fixa o painel aberto.
 
 Tudo que você fez no dia: tempo por tarefa (com barrinha), o que foi concluído,
 o que aconteceu no GitHub (commits, PRs, reviews) e o total por projeto. Dias
-que já passaram mostram só o resumo.
+que já passaram mostram só o resumo. Com o Activity Tracking ligado (abaixo), o
+resumo também mostra o tempo por app.
 
 ### Activity
 
@@ -116,6 +117,24 @@ em vez de duplicar.
 <p align="center">
   <img src="docs/screenshots/painel-planejar.png" alt="Planejando o dia seguinte" width="600">
 </p>
+
+### Agenda
+
+Com a Google Agenda conectada, aparece a aba **Agenda**, com os eventos do dia
+aberto. Marcar um evento cria uma tarefa planejada pra esse dia, com a duração
+do evento; evento que já virou tarefa aparece marcado e não duplica. Evento com
+✓ no título entra como tarefa concluída. Como conectar e o que sincroniza:
+[Conectar a Google Agenda](#conectar-a-google-agenda).
+
+### Música
+
+Quando o Windows tem uma mídia tocando (qualquer app), aparecem a capa, o título
+e o progresso. Os botões **anterior, play/pausa e próxima** ficam no notch
+enquanto a música toca; pra tirar, **Configurações → Notch → Controles de
+música**. Sem tarefa rodando, a caixa mostra a música; com uma tarefa rodando,
+a tarefa fica na frente e **Ctrl+scroll** alterna entre as duas. A aba
+**Música** do painel mostra a versão maior. Nada disso é guardado: o focusbrew
+lê o que o Windows informa, a cada segundo.
 
 ## Notas rápidas
 
@@ -178,9 +197,11 @@ Clique no ícone da bandeja (ou **Abrir configurações** no menu dele).
 |---|---|
 | **Foco** | minutos de uma tarefa nova; aviso no fim do bloco e **antes do fim**; **meta do dia**; **lembrete se ficar parado** (só das 8h às 20h) |
 | **Notas** | galeria das notas rápidas (escrever, desenhar, imagens), onde elas abrem (sobre o painel ou em janela) |
-| **Notch** | estilo Standard ou Minimal; **posição** (topo, esquerda, direita) e contagem na lateral; linha de progresso; linha RGB; cor de destaque; tamanho; fechar o painel fixado sozinho |
-| **Geral** | mostrar o widget; **monitor** do widget; **iniciar com o Windows**; os três atalhos |
+| **Notch** | estilo Standard ou Minimal; **posição** (topo, esquerda, direita) e contagem na lateral; linha de progresso; linha RGB; cor de destaque; **controles de música**; fechar o painel fixado sozinho |
+| **Atividade** | só aparece com o Activity Tracking ligado: tempo por app (dia, semana ou mês), o limite de ocioso e por quanto tempo guardar os dados |
+| **Geral** | mostrar o widget; **monitor** do widget; **iniciar com o Windows**; **Activity Tracking** (em teste); os três atalhos; versão e **atualizações** |
 | **GitHub** | conectar pelo login do `gh` (ou um token) |
+| **Google Agenda** | conectar ou desconectar a conta (o que sincroniza, em [Conectar a Google Agenda](#conectar-a-google-agenda)) |
 
 <p align="center">
   <img src="docs/screenshots/configuracoes-geral.png" alt="Monitor, iniciar com o Windows e os três atalhos" width="560">
@@ -193,6 +214,68 @@ Se o [GitHub CLI](https://cli.github.com) estiver instalado e logado
 pra colar. Sem o `gh`, dá pra usar um Personal Access Token (guardado no cofre
 de credenciais do Windows). PRs, issues, contribuições e a sua atividade
 atualizam ao abrir o app e a cada 5 minutos.
+
+### Conectar a Google Agenda
+
+Em **Configurações → Google Agenda**, **Conectar com o Google** abre o navegador
+pra você autorizar. O focusbrew recebe a volta em `127.0.0.1:53682`, então essa
+porta precisa estar livre na hora. Só a agenda principal da conta é usada.
+
+A sincronização roda com o app aberto, enquanto a conta estiver conectada: uma
+vez logo depois de abrir e depois a cada 5 minutos. Ela cuida só das **tarefas
+de hoje**; tarefa de outro dia não é tocada.
+
+- Tarefa de hoje sem evento ganha um evento novo, com a duração da tarefa,
+  começando no horário da sincronização.
+- Título e ✓ de concluída são conciliados nos dois lados a cada sincronização
+  (até 5 min). Se os dois lados mudaram, **a edição mais recente vence**.
+- Apagar a tarefa no focusbrew apaga o evento. Evento apagado ou cancelado no
+  Google tira a tarefa de hoje do focusbrew.
+- Tarefa vinda do GitHub nunca vai pra agenda.
+- **Desconectar** apaga o acesso salvo e desvincula as tarefas: elas continuam,
+  mas os eventos ficam na agenda do Google. Se o Google revogar o acesso, o app
+  pede pra conectar de novo, e as tarefas continuam vinculadas.
+
+## Activity Tracking (em teste)
+
+Mostra quanto tempo você passou em cada app, pelo nome do executável (`Code.exe`,
+por exemplo). Aparece no **Resumo do dia** e na seção **Atividade** das
+configurações. Não confunda com a grade **Activity** do painel: é outra coisa.
+
+Vem desligado e não é um processo do app: é um serviço separado, o
+`focusbrew-tracker` (código em `src-tauri-service/`), que roda na sua sessão do
+Windows e guarda os dados no próprio computador.
+
+### Como ligar
+
+1. Em **Configurações → Geral**, ligue **Activity Tracking (em teste)**.
+2. Instale o serviço, a partir da raiz do repositório (não precisa de administrador):
+
+   ```powershell
+   cargo build --release --manifest-path src-tauri-service\Cargo.toml
+   .\src-tauri-service\install-autostart.ps1 -ExePath src-tauri-service\target\release\focusbrew-tracker.exe
+   ```
+
+O script copia o programa pra `%LOCALAPPDATA%\focusbrew\bin`, configura a
+abertura no login (chave `Run` do usuário) e espera o serviço responder. Pra
+tirar a inicialização: `.\src-tauri-service\install-autostart.ps1 -Uninstall`
+(os dados ficam).
+
+Com o Activity Tracking desligado, o app não fala com o serviço. Ligado e com o
+serviço parado, a seção Atividade mostra "offline".
+
+### O que fica local
+
+- `%LOCALAPPDATA%\focusbrew\activity.db` (SQLite): para cada trecho em um app, o
+  nome do executável, o início, o fim e se foi ocioso. Também guarda as duas
+  configurações do serviço (limite de ocioso e retenção). Não tem título de
+  janela nem conteúdo, e o serviço não faz nenhuma requisição pra fora.
+- `%LOCALAPPDATA%\focusbrew\tracker.log`: erros do serviço.
+- A API do serviço escuta só em `127.0.0.1:8765`.
+- **Ocioso:** sem teclado ou mouse por mais que o limite (de 1 a 60 min; padrão
+  10). Esse tempo é contado à parte e não entra no tempo de cada app.
+- **Retenção:** registros mais velhos que o prazo escolhido (30, 90 ou 180 dias)
+  são apagados.
 
 ## Instalação
 
@@ -231,16 +314,21 @@ e a grade de atividade.
 
 Pré-requisitos: [Rust](https://www.rust-lang.org/tools/install) + o Visual
 Studio Build Tools com o workload "Desktop development with C++" (veja os
-[pré-requisitos do Tauri](https://tauri.app/start/prerequisites/)) e Node.js 18+.
+[pré-requisitos do Tauri](https://tauri.app/start/prerequisites/)) e o [Bun](https://bun.sh).
 
 ```bash
 bun install
 bun run tauri dev      # app em desenvolvimento
 bun run test           # contas do front-end (vitest)
 cargo test --manifest-path src-tauri/Cargo.toml   # regras do timer, tarefas, alertas e configurações
+cargo test --manifest-path src-tauri-service/Cargo.toml   # o serviço de Activity Tracking
 bun run dist            # instalador em src-tauri/target/release/bundle/nsis/
 bun run dist:signed     # o mesmo, assinado (certificado em src-tauri/tauri.signing.conf.json)
 ```
+
+Pra conectar a Google Agenda num build local, defina `FOCUSBREW_GOOGLE_CLIENT_SECRET`
+antes de compilar. Sem ela o app compila, mas a conexão falha. O valor não vai
+pro repositório.
 
 ### Publicar uma versão (com atualização automática)
 
@@ -288,6 +376,10 @@ src-tauri/src/
   shortcuts.rs    os três atalhos globais, cada um registrado por conta própria
   notes.rs        as notas rápidas: arquivo atômico, limites, imagens em disco
   note_window.rs  a janela da nota e o que o atalho faz com uma nota já aberta
+  media.rs        a mídia do Windows (SMTC): capa, progresso e os controles
+  google_calendar.rs  OAuth da Google Agenda (PKCE) e chamadas à API
+  google_sync.rs  a regra de sincronia, pura: o que fazer com cada tarefa de hoje
+  activity_tracking/  cliente do serviço de Activity Tracking (127.0.0.1:8765)
   autostart.rs    iniciar com o Windows (chave Run do usuário)
   widget.rs       janela do widget: tamanho fixo, colada no topo, mouse atravessando
   config.rs       configurações (lê qualquer arquivo, antigo ou quebrado, sem falhar)
@@ -295,14 +387,24 @@ src-tauri/src/
   commands.rs     os comandos que a interface chama
   github.rs       login pelo gh/token, PRs e issues, contribuições, atividade
   lib.rs          bandeja, atalhos, o relógio de 1 s, notificações
+src-tauri-service/  o serviço focusbrew-tracker (Activity Tracking): olha o app em
+                  primeiro plano a cada segundo, grava em SQLite (activity.db) e
+                  responde pela API local; install-autostart.ps1 instala no login
 site/             a landing page (Vite + React + TS), publicada na Netlify
 hero-video/       a fonte (Remotion) do vídeo do site; netlify.toml fica na raiz
+tools/            make-latest-json.ts: gera o latest.json da release
 src/
   Widget.tsx      a janela do widget (a forma que vira barra, caixa ou painel)
-  widget/         Panel, TaskList, TaskRow, DaySummaryView, ActivityPanel, GithubTab
+  widget/         Panel, TaskList, TaskRow, DaySummaryView, GithubTab, AgendaTab,
+                  ActivityPanel, ActivitySummaryWidget, Notch, ProgressLine,
+                  MediaBox, MediaControls, MediaTab
+  NoteWindow.tsx  a janela da nota rápida
+  note/           o editor da nota, o desenho (SVG), o histórico e as imagens
   App.tsx         a janela de configurações
   settings/       as seções
-  lib/            contas puras (dias, resumo, grade, GitHub, atalhos) com testes
+  components/     os painéis de Atividade, GitHub e Google Agenda nas configurações
+  lib/            contas puras (dias, resumo, grade, GitHub, agenda, atividade,
+                  atalhos) com testes
 ```
 
 O backend guarda *qual tarefa está rodando* e *quando ela termina*; a interface
@@ -310,6 +412,12 @@ só desenha a partir desse horário, sem contar tempo por conta própria. Os
 dados ficam em `%APPDATA%\sthevandev\focusbrew\` (`config\settings.json`,
 `data\tasks.json`, `data\notes.json` (+ `data\notes\images\`), `data\activity.json` — este com o histórico de blocos dos
 últimos 400 dias).
+
+Os tokens não ficam nesses arquivos: o refresh token do Google e o token do GitHub
+colado à mão ficam no Gerenciador de Credenciais do Windows, e o login do `gh` é
+lido na hora, sem ser guardado. Tarefa ligada à agenda guarda só o id do evento
+(`google_event_id`, em `tasks.json`). O Activity Tracking guarda os dados em
+`%LOCALAPPDATA%\focusbrew\` (acima).
 
 ## Licença
 
