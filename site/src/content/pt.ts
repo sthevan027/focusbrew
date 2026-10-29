@@ -94,6 +94,55 @@ export const pt = {
     // usado só se a API do GitHub falhar
     fallback: [
       {
+        version: "v0.7.1",
+        title: "FocusBrew 0.7.1: segurança, acessibilidade e Activity Tracking desligado por padrão",
+        date: "2026-10-28T12:00:00Z",
+        highlights: [
+          "**Segurança e dependências** — login do Google mais protegido, janela do app mais restrita e bibliotecas atualizadas com correções de segurança",
+          "**Activity Tracking desligado por padrão** — quem usou na 0.7.0 religa em Configurações → Geral",
+          "**Acessibilidade** — foco visível com o teclado, idioma pt-BR, animações reduzidas quando o Windows pede e efeitos de hover só com mouse",
+        ],
+      },
+      {
+        version: "v0.7.0",
+        title: "FocusBrew 0.7.0: Activity Tracking (em teste) e reconexão do Google",
+        date: "2026-10-26T12:00:00Z",
+        highlights: [
+          "**Google Agenda** — se o acesso for revogado, o app para de repetir o erro e pede nova conexão em Configurações, mantendo os vínculos das tarefas",
+          "**Activity Tracking (em teste)** — primeira versão do rastreamento de atividade",
+          "**Atualização** — a chave do atualizador mudou de novo: quem está na 0.6.1 baixa esta versão manualmente uma vez",
+        ],
+      },
+      {
+        version: "v0.6.1",
+        title: "FocusBrew 0.6.1: lembra a última aba do painel",
+        date: "2026-10-17T12:00:00Z",
+        highlights: [
+          "**Painel lembra a última aba** aberta (Tarefas, Resumo, GitHub, Agenda ou Música) entre sessões",
+          "**Atualização** — quem está na 0.6.0 baixa esta versão manualmente uma vez, porque a chave do atualizador mudou",
+        ],
+      },
+      {
+        version: "v0.6.0",
+        title: "FocusBrew 0.6.0: Player de música",
+        date: "2026-10-15T12:00:00Z",
+        highlights: [
+          "**Player de música no widget** — capa, progresso e controles (anterior, play/pause e próxima) do que estiver tocando no Windows",
+          "**Ctrl+Scroll** alterna entre tarefa e música, e a **aba Música** no painel mostra o player",
+          "**Google Agenda** continua funcionando como na 0.5",
+        ],
+      },
+      {
+        version: "v0.5.0",
+        title: "FocusBrew 0.5.0: Google Agenda",
+        date: "2026-10-14T12:00:00Z",
+        highlights: [
+          "**Google Agenda** com sincronização nos dois sentidos: conecta pelo Google e importa os eventos do dia como tarefa",
+          "**Concluir tarefa** marca o evento na Agenda na hora",
+          "**Atualização** — quem está na 0.4.1 baixa esta versão manualmente uma vez; as próximas atualizações saem sozinhas",
+        ],
+      },
+      {
         version: "v0.4.1",
         title: "FocusBrew 0.4.1: atualização automática",
         date: "2026-10-09T12:00:00Z",
