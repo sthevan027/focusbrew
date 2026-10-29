@@ -36,3 +36,6 @@ src-tauri-service/target/
 
 .claude
 .impeccable
+
+# Gerado pelo /graphify
+graphify-out/
