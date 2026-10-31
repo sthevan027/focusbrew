@@ -65,9 +65,39 @@ mod tests {
         assert!(found);
     }
 
+    #[derive(Clone, Default)]
+    struct Buf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl io::Write for Buf {
+        fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(data);
+            Ok(data.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Buf {
+        type Writer = Buf;
+        fn make_writer(&'a self) -> Buf {
+            self.clone()
+        }
+    }
+
     #[test]
     fn log_io_ok_is_silent_and_err_does_not_panic() {
-        log_io("ok", Ok(()));
-        log_io("bad", Err(io::Error::new(io::ErrorKind::Other, "boom")));
+        let buf = Buf::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(buf.clone())
+            .with_ansi(false)
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            log_io("ok", Ok(()));
+            assert!(buf.0.lock().unwrap().is_empty());
+            log_io("bad", Err(io::Error::other("boom")));
+        });
+        let out = String::from_utf8(buf.0.lock().unwrap().clone()).unwrap();
+        assert!(out.contains("bad") && out.contains("boom"), "got: {out}");
     }
 }
