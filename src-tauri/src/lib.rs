@@ -3,6 +3,7 @@ mod alerts;
 mod autostart;
 mod commands;
 mod config;
+mod fsutil;
 mod github;
 mod google_calendar;
 mod google_sync;
