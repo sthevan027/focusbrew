@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::tracker::tasks::{clamp_minutes, DEFAULT_MINUTES};
 
@@ -215,18 +215,39 @@ fn config_path() -> PathBuf {
     dir.join("settings.json")
 }
 
-pub fn load() -> AppConfig {
-    let path = config_path();
-    match fs::read_to_string(&path) {
-        Ok(raw) => parse(&raw),
-        Err(_) => AppConfig::default(),
+/// Reads `path`. Missing or blank file = defaults. An unreadable one is moved
+/// aside (never erased, never overwritten) and the defaults are used.
+/// Values are normalized like `parse` does.
+pub fn load_from(path: &Path, stamp_ms: i64) -> AppConfig {
+    let outcome = match fs::read_to_string(path) {
+        Ok(raw) if raw.trim().is_empty() => return AppConfig::default(),
+        Ok(raw) => serde_json::from_str::<AppConfig>(&raw).map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return AppConfig::default(),
+        Err(e) => Err(e.to_string()),
+    };
+    match outcome {
+        Ok(config) => config.normalized(),
+        Err(reason) => {
+            match crate::fsutil::quarantine(path, stamp_ms) {
+                Ok(dest) => tracing::error!(from = %path.display(), to = %dest.display(), reason, "settings file unreadable, moved aside"),
+                Err(e) => tracing::error!(path = %path.display(), reason, error = %e, "settings file unreadable and could not be moved aside"),
+            }
+            AppConfig::default()
+        }
     }
 }
 
-pub fn save(config: &AppConfig) -> std::io::Result<()> {
-    let path = config_path();
+pub fn load() -> AppConfig {
+    load_from(&config_path(), chrono::Utc::now().timestamp_millis())
+}
+
+pub fn save_to(path: &Path, config: &AppConfig) -> std::io::Result<()> {
     let raw = serde_json::to_string_pretty(config)?;
-    fs::write(path, raw)
+    crate::fsutil::write_atomic(path, raw.as_bytes())
+}
+
+pub fn save(config: &AppConfig) -> std::io::Result<()> {
+    save_to(&config_path(), config)
 }
 
 pub fn data_dir() -> PathBuf {
@@ -249,6 +270,46 @@ pub fn local_data_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_dir() -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn corrupt_settings_file_is_quarantined_not_erased() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        fs::write(&p, "{\"x\"").unwrap();
+        assert_eq!(load_from(&p, 42).accent_color, DEFAULT_ACCENT);
+        assert!(!p.exists());
+        assert_eq!(fs::read_to_string(dir.join("settings.corrupt-42.json")).unwrap(), "{\"x\"");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_settings_file_is_default_without_quarantine() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        assert_eq!(load_from(&p, 42).default_minutes, 25);
+        fs::write(&p, "  ").unwrap();
+        assert_eq!(load_from(&p, 42).default_minutes, 25);
+        assert!(p.exists());
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn settings_save_leaves_no_tmp_and_load_from_keeps_normalizing() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        save_to(&p, &AppConfig { default_minutes: 5000, accent_color: "#ff9f0a".into(), ..AppConfig::default() }).unwrap();
+        assert!(!dir.join("settings.json.tmp").exists());
+        let c = load_from(&p, 1);
+        assert_eq!((c.default_minutes, c.accent_color.as_str()), (180, "#FF9F0A"));
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn github_use_gh_defaults_to_true() {

@@ -195,7 +195,7 @@ pub fn set_shortcut(
         shortcuts::Action::Note => state.config.shortcut_note = text,
     }
     state.shortcut_warning = None;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     sync_ui(&app, &state);
     Ok(StateSnapshot::from(&*state))
 }
@@ -209,7 +209,7 @@ pub fn set_launch_at_login(
     autostart::set(enabled)?;
     let mut state = shared.lock();
     state.config.launch_at_login = enabled;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     sync_ui(&app, &state);
     Ok(StateSnapshot::from(&*state))
 }
@@ -237,7 +237,7 @@ pub fn update_settings(
     config.shortcut_note = state.config.shortcut_note.clone();
     config.launch_at_login = state.config.launch_at_login;
     state.config = config;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     sync_ui(&app, &state);
     StateSnapshot::from(&*state)
 }
@@ -250,7 +250,7 @@ pub async fn save_github_token(token: String, shared: State<'_, Shared>) -> Resu
     state.config.github_login = Some(login.clone());
     // Pasting a token is an explicit choice: use it instead of gh's login.
     state.config.github_use_gh = false;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     Ok(login)
 }
 
@@ -279,7 +279,7 @@ pub async fn google_connect(app: AppHandle, shared: State<'_, Shared>) -> Result
     state.config.google_connected = true;
     state.google_access_token = Some(tokens.access_token);
     state.google_error = None;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     let snapshot = StateSnapshot::from(&*state);
     sync_ui(&app, &state);
     Ok(snapshot)
@@ -290,7 +290,7 @@ pub fn google_disconnect(app: AppHandle, shared: State<'_, Shared>) -> StateSnap
     let _ = google_calendar::clear_refresh_token();
     let mut state = shared.lock();
     state.disconnect_google();
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     let snapshot = StateSnapshot::from(&*state);
     sync_ui(&app, &state);
     snapshot
@@ -467,7 +467,7 @@ pub async fn connect_github_with_gh(shared: State<'_, Shared>) -> Result<String,
     let mut state = shared.lock();
     state.config.github_login = Some(login.clone());
     state.config.github_use_gh = true;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     Ok(login)
 }
 
@@ -484,7 +484,7 @@ pub fn clear_github_token(shared: State<'_, Shared>) -> Result<(), String> {
     state.github_items.clear();
     state.github_days.clear();
     state.github_events.clear();
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     Ok(())
 }
 

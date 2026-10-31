@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -69,21 +69,89 @@ pub fn parse(raw: &str) -> ActivityLog {
     serde_json::from_str(raw).unwrap_or_default()
 }
 
-pub fn load() -> ActivityLog {
-    match fs::read_to_string(log_path()) {
-        Ok(raw) => parse(&raw),
-        Err(_) => ActivityLog::default(),
+pub fn parse_strict(raw: &str) -> Result<ActivityLog, serde_json::Error> {
+    if raw.trim().is_empty() {
+        return Ok(ActivityLog::default());
     }
+    serde_json::from_str(raw)
+}
+
+/// Reads `path`. Missing or blank file = empty log. An unreadable one is moved
+/// aside (never erased, never overwritten) and the log starts empty.
+pub fn load_from(path: &Path, stamp_ms: i64) -> ActivityLog {
+    let outcome = match fs::read_to_string(path) {
+        Ok(raw) => parse_strict(&raw).map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return ActivityLog::default(),
+        Err(e) => Err(e.to_string()),
+    };
+    outcome.unwrap_or_else(|reason| {
+        match crate::fsutil::quarantine(path, stamp_ms) {
+            Ok(dest) => tracing::error!(from = %path.display(), to = %dest.display(), reason, "activity file unreadable, moved aside"),
+            Err(e) => tracing::error!(path = %path.display(), reason, error = %e, "activity file unreadable and could not be moved aside"),
+        }
+        ActivityLog::default()
+    })
+}
+
+pub fn load() -> ActivityLog {
+    load_from(&log_path(), chrono::Utc::now().timestamp_millis())
+}
+
+pub fn save_to(path: &Path, log: &ActivityLog) -> std::io::Result<()> {
+    let raw = serde_json::to_string_pretty(log)?;
+    crate::fsutil::write_atomic(path, raw.as_bytes())
 }
 
 pub fn save(log: &ActivityLog) -> std::io::Result<()> {
-    let raw = serde_json::to_string_pretty(log)?;
-    fs::write(log_path(), raw)
+    save_to(&log_path(), log)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_dir() -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn corrupt_activity_file_is_quarantined_not_erased() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        fs::write(&p, "{\"x\"").unwrap();
+        assert!(load_from(&p, 42).focus_secs_by_day.is_empty());
+        assert!(!p.exists());
+        assert_eq!(fs::read_to_string(dir.join("activity.corrupt-42.json")).unwrap(), "{\"x\"");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_activity_file_is_empty_without_quarantine() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        assert!(load_from(&p, 42).sessions.is_empty());
+        fs::write(&p, " 
+").unwrap();
+        assert!(load_from(&p, 42).sessions.is_empty());
+        assert!(p.exists());
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn activity_save_leaves_no_tmp_and_is_valid_json() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        let mut log = ActivityLog::default();
+        log.add_focus_secs("2026-10-05", 60);
+        save_to(&p, &log).unwrap();
+        assert!(!dir.join("activity.json.tmp").exists());
+        let back = load_from(&p, 1);
+        assert_eq!(back.focus_secs_by_day["2026-10-05"], 60);
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn seconds_add_up_within_a_day() {

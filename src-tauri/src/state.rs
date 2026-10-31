@@ -80,8 +80,8 @@ impl AppState {
 
     /// Writes the tasks and the activity log to disk.
     pub fn save_tracker(&self) {
-        let _ = tasks::save(&self.tracker.tasks);
-        let _ = activity::save(&self.tracker.log);
+        crate::logging::log_io("save tasks", tasks::save(&self.tracker.tasks));
+        crate::logging::log_io("save activity", activity::save(&self.tracker.log));
     }
 }
 

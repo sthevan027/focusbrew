@@ -3,6 +3,7 @@
 
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -160,21 +161,107 @@ pub fn parse(raw: &str) -> Vec<Task> {
     serde_json::from_str(raw).unwrap_or_default()
 }
 
-pub fn load() -> Vec<Task> {
-    match fs::read_to_string(tasks_path()) {
-        Ok(raw) => parse(&raw),
-        Err(_) => Vec::new(),
+pub fn parse_strict(raw: &str) -> Result<Vec<Task>, serde_json::Error> {
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str(raw)
+}
+
+/// Reads `path`. Missing or blank file = empty list. An unreadable one is
+/// moved aside (never erased, never overwritten) and the list starts empty.
+pub fn load_from(path: &Path, stamp_ms: i64) -> Vec<Task> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(e) => {
+            quarantine_unreadable(path, stamp_ms, &e.to_string());
+            return Vec::new();
+        }
+    };
+    match parse_strict(&raw) {
+        Ok(tasks) => tasks,
+        Err(e) => {
+            quarantine_unreadable(path, stamp_ms, &e.to_string());
+            Vec::new()
+        }
     }
 }
 
-pub fn save(tasks: &[Task]) -> std::io::Result<()> {
+fn quarantine_unreadable(path: &Path, stamp_ms: i64, reason: &str) {
+    match crate::fsutil::quarantine(path, stamp_ms) {
+        Ok(dest) => tracing::error!(from = %path.display(), to = %dest.display(), reason, "tasks file unreadable, moved aside"),
+        Err(e) => tracing::error!(path = %path.display(), reason, error = %e, "tasks file unreadable and could not be moved aside"),
+    }
+}
+
+pub fn load() -> Vec<Task> {
+    load_from(&tasks_path(), chrono::Utc::now().timestamp_millis())
+}
+
+pub fn save_to(path: &Path, tasks: &[Task]) -> std::io::Result<()> {
     let raw = serde_json::to_string_pretty(tasks)?;
-    fs::write(tasks_path(), raw)
+    crate::fsutil::write_atomic(path, raw.as_bytes())
+}
+
+pub fn save(tasks: &[Task]) -> std::io::Result<()> {
+    save_to(&tasks_path(), tasks)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_dir() -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn corrupt_tasks_file_is_quarantined_not_erased() {
+        let dir = temp_dir();
+        let p = dir.join("tasks.json");
+        fs::write(&p, "{\"x\"").unwrap();
+        assert!(load_from(&p, 42).is_empty());
+        assert!(!p.exists());
+        let q = dir.join("tasks.corrupt-42.json");
+        assert_eq!(fs::read_to_string(&q).unwrap(), "{\"x\"");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_file_is_empty_without_quarantine() {
+        let dir = temp_dir();
+        let p = dir.join("tasks.json");
+        assert!(load_from(&p, 42).is_empty());
+        fs::write(&p, "  
+").unwrap();
+        assert!(load_from(&p, 42).is_empty());
+        assert!(p.exists());
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_valid_file_loads_through_load_from() {
+        let dir = temp_dir();
+        let p = dir.join("tasks.json");
+        let raw = serde_json::to_string_pretty(&vec![task("a")]).unwrap();
+        fs::write(&p, raw).unwrap();
+        assert_eq!(ids(&load_from(&p, 1)), vec!["a"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_leaves_no_tmp_and_is_valid_json() {
+        let dir = temp_dir();
+        let p = dir.join("tasks.json");
+        save_to(&p, &[task("a")]).unwrap();
+        assert!(!dir.join("tasks.json.tmp").exists());
+        assert_eq!(parse_strict(&fs::read_to_string(&p).unwrap()).unwrap().len(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     fn task(id: &str) -> Task {
         let mut t = new_task(id, TaskSource::Manual, 25, "2026-10-05").unwrap();

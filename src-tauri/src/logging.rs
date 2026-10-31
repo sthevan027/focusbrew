@@ -39,7 +39,6 @@ pub fn init() -> Option<WorkerGuard> {
 }
 
 /// Logs the error of an I/O step (what failed + the error message); Ok is silent.
-#[allow(dead_code)] // first caller arrives with the atomic-save work
 pub fn log_io(what: &str, result: io::Result<()>) {
     if let Err(e) = result {
         tracing::error!(what, error = %e, "io failed");

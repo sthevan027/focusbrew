@@ -308,7 +308,7 @@ fn spawn_google_sync_loop(app: AppHandle) {
                         let _ = google_calendar::clear_refresh_token();
                         state.config.google_connected = false;
                         state.google_access_token = None;
-                        let _ = config::save(&state.config);
+                        crate::logging::log_io("save settings", config::save(&state.config));
                         state.google_error = Some(GOOGLE_RECONNECT_MESSAGE.to_string());
                     } else {
                         state.google_error = Some(e);
@@ -432,7 +432,7 @@ pub fn run() {
                         let shared = app.state::<Shared>();
                         let mut state = shared.lock();
                         state.config.widget_visible = !state.config.widget_visible;
-                        let _ = config::save(&state.config);
+                        crate::logging::log_io("save settings", config::save(&state.config));
                         sync_ui(app, &state);
                     }
                     "pause" => {
