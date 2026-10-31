@@ -237,6 +237,15 @@ pub fn data_dir() -> PathBuf {
     dir
 }
 
+/// Machine-local data (logs): `%LOCALAPPDATA%`, unlike `data_dir()` which roams.
+pub fn local_data_dir() -> PathBuf {
+    let dirs = directories::ProjectDirs::from("com", "sthevandev", "focusbrew")
+        .expect("could not resolve app data directory");
+    let dir = dirs.data_local_dir().to_path_buf();
+    fs::create_dir_all(&dir).ok();
+    dir
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

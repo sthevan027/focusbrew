@@ -7,6 +7,7 @@ mod fsutil;
 mod github;
 mod google_calendar;
 mod google_sync;
+mod logging;
 mod media;
 mod note_window;
 mod notes;
@@ -321,6 +322,9 @@ fn spawn_google_sync_loop(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Held for the whole run so buffered log lines are flushed on exit.
+    let _log_guard = logging::init();
+
     // The shortcuts themselves come from the settings and are registered in
     // `setup` (see `shortcuts::apply`); this only routes a press to its action.
     let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
