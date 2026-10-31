@@ -203,6 +203,7 @@ impl AppConfig {
 }
 
 /// Reads a settings file's text; anything unreadable becomes the defaults.
+#[cfg(test)] // kept for the old-file tests; loading uses the strict path
 pub fn parse(raw: &str) -> AppConfig {
     serde_json::from_str::<AppConfig>(raw).unwrap_or_default().normalized()
 }

@@ -157,6 +157,7 @@ fn tasks_path() -> std::path::PathBuf {
     data_dir().join("tasks.json")
 }
 
+#[cfg(test)] // kept for the old-file tests; loading uses the strict path
 pub fn parse(raw: &str) -> Vec<Task> {
     serde_json::from_str(raw).unwrap_or_default()
 }

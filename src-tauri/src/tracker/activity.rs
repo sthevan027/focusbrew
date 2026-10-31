@@ -65,6 +65,7 @@ fn log_path() -> PathBuf {
     data_dir().join("activity.json")
 }
 
+#[cfg(test)] // kept for the old-file tests; loading uses the strict path
 pub fn parse(raw: &str) -> ActivityLog {
     serde_json::from_str(raw).unwrap_or_default()
 }
