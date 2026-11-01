@@ -1,6 +1,7 @@
 mod activity_tracking;
 mod alerts;
 mod autostart;
+mod capture;
 mod commands;
 mod config;
 mod fsutil;
