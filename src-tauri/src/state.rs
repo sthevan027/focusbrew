@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 
 use serde::Serialize;
 
@@ -39,6 +40,10 @@ pub struct AppState {
     pub google_last_sync_ms: i64,
     /// What Windows is playing right now (SMTC), or `None` when nothing is.
     pub media: Option<crate::media::MediaView>,
+    /// tasks.json / activity.json could not be read at startup (and not moved
+    /// aside): `save_tracker` must not write over them.
+    pub tasks_blocked: AtomicBool,
+    pub activity_blocked: AtomicBool,
 }
 
 impl AppState {
@@ -47,13 +52,15 @@ impl AppState {
     }
 
     pub fn load() -> Self {
-        let mut list = tasks::load();
+        let loaded_tasks = tasks::load();
+        let loaded_log = activity::load();
+        let mut list = loaded_tasks.value;
         tasks::fill_missing_days(&mut list, &today_key());
         Self {
             config: crate::config::load(),
             alerts: Alerts::default(),
             shortcut_warning: None,
-            tracker: Tracker::new(list, activity::load()),
+            tracker: Tracker::new(list, loaded_log.value),
             last_tick_ms: now_ms(),
             last_day: today_key(),
             github_items: Vec::new(),
@@ -65,6 +72,8 @@ impl AppState {
             google_error: None,
             google_last_sync_ms: 0,
             media: None,
+            tasks_blocked: AtomicBool::new(!loaded_tasks.writable),
+            activity_blocked: AtomicBool::new(!loaded_log.writable),
         }
     }
 
@@ -80,8 +89,8 @@ impl AppState {
 
     /// Writes the tasks and the activity log to disk.
     pub fn save_tracker(&self) {
-        crate::logging::log_io("save tasks", tasks::save(&self.tracker.tasks));
-        crate::logging::log_io("save activity", activity::save(&self.tracker.log));
+        crate::logging::log_io("save tasks", tasks::save_guarded(&self.tracker.tasks, &self.tasks_blocked));
+        crate::logging::log_io("save activity", activity::save_guarded(&self.tracker.log, &self.activity_blocked));
     }
 }
 
@@ -209,6 +218,8 @@ impl AppState {
             google_error: None,
             google_last_sync_ms: 0,
             media: None,
+            tasks_blocked: AtomicBool::new(false),
+            activity_blocked: AtomicBool::new(false),
         }
     }
 }

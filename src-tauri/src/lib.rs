@@ -7,6 +7,7 @@ mod fsutil;
 mod github;
 mod google_calendar;
 mod google_sync;
+mod loadguard;
 mod logging;
 mod media;
 mod note_window;

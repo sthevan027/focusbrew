@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::loadguard::{self, Loaded};
 use crate::tracker::tasks::{clamp_minutes, DEFAULT_MINUTES};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,30 +218,26 @@ fn config_path() -> PathBuf {
     dir.join("settings.json")
 }
 
-/// Reads `path`. Missing or blank file = defaults. An unreadable one is moved
-/// aside (never erased, never overwritten) and the defaults are used.
-/// Values are normalized like `parse` does.
-pub fn load_from(path: &Path, stamp_ms: i64) -> AppConfig {
-    let outcome = match fs::read_to_string(path) {
-        Ok(raw) if raw.trim().is_empty() => return AppConfig::default(),
-        Ok(raw) => serde_json::from_str::<AppConfig>(&raw).map_err(|e| e.to_string()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return AppConfig::default(),
-        Err(e) => Err(e.to_string()),
-    };
-    match outcome {
-        Ok(config) => config.normalized(),
-        Err(reason) => {
-            match crate::fsutil::quarantine(path, stamp_ms) {
-                Ok(dest) => tracing::error!(from = %path.display(), to = %dest.display(), reason, "settings file unreadable, moved aside"),
-                Err(e) => tracing::error!(path = %path.display(), reason, error = %e, "settings file unreadable and could not be moved aside"),
-            }
-            AppConfig::default()
-        }
-    }
+fn parse_config(raw: &str) -> Result<AppConfig, serde_json::Error> {
+    serde_json::from_str::<AppConfig>(raw).map(AppConfig::normalized)
 }
 
+/// Reads `path`. Missing or blank file = defaults. A corrupt one is moved aside
+/// (never erased); one that can't be read, or can't be moved aside, comes back
+/// `writable: false` and must not be saved over. Values are normalized.
+pub fn load_from(path: &Path, stamp_ms: i64) -> Loaded<AppConfig> {
+    loadguard::load_guarded(path, stamp_ms, "settings", &parse_config, &crate::fsutil::quarantine)
+}
+
+/// Process-wide on purpose: `save` is a free function with no state to hang
+/// this on. Set by `load()` (settings file unreadable and not moved aside),
+/// cleared by `save` once `recheck_writable` says the file is safe. Private.
+static SETTINGS_BLOCKED: AtomicBool = AtomicBool::new(false);
+
 pub fn load() -> AppConfig {
-    load_from(&config_path(), chrono::Utc::now().timestamp_millis())
+    let loaded = load_from(&config_path(), chrono::Utc::now().timestamp_millis());
+    SETTINGS_BLOCKED.store(!loaded.writable, Ordering::SeqCst);
+    loaded.value
 }
 
 pub fn save_to(path: &Path, config: &AppConfig) -> std::io::Result<()> {
@@ -247,8 +245,16 @@ pub fn save_to(path: &Path, config: &AppConfig) -> std::io::Result<()> {
     crate::fsutil::write_atomic(path, raw.as_bytes())
 }
 
+/// Skipped (and logged) while the settings file is blocked, see `SETTINGS_BLOCKED`.
 pub fn save(config: &AppConfig) -> std::io::Result<()> {
-    save_to(&config_path(), config)
+    let path = config_path();
+    loadguard::save_unless_blocked(
+        "settings",
+        &path,
+        &SETTINGS_BLOCKED,
+        &|| loadguard::recheck_writable(&path, &parse_config, &crate::fsutil::quarantine),
+        || save_to(&path, config),
+    )
 }
 
 pub fn data_dir() -> PathBuf {
@@ -283,7 +289,7 @@ mod tests {
         let dir = temp_dir();
         let p = dir.join("settings.json");
         fs::write(&p, "{\"x\"").unwrap();
-        assert_eq!(load_from(&p, 42).accent_color, DEFAULT_ACCENT);
+        assert_eq!(load_from(&p, 42).value.accent_color, DEFAULT_ACCENT);
         assert!(!p.exists());
         assert_eq!(fs::read_to_string(dir.join("settings.corrupt-42.json")).unwrap(), "{\"x\"");
         let _ = fs::remove_dir_all(&dir);
@@ -293,11 +299,25 @@ mod tests {
     fn missing_settings_file_is_default_without_quarantine() {
         let dir = temp_dir();
         let p = dir.join("settings.json");
-        assert_eq!(load_from(&p, 42).default_minutes, 25);
+        assert_eq!(load_from(&p, 42).value.default_minutes, 25);
         fs::write(&p, "  ").unwrap();
-        assert_eq!(load_from(&p, 42).default_minutes, 25);
+        assert_eq!(load_from(&p, 42).value.default_minutes, 25);
         assert!(p.exists());
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unreadable_settings_file_is_blocked_and_a_corrupt_one_is_not() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        fs::write(&p, [0xff, 0xfe]).unwrap();
+        let l = load_from(&p, 5);
+        assert!(!l.writable);
+        assert_eq!(fs::read(&p).unwrap(), vec![0xff, 0xfe]);
+        let q = dir.join("other.json");
+        fs::write(&q, "{").unwrap();
+        assert!(load_from(&q, 5).writable, "quarantine worked, so writes are fine");
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -307,7 +327,7 @@ mod tests {
         let p = dir.join("settings.json");
         save_to(&p, &AppConfig { default_minutes: 5000, accent_color: "#ff9f0a".into(), ..AppConfig::default() }).unwrap();
         assert!(!dir.join("settings.json.tmp").exists());
-        let c = load_from(&p, 1);
+        let c = load_from(&p, 1).value;
         assert_eq!((c.default_minutes, c.accent_color.as_str()), (180, "#FF9F0A"));
         let _ = fs::remove_dir_all(&dir);
     }

@@ -2,12 +2,13 @@
 //! and the `tasks.json` file they live in.
 
 use std::collections::HashSet;
-use std::fs;
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::data_dir;
+use crate::loadguard::{self, Loaded};
 
 pub const MIN_MINUTES: u32 = 5;
 pub const MAX_MINUTES: u32 = 180;
@@ -169,34 +170,14 @@ pub fn parse_strict(raw: &str) -> Result<Vec<Task>, serde_json::Error> {
     serde_json::from_str(raw)
 }
 
-/// Reads `path`. Missing or blank file = empty list. An unreadable one is
-/// moved aside (never erased, never overwritten) and the list starts empty.
-pub fn load_from(path: &Path, stamp_ms: i64) -> Vec<Task> {
-    let raw = match fs::read_to_string(path) {
-        Ok(raw) => raw,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
-        Err(e) => {
-            quarantine_unreadable(path, stamp_ms, &e.to_string());
-            return Vec::new();
-        }
-    };
-    match parse_strict(&raw) {
-        Ok(tasks) => tasks,
-        Err(e) => {
-            quarantine_unreadable(path, stamp_ms, &e.to_string());
-            Vec::new()
-        }
-    }
+/// Reads `path`. Missing or blank file = empty list. A corrupt one is moved
+/// aside (never erased); one that can't be read, or can't be moved aside, comes
+/// back `writable: false` and must not be saved over.
+pub fn load_from(path: &Path, stamp_ms: i64) -> Loaded<Vec<Task>> {
+    loadguard::load_guarded(path, stamp_ms, "tasks", &parse_strict, &crate::fsutil::quarantine)
 }
 
-fn quarantine_unreadable(path: &Path, stamp_ms: i64, reason: &str) {
-    match crate::fsutil::quarantine(path, stamp_ms) {
-        Ok(dest) => tracing::error!(from = %path.display(), to = %dest.display(), reason, "tasks file unreadable, moved aside"),
-        Err(e) => tracing::error!(path = %path.display(), reason, error = %e, "tasks file unreadable and could not be moved aside"),
-    }
-}
-
-pub fn load() -> Vec<Task> {
+pub fn load() -> Loaded<Vec<Task>> {
     load_from(&tasks_path(), chrono::Utc::now().timestamp_millis())
 }
 
@@ -209,9 +190,22 @@ pub fn save(tasks: &[Task]) -> std::io::Result<()> {
     save_to(&tasks_path(), tasks)
 }
 
+/// `save`, skipped while `blocked` (the file could not be read at startup).
+pub fn save_guarded(tasks: &[Task], blocked: &AtomicBool) -> std::io::Result<()> {
+    let path = tasks_path();
+    loadguard::save_unless_blocked(
+        "tasks",
+        &path,
+        blocked,
+        &|| loadguard::recheck_writable(&path, &parse_strict, &crate::fsutil::quarantine),
+        || save_to(&path, tasks),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     fn temp_dir() -> std::path::PathBuf {
         let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
@@ -224,7 +218,7 @@ mod tests {
         let dir = temp_dir();
         let p = dir.join("tasks.json");
         fs::write(&p, "{\"x\"").unwrap();
-        assert!(load_from(&p, 42).is_empty());
+        assert!(load_from(&p, 42).value.is_empty());
         assert!(!p.exists());
         let q = dir.join("tasks.corrupt-42.json");
         assert_eq!(fs::read_to_string(&q).unwrap(), "{\"x\"");
@@ -235,12 +229,24 @@ mod tests {
     fn missing_file_is_empty_without_quarantine() {
         let dir = temp_dir();
         let p = dir.join("tasks.json");
-        assert!(load_from(&p, 42).is_empty());
+        assert!(load_from(&p, 42).value.is_empty());
         fs::write(&p, "  
 ").unwrap();
-        assert!(load_from(&p, 42).is_empty());
+        assert!(load_from(&p, 42).value.is_empty());
         assert!(p.exists());
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unreadable_tasks_file_is_blocked_and_guarded_save_leaves_it() {
+        let dir = temp_dir();
+        let p = dir.join("tasks.json");
+        fs::write(&p, [0xff, 0xfe]).unwrap(); // read error that is not NotFound
+        let l = load_from(&p, 5);
+        assert!(l.value.is_empty() && !l.writable);
+        assert_eq!(fs::read(&p).unwrap(), vec![0xff, 0xfe]);
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1, "not quarantined");
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -250,7 +256,7 @@ mod tests {
         let p = dir.join("tasks.json");
         let raw = serde_json::to_string_pretty(&vec![task("a")]).unwrap();
         fs::write(&p, raw).unwrap();
-        assert_eq!(ids(&load_from(&p, 1)), vec!["a"]);
+        assert_eq!(ids(&load_from(&p, 1).value), vec!["a"]);
         let _ = fs::remove_dir_all(&dir);
     }
 
