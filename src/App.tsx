@@ -6,6 +6,7 @@ import ActivityReport from "./components/ActivityReport";
 import ActivitySettings from "./components/ActivitySettings";
 import GithubPanel from "./components/GithubPanel";
 import GoogleCalendarPanel from "./components/GoogleCalendarPanel";
+import CaptureSection from "./settings/CaptureSection";
 import FocusSection from "./settings/FocusSection";
 import GeneralSection from "./settings/GeneralSection";
 import NotchSection from "./settings/NotchSection";
@@ -14,11 +15,12 @@ import { SECTION_ICONS } from "./settings/icons";
 import { useUpdateStatus } from "./settings/useUpdateStatus";
 import "./App.css";
 
-type Section = "focus" | "notes" | "notch" | "activity" | "general" | "github" | "google";
+type Section = "focus" | "notes" | "capture" | "notch" | "activity" | "general" | "github" | "google";
 
 const SECTIONS: { id: Section; label: string; color: string }[] = [
   { id: "focus", label: "Foco", color: "#ff9f0a" },
   { id: "notes", label: "Notas", color: "#bf5af2" },
+  { id: "capture", label: "Captura por voz", color: "#ffd60a" },
   { id: "notch", label: "Notch", color: "#ff375f" },
   { id: "activity", label: "Atividade", color: "#64d2ff" },
   { id: "general", label: "Geral", color: "#8e8e93" },
@@ -84,6 +86,7 @@ export default function App() {
         <h1>{current.label}</h1>
         {current.id === "focus" && <FocusSection config={state.config} set={set} />}
         {current.id === "notes" && <NotesSection config={state.config} set={set} />}
+        {current.id === "capture" && <CaptureSection config={state.config} />}
         {current.id === "notch" && <NotchSection config={state.config} set={set} />}
         {current.id === "general" && (
           <GeneralSection

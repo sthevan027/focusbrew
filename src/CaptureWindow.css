@@ -1,0 +1,88 @@
+.capture {
+  box-sizing: border-box;
+  height: 100vh;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #0b0b0d;
+  color: #f2f2f3;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+.capture-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  background: #1c1c1f;
+  border: 1px solid #2c2c30;
+  border-radius: 10px;
+  outline: none;
+}
+.capture-input:focus {
+  border-color: #ffd60a;
+}
+.capture-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.capture-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffd60a;
+}
+.capture-body {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.capture-hint {
+  font-size: 11px;
+  color: #8e8e93;
+}
+.capture-actions {
+  display: flex;
+  gap: 8px;
+}
+.capture-btn,
+.capture-pick {
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: #1c1c1f;
+  border: 1px solid #2c2c30;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.capture-btn:hover:not(:disabled),
+.capture-pick:hover {
+  border-color: #ffd60a;
+}
+.capture-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+.capture-pick {
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.capture-pick.selected {
+  border-color: #ffd60a;
+  background: #2a2508;
+}
+.capture-error {
+  margin: 0;
+  font-size: 12px;
+  color: #ff453a;
+}

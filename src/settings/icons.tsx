@@ -30,6 +30,13 @@ export const SECTION_ICONS = {
       <polyline points="3 17 9 11 13 15 21 6" />
     </Icon>
   ),
+  capture: () => (
+    <Icon>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+      <path d="M12 17.5V21" />
+    </Icon>
+  ),
   focus: () => (
     <Icon>
       <circle cx="12" cy="13.5" r="7.5" />
