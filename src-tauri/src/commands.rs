@@ -46,7 +46,7 @@ pub async fn media_previous() -> Result<(), String> {
 
 /// Locks the state, runs `change`, saves tasks/log and publishes the result.
 /// Every task and timer command has this shape.
-fn apply<T>(
+pub(crate) fn apply<T>(
     app: &AppHandle,
     shared: &Shared,
     change: impl FnOnce(&mut AppState, i64, &str) -> T,
@@ -193,7 +193,9 @@ pub fn set_shortcut(
         shortcuts::Action::Toggle => state.config.shortcut_toggle = text,
         shortcuts::Action::Panel => state.config.shortcut_panel = text,
         shortcuts::Action::Note => state.config.shortcut_note = text,
-        shortcuts::Action::Capture => state.config.shortcut_capture = text,
+        // Capture's key is changed through its own command: accepting it here
+        // could register it while capture is disabled.
+        shortcuts::Action::Capture => unreachable!("\"capture\" is refused by the match above"),
     }
     state.shortcut_warning = None;
     crate::logging::log_io("save settings", config::save(&state.config));

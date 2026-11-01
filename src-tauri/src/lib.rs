@@ -2,6 +2,7 @@ mod activity_tracking;
 mod alerts;
 mod autostart;
 mod capture;
+mod capture_window;
 mod commands;
 mod config;
 mod fsutil;
@@ -148,6 +149,19 @@ fn note_action(app: &AppHandle) {
         (state.config.note_placement, state.config.widget_visible)
     };
     note_window::open(app, None, note_window::wants_window(placement, visible));
+}
+
+/// The capture shortcut: opens the capture box (or brings it forward). A press
+/// that arrives after capture was turned off does nothing.
+fn capture_action(app: &AppHandle) {
+    let enabled = {
+        let shared = app.state::<Shared>();
+        let enabled = shared.lock().config.capture_enabled;
+        enabled
+    };
+    if enabled {
+        capture_window::open(app);
+    }
 }
 
 fn alert_text(alert: &Alert) -> (String, String) {
@@ -342,8 +356,11 @@ pub fn run() {
                     let app = app.clone();
                     std::thread::spawn(move || note_action(&app));
                 }
-                // wired in Task 6
-                Some(shortcuts::Action::Capture) => {}
+                // Same reason: the capture window is built from here.
+                Some(shortcuts::Action::Capture) => {
+                    let app = app.clone();
+                    std::thread::spawn(move || capture_action(&app));
+                }
                 None => {}
             }
         })
@@ -412,6 +429,11 @@ pub fn run() {
             commands::open_note,
             commands::close_note_window,
             commands::set_note_overlay_open,
+            capture::commands::capture_preview,
+            capture::commands::capture_commit,
+            capture::commands::open_capture,
+            capture::commands::close_capture_window,
+            capture::commands::set_capture_enabled,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

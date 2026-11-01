@@ -5,7 +5,8 @@ use chrono::{Duration, NaiveDate};
 
 use crate::tracker::tasks::{clean_title, is_valid_day, split_project};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Parsed {
     Task {
         title: String,
