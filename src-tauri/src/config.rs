@@ -62,11 +62,17 @@ pub struct AppConfig {
     /// experimental feature. Off = no section in Settings, no summary in the
     /// panel and no call to the service.
     pub activity_tracking_enabled: bool,
+    /// The voice/text capture box: off by default. Off = its global shortcut
+    /// is not registered at all.
+    pub capture_enabled: bool,
+    /// Open the capture box.
+    pub shortcut_capture: String,
 }
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
 pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
 pub const DEFAULT_SHORTCUT_NOTE: &str = "CommandOrControl+Alt+KeyN";
+pub const DEFAULT_SHORTCUT_CAPTURE: &str = "CommandOrControl+Alt+KeyJ";
 pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
 pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
 pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
@@ -170,6 +176,8 @@ impl Default for AppConfig {
             launch_at_login: false,
             panel_autoclose_secs: 0,
             activity_tracking_enabled: false,
+            capture_enabled: false,
+            shortcut_capture: DEFAULT_SHORTCUT_CAPTURE.to_string(),
         }
     }
 }
@@ -199,6 +207,7 @@ impl AppConfig {
         self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
         self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
         self.shortcut_note = or_default(self.shortcut_note, DEFAULT_SHORTCUT_NOTE);
+        self.shortcut_capture = or_default(self.shortcut_capture, DEFAULT_SHORTCUT_CAPTURE);
         self.monitor = self.monitor.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
         self
     }
@@ -567,5 +576,28 @@ mod tests {
     fn a_blank_note_shortcut_falls_back_to_the_default() {
         let c = AppConfig { shortcut_note: "  ".into(), ..AppConfig::default() }.normalized();
         assert_eq!(c.shortcut_note, DEFAULT_SHORTCUT_NOTE);
+    }
+
+    #[test]
+    fn capture_fields_default_off() {
+        let c = AppConfig::default();
+        assert!(!c.capture_enabled);
+        assert_eq!(c.shortcut_capture, "CommandOrControl+Alt+KeyJ");
+        let blank = AppConfig { shortcut_capture: "  ".into(), ..AppConfig::default() }.normalized();
+        assert_eq!(blank.shortcut_capture, DEFAULT_SHORTCUT_CAPTURE);
+    }
+
+    #[test]
+    fn an_old_settings_file_loads_with_capture_defaults() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        fs::write(&p, r##"{"accent_color":"#112233","shortcut_note":"Alt+F9"}"##).unwrap();
+        let l = load_from(&p, 1);
+        assert!(l.writable);
+        assert_eq!(l.value.accent_color, "#112233");
+        assert_eq!(l.value.shortcut_note, "Alt+F9");
+        assert!(!l.value.capture_enabled);
+        assert_eq!(l.value.shortcut_capture, DEFAULT_SHORTCUT_CAPTURE);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

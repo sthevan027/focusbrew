@@ -1,4 +1,5 @@
-//! The three global shortcuts, configurable: start/pause, open the panel and a new quick note.
+//! The four global shortcuts, configurable: start/pause, open the panel, a new quick note
+//! and the capture box (this one is registered only while capture is enabled).
 //! Each one is registered on its own: one taken by another app must not
 //! leave the other unregistered.
 
@@ -15,6 +16,8 @@ pub enum Action {
     Panel,
     /// Open a new quick note.
     Note,
+    /// Open the capture box (only registered while capture is enabled).
+    Capture,
 }
 
 impl Action {
@@ -23,14 +26,15 @@ impl Action {
             Action::Toggle => 0,
             Action::Panel => 1,
             Action::Note => 2,
+            Action::Capture => 3,
         }
     }
 }
 
-type Slots = [Option<Shortcut>; 3];
+type Slots = [Option<Shortcut>; 4];
 
-/// What is registered right now: [toggle, panel, note].
-static ACTIVE: Mutex<Slots> = Mutex::new([None, None, None]);
+/// What is registered right now: [toggle, panel, note, capture].
+static ACTIVE: Mutex<Slots> = Mutex::new([None, None, None, None]);
 
 fn active() -> Slots {
     *ACTIVE.lock().unwrap_or_else(|e| e.into_inner())
@@ -48,8 +52,18 @@ pub fn check_conflict(new: Shortcut, other: Option<Shortcut>) -> Result<(), Stri
     Ok(())
 }
 
+/// `new` can't be the shortcut any *other* action holds in `slots`.
+fn check_against_others(slots: &Slots, action: Action, new: Shortcut) -> Result<(), String> {
+    for (slot, other) in slots.iter().enumerate() {
+        if slot != action.slot() {
+            check_conflict(new, *other)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn find_action(active: &Slots, shortcut: &Shortcut) -> Option<Action> {
-    [Action::Toggle, Action::Panel, Action::Note]
+    [Action::Toggle, Action::Panel, Action::Note, Action::Capture]
         .into_iter()
         .find(|action| active[action.slot()] == Some(*shortcut))
 }
@@ -64,11 +78,7 @@ pub fn set(app: &AppHandle, action: Action, text: &str) -> Result<(), String> {
     let new = parse(text)?;
     let current = active();
     let mine = current[action.slot()];
-    for (slot, other) in current.iter().enumerate() {
-        if slot != action.slot() {
-            check_conflict(new, *other)?;
-        }
-    }
+    check_against_others(&current, action, new)?;
     if mine == Some(new) {
         return Ok(());
     }
@@ -87,6 +97,14 @@ pub fn set(app: &AppHandle, action: Action, text: &str) -> Result<(), String> {
             }
             Err(format!("{} já é usado por outro programa — escolha outra combinação", pretty(text)))
         }
+    }
+}
+
+/// Unregisters `action`'s shortcut and empties its slot (no-op if it has none).
+pub fn clear(app: &AppHandle, action: Action) {
+    let old = ACTIVE.lock().unwrap_or_else(|e| e.into_inner())[action.slot()].take();
+    if let Some(old) = old {
+        let _ = app.global_shortcut().unregister(old);
     }
 }
 
@@ -137,20 +155,44 @@ mod tests {
     }
 
     #[test]
-    fn each_action_finds_its_own_shortcut_among_three() {
-        let (a, b, c) = (parse("Alt+F9").unwrap(), parse("Alt+F10").unwrap(), parse("Alt+F11").unwrap());
-        let active = [Some(a), Some(b), Some(c)];
+    fn each_action_finds_its_own_shortcut_among_four() {
+        let (a, b, c, d) =
+            (parse("Alt+F9").unwrap(), parse("Alt+F10").unwrap(), parse("Alt+F11").unwrap(), parse("Alt+F8").unwrap());
+        let active = [Some(a), Some(b), Some(c), Some(d)];
         assert_eq!(find_action(&active, &a), Some(Action::Toggle));
         assert_eq!(find_action(&active, &b), Some(Action::Panel));
         assert_eq!(find_action(&active, &c), Some(Action::Note));
         assert_eq!(find_action(&active, &parse("Alt+F12").unwrap()), None);
-        assert_eq!(find_action(&[None, None, None], &a), None);
+        assert_eq!(find_action(&[None, None, None, None], &a), None);
     }
 
     #[test]
-    fn the_three_actions_use_three_distinct_slots() {
-        let slots: Vec<usize> = [Action::Toggle, Action::Panel, Action::Note].iter().map(|a| a.slot()).collect();
-        assert_eq!(slots, vec![0, 1, 2]);
+    fn find_action_knows_the_capture_slot() {
+        let d = parse("Alt+F8").unwrap();
+        assert_eq!(find_action(&[None, None, None, Some(d)], &d), Some(Action::Capture));
+        // not registered (capture disabled): nothing to find
+        assert_eq!(find_action(&[None, None, None, None], &d), None);
+    }
+
+    #[test]
+    fn the_four_actions_use_four_distinct_slots() {
+        let slots: Vec<usize> =
+            [Action::Toggle, Action::Panel, Action::Note, Action::Capture].iter().map(|a| a.slot()).collect();
+        assert_eq!(slots, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn capture_shortcut_cannot_equal_another() {
+        let others = [parse("Alt+F9").unwrap(), parse("Alt+F10").unwrap(), parse("Alt+F11").unwrap()];
+        let active = [Some(others[0]), Some(others[1]), Some(others[2]), None];
+        for taken in others {
+            let err = check_against_others(&active, Action::Capture, taken).unwrap_err();
+            assert!(err.contains("iguais"), "{err}");
+        }
+        assert!(check_against_others(&active, Action::Capture, parse("Alt+F8").unwrap()).is_ok());
+        // an action may keep its own shortcut
+        let own = [Some(others[0]), None, None, None];
+        assert!(check_against_others(&own, Action::Toggle, others[0]).is_ok());
     }
 
     #[test]

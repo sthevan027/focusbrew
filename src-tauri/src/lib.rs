@@ -342,6 +342,8 @@ pub fn run() {
                     let app = app.clone();
                     std::thread::spawn(move || note_action(&app));
                 }
+                // wired in Task 6
+                Some(shortcuts::Action::Capture) => {}
                 None => {}
             }
         })
@@ -463,11 +465,15 @@ pub fn run() {
                 let mut state = shared.lock();
                 // Each on its own: one taken by another app leaves the other
                 // working, and the settings say which one needs changing.
-                let wanted = [
+                let mut wanted = vec![
                     (shortcuts::Action::Toggle, state.config.shortcut_toggle.clone()),
                     (shortcuts::Action::Panel, state.config.shortcut_panel.clone()),
                     (shortcuts::Action::Note, state.config.shortcut_note.clone()),
                 ];
+                // Disabled capture = its shortcut is not registered at all.
+                if state.config.capture_enabled {
+                    wanted.push((shortcuts::Action::Capture, state.config.shortcut_capture.clone()));
+                }
                 let problems: Vec<String> = wanted
                     .iter()
                     .filter_map(|(action, text)| shortcuts::set(&handle, *action, text).err())

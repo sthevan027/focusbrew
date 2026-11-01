@@ -193,6 +193,7 @@ pub fn set_shortcut(
         shortcuts::Action::Toggle => state.config.shortcut_toggle = text,
         shortcuts::Action::Panel => state.config.shortcut_panel = text,
         shortcuts::Action::Note => state.config.shortcut_note = text,
+        shortcuts::Action::Capture => state.config.shortcut_capture = text,
     }
     state.shortcut_warning = None;
     crate::logging::log_io("save settings", config::save(&state.config));
@@ -235,6 +236,8 @@ pub fn update_settings(
     config.shortcut_toggle = state.config.shortcut_toggle.clone();
     config.shortcut_panel = state.config.shortcut_panel.clone();
     config.shortcut_note = state.config.shortcut_note.clone();
+    config.capture_enabled = state.config.capture_enabled;
+    config.shortcut_capture = state.config.shortcut_capture.clone();
     config.launch_at_login = state.config.launch_at_login;
     state.config = config;
     crate::logging::log_io("save settings", config::save(&state.config));
