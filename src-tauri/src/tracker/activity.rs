@@ -146,13 +146,14 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_activity_file_is_blocked() {
+    fn a_non_utf8_activity_file_is_quarantined_and_writable() {
         let dir = temp_dir();
         let p = dir.join("activity.json");
         fs::write(&p, [0xff, 0xfe]).unwrap();
         let l = load_from(&p, 5);
-        assert!(l.value.sessions.is_empty() && !l.writable);
-        assert_eq!(fs::read(&p).unwrap(), vec![0xff, 0xfe]);
+        assert!(l.writable);
+        assert!(!p.exists());
+        assert_eq!(fs::read(dir.join("activity.corrupt-5.json")).unwrap(), vec![0xff, 0xfe]);
         let _ = fs::remove_dir_all(&dir);
     }
 

@@ -34,12 +34,18 @@ enum Disk<T> {
     Corrupt(String),
 }
 
-fn inspect<T>(path: &Path, parse: &dyn Fn(&str) -> Result<T, serde_json::Error>) -> Disk<T> {
-    match fs::read_to_string(path) {
-        Ok(raw) if raw.trim().is_empty() => Disk::Absent,
-        Ok(raw) => match parse(&raw) {
-            Ok(v) => Disk::Data(v),
-            Err(e) => Disk::Corrupt(serde_reason(&e)),
+type Reader<'a> = &'a dyn Fn(&Path) -> io::Result<Vec<u8>>;
+
+fn inspect<T>(path: &Path, read: Reader, parse: &dyn Fn(&str) -> Result<T, serde_json::Error>) -> Disk<T> {
+    match read(path) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(raw) if raw.trim().is_empty() => Disk::Absent,
+            Ok(raw) => match parse(&raw) {
+                Ok(v) => Disk::Data(v),
+                Err(e) => Disk::Corrupt(serde_reason(&e)),
+            },
+            // Bad bytes are bad content (a parse problem), not a lock problem.
+            Err(_) => Disk::Corrupt("invalid UTF-8".to_string()),
         },
         Err(e) if e.kind() == io::ErrorKind::NotFound => Disk::Absent,
         Err(e) => Disk::Unreadable(io_reason(&e)),
@@ -66,7 +72,18 @@ pub fn load_guarded<T: Default>(
     parse: &dyn Fn(&str) -> Result<T, serde_json::Error>,
     quarantine: Quarantine,
 ) -> Loaded<T> {
-    match inspect(path, parse) {
+    load_guarded_with(path, stamp_ms, what, &|p| fs::read(p), parse, quarantine)
+}
+
+fn load_guarded_with<T: Default>(
+    path: &Path,
+    stamp_ms: i64,
+    what: &str,
+    read: Reader,
+    parse: &dyn Fn(&str) -> Result<T, serde_json::Error>,
+    quarantine: Quarantine,
+) -> Loaded<T> {
+    match inspect(path, read, parse) {
         Disk::Absent => Loaded { value: T::default(), writable: true, had_data: false },
         Disk::Data(value) => Loaded { value, writable: true, had_data: true },
         Disk::Unreadable(reason) => {
@@ -88,7 +105,7 @@ pub fn recheck_writable<T>(
     parse: &dyn Fn(&str) -> Result<T, serde_json::Error>,
     quarantine: Quarantine,
 ) -> bool {
-    match inspect(path, parse) {
+    match inspect(path, &|p| fs::read(p), parse) {
         Disk::Absent => true,
         Disk::Data(_) | Disk::Unreadable(_) => false,
         Disk::Corrupt(reason) => move_aside(path, chrono::Utc::now().timestamp_millis(), "recheck", &reason, quarantine),
@@ -138,14 +155,28 @@ mod tests {
     }
 
     #[test]
-    fn a_read_error_is_not_quarantined_and_blocks_writes() {
+    fn a_non_utf8_file_is_corrupt_so_it_is_quarantined_and_stays_writable() {
         let dir = temp_dir();
         let p = dir.join("x.json");
-        fs::write(&p, [0xff, 0xfe, 0xfd]).unwrap(); // not UTF-8: a read error, not NotFound
-        let l = load_guarded::<Vec<String>>(&p, 1, "x", &parse, &crate::fsutil::quarantine);
+        fs::write(&p, [0xff, 0xfe, 0xfd]).unwrap();
+        let l = load_guarded::<Vec<String>>(&p, 3, "x", &parse, &crate::fsutil::quarantine);
+        assert!(l.value.is_empty());
+        assert!(l.writable);
+        assert!(!p.exists());
+        assert_eq!(fs::read(dir.join("x.corrupt-3.json")).unwrap(), vec![0xff, 0xfe, 0xfd]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_real_read_error_is_not_quarantined_and_blocks_writes() {
+        let dir = temp_dir();
+        let p = dir.join("x.json");
+        fs::write(&p, "[\"keep\"]").unwrap();
+        let denied = |_: &Path| -> io::Result<Vec<u8>> { Err(io::Error::from(io::ErrorKind::PermissionDenied)) };
+        let l = load_guarded_with::<Vec<String>>(&p, 1, "x", &denied, &parse, &crate::fsutil::quarantine);
         assert!(l.value.is_empty());
         assert!(!l.writable);
-        assert_eq!(fs::read(&p).unwrap(), vec![0xff, 0xfe, 0xfd], "original untouched");
+        assert_eq!(fs::read_to_string(&p).unwrap(), "[\"keep\"]", "original untouched");
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 1, "nothing quarantined");
         let _ = fs::remove_dir_all(&dir);
     }

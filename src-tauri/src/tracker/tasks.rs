@@ -239,14 +239,14 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_tasks_file_is_blocked_and_guarded_save_leaves_it() {
+    fn a_non_utf8_tasks_file_is_quarantined_and_writable() {
         let dir = temp_dir();
         let p = dir.join("tasks.json");
-        fs::write(&p, [0xff, 0xfe]).unwrap(); // read error that is not NotFound
+        fs::write(&p, [0xff, 0xfe]).unwrap();
         let l = load_from(&p, 5);
-        assert!(l.value.is_empty() && !l.writable);
-        assert_eq!(fs::read(&p).unwrap(), vec![0xff, 0xfe]);
-        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1, "not quarantined");
+        assert!(l.writable);
+        assert!(!p.exists());
+        assert_eq!(fs::read(dir.join("tasks.corrupt-5.json")).unwrap(), vec![0xff, 0xfe]);
         let _ = fs::remove_dir_all(&dir);
     }
 

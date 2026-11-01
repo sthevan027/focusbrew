@@ -308,16 +308,14 @@ mod tests {
     }
 
     #[test]
-    fn an_unreadable_settings_file_is_blocked_and_a_corrupt_one_is_not() {
+    fn a_non_utf8_settings_file_is_quarantined_and_writable() {
         let dir = temp_dir();
         let p = dir.join("settings.json");
         fs::write(&p, [0xff, 0xfe]).unwrap();
         let l = load_from(&p, 5);
-        assert!(!l.writable);
-        assert_eq!(fs::read(&p).unwrap(), vec![0xff, 0xfe]);
-        let q = dir.join("other.json");
-        fs::write(&q, "{").unwrap();
-        assert!(load_from(&q, 5).writable, "quarantine worked, so writes are fine");
+        assert!(l.writable);
+        assert!(!p.exists());
+        assert_eq!(fs::read(dir.join("settings.corrupt-5.json")).unwrap(), vec![0xff, 0xfe]);
         let _ = fs::remove_dir_all(&dir);
     }
 
