@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { canCommit, describePreview, toCommitItem } from "./lib/capture";
+import { canCommit, canSubmitNow, describePreview, isSubmitKey, toCommitItem } from "./lib/capture";
 import type { CaptureItem, CapturePreview } from "./lib/capture";
 import type { StateSnapshot } from "./lib/types";
 import {
@@ -19,6 +19,7 @@ const DEBOUNCE_MS = 150;
 export default function CaptureWindow() {
   const [text, setText] = useState("");
   const [preview, setPreview] = useState<CapturePreview | null>(null);
+  const [previewText, setPreviewText] = useState("");
   const [pick, setPick] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,6 +33,7 @@ export default function CaptureWindow() {
     requestId.current++;
     setText("");
     setPreview(null);
+    setPreviewText("");
     setPick(undefined);
     setError(null);
     setBusy(false);
@@ -71,6 +73,7 @@ export default function CaptureWindow() {
         .then((p) => {
           if (id !== requestId.current) return;
           setPreview(p);
+          setPreviewText(text);
           setPick(undefined);
         })
         .catch(() => {
@@ -99,14 +102,15 @@ export default function CaptureWindow() {
     if (e.key === "Escape") {
       e.preventDefault();
       void closeCaptureWindow();
-    } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+    } else if (isSubmitKey({ key: e.key, isComposing: e.nativeEvent.isComposing, targetTag: (e.target as HTMLElement).tagName })) {
       e.preventDefault();
-      if (preview) commit(toCommitItem(preview, pick));
+      if (canSubmitNow({ text, previewText, preview, pick, busy })) commit(toCommitItem(preview as CapturePreview, pick));
     }
   };
 
   const titleOf = (id: string): string => snapshot?.tasks.find((t) => t.id === id)?.title ?? id;
   const parsed = preview?.parsed;
+  const pending = text.trim() !== "" && previewText !== text;
 
   return (
     <div className="capture" onKeyDown={onKeyDown}>
@@ -175,11 +179,21 @@ export default function CaptureWindow() {
             </div>
           )}
 
-          {parsed.kind !== "unknown" && (
-            <div className="capture-hint">{canCommit(preview, pick) ? "Enter confirma · Esc fecha" : "Esc fecha"}</div>
-          )}
+          <div className="capture-hint">
+            {pending
+              ? "calculando…"
+              : parsed.kind === "unknown"
+                ? "Tab escolhe Tarefa ou Nota, Enter confirma · Esc fecha"
+                : parsed.kind === "set_minutes" && preview.target.kind === "pick" && pick === undefined
+                  ? "Tab escolhe a tarefa, Enter confirma · Esc fecha"
+                  : canCommit(preview, pick)
+                    ? "Enter confirma · Esc fecha"
+                    : "Esc fecha"}
+          </div>
         </div>
       )}
+
+      {pending && !preview && <div className="capture-hint">calculando…</div>}
 
       {error && (
         <p className="capture-error" role="alert">

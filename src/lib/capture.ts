@@ -80,3 +80,20 @@ export function toCommitItem(p: CapturePreview, pick?: string): CaptureItem | nu
       return null;
   }
 }
+
+/** Enter may commit only if the preview was computed for the text now in the box. */
+export function canSubmitNow(s: {
+  text: string;
+  previewText: string;
+  preview: CapturePreview | null;
+  pick?: string;
+  busy: boolean;
+}): boolean {
+  if (s.busy || !s.preview || !s.text.trim() || s.previewText !== s.text) return false;
+  return canCommit(s.preview, s.pick);
+}
+
+/** Enter submits only from the text input; on a button it must stay a native click. */
+export function isSubmitKey(e: { key: string; isComposing: boolean; targetTag: string }): boolean {
+  return e.key === "Enter" && !e.isComposing && e.targetTag === "INPUT";
+}

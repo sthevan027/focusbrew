@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCommit, describePreview, toCommitItem } from "./capture";
+import { canCommit, canSubmitNow, describePreview, isSubmitKey, toCommitItem } from "./capture";
 import type { CapturePreview } from "./capture";
 
 const task = (over: Partial<Extract<CapturePreview["parsed"], { kind: "task" }>> = {}): CapturePreview => ({
@@ -90,5 +90,42 @@ describe("toCommitItem", () => {
   it("is null when it cannot be committed", () => {
     expect(toCommitItem(minutes({ kind: "pick", ids: ["a", "b"] }))).toBeNull();
     expect(toCommitItem({ parsed: { kind: "unknown", text: "?" }, target: { kind: "none" } })).toBeNull();
+  });
+});
+
+describe("canSubmitNow", () => {
+  const ok = task();
+  const base = { text: "abc", previewText: "abc", preview: ok, pick: undefined, busy: false };
+
+  it("follows canCommit when the preview is for the text in the box", () => {
+    expect(canSubmitNow(base)).toBe(true);
+    const pickPrev = minutes({ kind: "pick", ids: ["a", "b"] });
+    expect(canSubmitNow({ ...base, preview: pickPrev })).toBe(false);
+    expect(canSubmitNow({ ...base, preview: pickPrev, pick: "a" })).toBe(true);
+  });
+
+  it("is false for a stale preview", () => {
+    expect(canSubmitNow({ ...base, text: "abcd" })).toBe(false);
+  });
+
+  it("is false while busy, without a preview, or for blank text", () => {
+    expect(canSubmitNow({ ...base, busy: true })).toBe(false);
+    expect(canSubmitNow({ ...base, preview: null })).toBe(false);
+    expect(canSubmitNow({ ...base, text: "  ", previewText: "  " })).toBe(false);
+  });
+});
+
+describe("isSubmitKey", () => {
+  it("accepts Enter on the text input", () => {
+    expect(isSubmitKey({ key: "Enter", isComposing: false, targetTag: "INPUT" })).toBe(true);
+  });
+
+  it("leaves Enter on buttons to the native click", () => {
+    expect(isSubmitKey({ key: "Enter", isComposing: false, targetTag: "BUTTON" })).toBe(false);
+  });
+
+  it("ignores composition and other keys", () => {
+    expect(isSubmitKey({ key: "Enter", isComposing: true, targetTag: "INPUT" })).toBe(false);
+    expect(isSubmitKey({ key: "a", isComposing: false, targetTag: "INPUT" })).toBe(false);
   });
 });
