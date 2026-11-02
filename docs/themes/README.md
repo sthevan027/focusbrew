@@ -18,7 +18,7 @@ O único arquivo útil aqui é o mockup interativo: `mockup-abobora.html` (abre 
 ## O que o código tem hoje (levantado em 2026-11-01, `dev` @ b050221)
 - Visual do widget: `src/Widget.css` (~1500 linhas). Cor de destaque entra por `--accent` (vem de `config.accent_color`, definido em `src/Widget.tsx`). Não existe sistema de temas.
 - Orelhas: variável `--ear` (14px; 22px quando só há música), desenhadas com `radial-gradient` nos pseudo-elementos da `.shell-frame`.
-- Estados do widget: fechado sem timer (invisível), fechado com timer (`Notch.tsx`: caixa centro/lateral/padrão, rodando/pausado), caixa só de música (`MediaBox`), painel aberto (`Panel.tsx`) com abas Tarefas, Resumo, GitHub, Agenda, Música. Bordas suportadas: topo, esquerda, direita (`data-edge`).
+- Estados do widget: parado sem timer (barra `kind: "bar"` de 140×6 numa zona `BAR_ZONE` de 14px em `src/lib/shell.ts`; não é invisível), fechado com timer (`Notch.tsx`: caixa centro/lateral/padrão, rodando/pausado), caixa só de música (`MediaBox`), painel aberto (`Panel.tsx`) com abas Tarefas, Resumo, GitHub, Agenda, Música. Bordas suportadas: topo, esquerda, direita (`data-edge`).
 - Janelas extras: Configurações (`src/settings/`) e Nota (`src/NoteWindow.tsx`, `src/note/`). Ambas carregam o mesmo bundle; o CSS do widget é escopado em `.widget-root`.
 - **Som:** o app não toca nenhum áudio hoje. É uma capacidade nova (Web Audio ou `<audio>` no frontend).
 
