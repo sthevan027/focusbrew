@@ -1,1 +1,151 @@
-/* Tema Abóbora: escopado em [data-theme="halloween-abobora"]. Preenchido nas próximas tarefas. */
+/*
+ * Tema Abóbora (Halloween). Tudo escopado em [data-theme="halloween-abobora"]:
+ * sem esse atributo, nenhuma regra daqui casa com nada. Cores e fonte seguem o
+ * Doop (frames 1 a 6); onde divergir, DIVERGENCIAS.md explica.
+ *
+ * Os desenhos das orelhas (morcego e teia) são SVG em data URI: o pacote não
+ * carrega JS nem imagens externas.
+ */
+
+/* ---- widget: fonte e sombra da forma ---- */
+.widget-root[data-theme="halloween-abobora"] {
+  font-family: "Nunito", system-ui, sans-serif;
+}
+[data-theme="halloween-abobora"] .shell-frame {
+  box-shadow: 0 10px 26px rgba(255, 122, 26, 0.16);
+}
+[data-theme="halloween-abobora"] .notch-title {
+  color: #8a8a90;
+}
+[data-theme="halloween-abobora"] .notch-clock svg,
+[data-theme="halloween-abobora"] .notch-box.side svg {
+  filter: drop-shadow(0 1px 5px rgba(255, 122, 26, 0.55));
+}
+[data-theme="halloween-abobora"] .notch-time {
+  color: var(--accent);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="halloween-abobora"] .shell-frame[data-round="all"] .shell {
+  border-radius: 0 0 14px 14px;
+}
+
+/* ---- orelhas (só na borda de cima): morcego à esquerda, teia à direita ----
+   O pseudo-elemento fica mais largo que a orelha; o gradiente da orelha vai
+   no canto que encosta na forma, e o desenho no resto. */
+.widget-root[data-theme="halloween-abobora"][data-edge="top"] .shell-frame::before {
+  width: calc(var(--ear) + 26px);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 20'%3E%3Cpath d='M20 4c2 0 3 2 3 4 3-3 7-5 13-4-3 2-3 5-2 8-3-2-6-2-8 1-1-2-3-3-6-3s-5 1-6 3c-2-3-5-3-8-1 1-3 1-6-2-8 6-1 10 1 13 4 0-2 1-4 3-4z' fill='%2314101a' stroke='%238a5ad6' stroke-width='1'/%3E%3C/svg%3E")
+      left top / 26px 13px no-repeat,
+    radial-gradient(circle at 0 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear)) right top / var(--ear) var(--ear) no-repeat;
+}
+.widget-root[data-theme="halloween-abobora"][data-edge="top"] .shell-frame::after {
+  width: calc(var(--ear) + 30px);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23d9cfe6' stroke-width='1.2' opacity='.6' transform='matrix(-1 0 0 1 100 0)'%3E%3Cpath d='M0 0L100 0M0 0L0 100M0 0L90 60M0 0L60 90M0 0L100 28M0 0L28 100'/%3E%3Cpath d='M30 0Q26 26 0 30M55 0Q46 46 0 55M80 0Q64 64 0 80'/%3E%3C/g%3E%3C/svg%3E")
+      right top / 30px 30px no-repeat,
+    radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear)) left top / var(--ear) var(--ear) no-repeat;
+}
+
+/* ---- capa da música: lua (quando não há capa do app) ---- */
+[data-theme="halloween-abobora"] .media-cover:not(:has(img)) {
+  background:
+    radial-gradient(circle at 50% 38%, #ffd29a 0 18%, #ff9a3c 19% 34%, transparent 35%),
+    linear-gradient(160deg, #4a2468, #1a1030 70%);
+  color: transparent;
+}
+[data-theme="halloween-abobora"] .media-tab-cover:not(:has(img)) {
+  background:
+    radial-gradient(circle at 50% 38%, #ffd29a 0 18%, #ff9a3c 19% 34%, transparent 35%),
+    linear-gradient(160deg, #4a2468, #1a1030 70%);
+}
+
+/* ---- painel: fundo preto, contorno laranja, sombra quente ---- */
+[data-theme="halloween-abobora"] .panel {
+  box-shadow: 0 16px 40px rgba(255, 122, 26, 0.16);
+}
+
+/* ---- nota (janela e overlay): barra de ferramentas quente ---- */
+html[data-theme="halloween-abobora"] .note-tools,
+[data-theme="halloween-abobora"] .note-tools {
+  background: #120d08;
+}
+
+/* ---- abóbora: o botão de iniciar/play (SVG em PumpkinButton) ---- */
+[data-theme="halloween-abobora"] .pumpkin-button {
+  flex: none;
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
+  line-height: 0;
+}
+[data-theme="halloween-abobora"] .pumpkin-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+[data-theme="halloween-abobora"] .pumpkin-button svg,
+[data-theme="halloween-abobora"] .parked-pumpkin svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 2px 8px rgba(255, 122, 26, 0.5));
+}
+[data-theme="halloween-abobora"] .pumpkin-button:hover svg {
+  filter: drop-shadow(0 2px 10px rgba(255, 122, 26, 0.75));
+}
+
+/* as partes da abóbora (ver src/widget/Pumpkin.tsx) */
+[data-theme="halloween-abobora"] .pumpkin-stem {
+  fill: #4d7a2e;
+}
+[data-theme="halloween-abobora"] .pumpkin-body {
+  fill: #c2410c;
+}
+[data-theme="halloween-abobora"] .pumpkin-body-side {
+  fill: #e8620f;
+}
+[data-theme="halloween-abobora"] .pumpkin-body-center {
+  fill: #ff7a1a;
+}
+[data-theme="halloween-abobora"] .pumpkin-eye,
+[data-theme="halloween-abobora"] .pumpkin-mouth {
+  fill: #2a0f00;
+}
+[data-theme="halloween-abobora"] .pumpkin-teeth {
+  fill: #f3e9d2;
+}
+[data-theme="halloween-abobora"] .pumpkin-line {
+  fill: none;
+  stroke: #2a0f00;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- abóbora espiando atrás da barra parada (ParkedPumpkin) ----
+   Só os olhos aparecem abaixo da barra de 6 px. Acordada, os olhos acendem. */
+[data-theme="halloween-abobora"] .parked-pumpkin {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  width: 40px;
+  height: 37px;
+  margin-left: -20px;
+  pointer-events: none;
+}
+[data-theme="halloween-abobora"] .parked-pumpkin[data-awake] .pumpkin-eye {
+  fill: #ffd27a;
+  filter: drop-shadow(0 0 2px #ffd27a);
+}
+[data-theme="halloween-abobora"][data-edge="left"] .parked-pumpkin,
+[data-theme="halloween-abobora"][data-edge="right"] .parked-pumpkin {
+  /* Borda lateral: ainda sem arte própria (ver DIVERGENCIAS.md); some para não cortar a forma. */
+  display: none;
+}

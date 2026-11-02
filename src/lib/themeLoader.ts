@@ -70,3 +70,31 @@ export function markRoot(el: HTMLElement, themeId: string): void {
   if (value === undefined) el.removeAttribute("data-theme");
   else el.setAttribute("data-theme", value);
 }
+
+/** The format a font file is declared with, from its extension. */
+function fontFormat(file: string): string {
+  if (file.endsWith(".woff2")) return "woff2";
+  if (file.endsWith(".woff")) return "woff";
+  return "truetype";
+}
+
+/**
+ * The `@font-face` rules for a package's fonts, pointing at URLs the build made.
+ * Fonts whose file has no URL are left out (the theme falls back to the system font).
+ * The family name is cleaned of quotes and backslashes before it goes into CSS.
+ */
+export function fontFaceCss(
+  fonts: { family: string; file: string }[],
+  urlFor: (file: string) => string | undefined,
+): string {
+  return fonts
+    .flatMap((font) => {
+      const url = urlFor(font.file);
+      if (!url) return [];
+      const family = font.family.replace(/["\\r\n]/g, "");
+      return [
+        `@font-face{font-family:"${family}";src:url("${url}") format("${fontFormat(font.file)}");font-weight:200 1000;font-style:normal;font-display:swap}`,
+      ];
+    })
+    .join("\n");
+}

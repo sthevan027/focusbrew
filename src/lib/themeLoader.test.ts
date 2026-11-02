@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME, THEME_STYLE_ID, applyTheme, buildPackage, markRoot, resolveAccent, themeAttribute } from "./themeLoader";
+import { DEFAULT_THEME, THEME_STYLE_ID, applyTheme, buildPackage, fontFaceCss, markRoot, resolveAccent, themeAttribute } from "./themeLoader";
 import { MAX_THEME_CSS_BYTES } from "./themeManifest";
 
 const manifest = {
@@ -164,5 +164,24 @@ describe("markRoot", () => {
     expect(attrs.get("data-theme")).toBe("halloween-abobora");
     markRoot(el, DEFAULT_THEME);
     expect(attrs.has("data-theme")).toBe(false);
+  });
+});
+
+describe("fontFaceCss", () => {
+  it("gera um @font-face por fonte, com a URL do build e o formato do arquivo", () => {
+    const css = fontFaceCss([{ family: "Nunito", file: "assets/fonts/N.woff2" }], (file) => `/u/${file}`);
+    expect(css).toContain('font-family:"Nunito"');
+    expect(css).toContain('url("/u/assets/fonts/N.woff2") format("woff2")');
+    expect(css).toContain("font-weight:200 1000");
+  });
+
+  it("uma fonte sem URL é deixada de fora (cai na fonte do sistema)", () => {
+    expect(fontFaceCss([{ family: "X", file: "assets/x.woff2" }], () => undefined)).toBe("");
+  });
+
+  it("tira aspas e barras do nome da família para não quebrar o CSS", () => {
+    const css = fontFaceCss([{ family: "Bad\"Name\\", file: "a.ttf" }], () => "/u/a.ttf");
+    expect(css).toContain('font-family:"BadName"');
+    expect(css).toContain("format(\"truetype\")");
   });
 });
