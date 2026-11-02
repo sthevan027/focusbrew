@@ -97,6 +97,8 @@ export const onOpenNote = (cb: (id: string | null) => void) =>
 /** The cursor has been off the open panel for a while (the page may have missed the mouseleave). */
 export const onCursorOutside = (cb: () => void) => getCurrentWebviewWindow().listen("widget-cursor-outside", () => cb());
 export const onNoteFlash = (cb: () => void) => getCurrentWebviewWindow().listen("note-flash", () => cb());
+/** A block ran to its end (not stopped early): the theme's end-of-block sound. */
+export const onBlockFinished = (cb: () => void) => listen("block-finished", () => cb());
 
 export const getActivityReport = (from: Date, to: Date) =>
   invoke<ActivityReportData>("get_activity_report", { from: from.toISOString(), to: to.toISOString() });

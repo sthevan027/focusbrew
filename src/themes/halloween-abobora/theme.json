@@ -6,5 +6,6 @@
   "accent": "#FF7A1A",
   "fonts": [],
   "css": "theme.css",
-  "sounds": "abobora"
+  "sounds": "abobora",
+  "mascot": "pumpkin"
 }

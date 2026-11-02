@@ -39,6 +39,17 @@ describe("validateManifest", () => {
     }
   });
 
+  it("a mascote é opcional e vale none quando ausente", () => {
+    const absent = validateManifest(valid, SOUND_SETS);
+    expect(absent.ok && absent.manifest.mascot).toBe("none");
+    const present = validateManifest({ ...valid, mascot: "pumpkin" }, SOUND_SETS);
+    expect(present.ok && present.manifest.mascot).toBe("pumpkin");
+  });
+
+  it("rejeita uma mascote desconhecida", () => {
+    expect(validateManifest({ ...valid, mascot: "dragon" }, SOUND_SETS).ok).toBe(false);
+  });
+
   it("ignora campos desconhecidos (compatibilidade futura), sem executar nada", () => {
     const result = validateManifest({ ...valid, script: "alert(1)", unknown: 1 }, SOUND_SETS);
     expect(result.ok).toBe(true);

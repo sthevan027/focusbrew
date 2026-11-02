@@ -32,7 +32,12 @@ export interface ThemeManifest {
   css: string;
   /** Built-in sound set id, or "none". Sound files are not part of a package yet. */
   sounds: string;
+  /** A character that stands in for the start/play buttons: "pumpkin" or "none". */
+  mascot: Mascot;
 }
+
+export const MASCOTS = ["none", "pumpkin"] as const;
+export type Mascot = (typeof MASCOTS)[number];
 
 export type ManifestResult = { ok: true; manifest: ThemeManifest } | { ok: false; errors: string[] };
 
@@ -58,7 +63,7 @@ export function validateManifest(raw: unknown, soundSets: readonly string[]): Ma
   if (!isObject(raw)) return { ok: false, errors: ["o manifesto precisa ser um objeto JSON"] };
   const errors: string[] = [];
 
-  const { id, name, version, author, accent, fonts, css, sounds } = raw;
+  const { id, name, version, author, accent, fonts, css, sounds, mascot } = raw;
 
   if (typeof id !== "string" || !ID_PATTERN.test(id)) {
     errors.push("id: use 1 a 40 caracteres minúsculos, números ou hífen");
@@ -108,6 +113,12 @@ export function validateManifest(raw: unknown, soundSets: readonly string[]): Ma
     else errors.push(`sounds: conjunto desconhecido (use "none" ou um de: ${soundSets.join(", ")})`);
   }
 
+  let mascotValue: Mascot = "none";
+  if (mascot !== undefined) {
+    if (typeof mascot === "string" && (MASCOTS as readonly string[]).includes(mascot)) mascotValue = mascot as Mascot;
+    else errors.push(`mascot: use ${MASCOTS.join(" ou ")}`);
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
@@ -120,6 +131,7 @@ export function validateManifest(raw: unknown, soundSets: readonly string[]): Ma
       fonts: fontList,
       css: css as string,
       sounds: soundValue,
+      mascot: mascotValue,
     },
   };
 }

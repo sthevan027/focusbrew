@@ -16,7 +16,9 @@ import { formatClock, remainingSecs } from "../lib/progress";
 import { addDays } from "../lib/day";
 import { parseMinutes } from "../lib/minutes";
 import { titleWithoutProject } from "../lib/project";
+import { useThemeFeatures } from "../themes/ThemeContext";
 import { ArrowRightIcon, CheckIcon, ClockIcon, GripIcon, LinkIcon, PauseIcon, PlayIcon } from "./icons";
+import PumpkinButton from "./PumpkinButton";
 
 interface Props {
   task: Task;
@@ -56,6 +58,7 @@ export default function TaskRow({
 }: Props) {
   const active = timer.task_id === task.id && timer.status !== "idle";
   const running = active && timer.status === "running";
+  const { mascot } = useThemeFeatures();
   const classes = [
     "task-row",
     active ? "active" : "",
@@ -235,13 +238,23 @@ export default function TaskRow({
               </button>
             )}
           </div>
-          <button
-            className="play"
-            aria-label={running ? "Pausar" : "Iniciar"}
-            onClick={() => fire(running ? toggleTimerPause() : startTask(task.id))}
-          >
-            {running ? <PauseIcon /> : <PlayIcon />}
-          </button>
+          {mascot === "pumpkin" ? (
+            <PumpkinButton
+              className="play"
+              running={running}
+              paused={active && timer.status === "paused"}
+              label={running ? "Pausar" : "Iniciar"}
+              onPress={() => fire(running ? toggleTimerPause() : startTask(task.id))}
+            />
+          ) : (
+            <button
+              className="play"
+              aria-label={running ? "Pausar" : "Iniciar"}
+              onClick={() => fire(running ? toggleTimerPause() : startTask(task.id))}
+            >
+              {running ? <PauseIcon /> : <PlayIcon />}
+            </button>
+          )}
         </>
       )}
 
