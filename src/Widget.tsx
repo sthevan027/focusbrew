@@ -7,6 +7,8 @@ import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import NoteEditor from "./note/NoteEditor";
 import type { NoteRequest } from "./note/NoteEditor";
+import { themeAttribute, resolveAccent } from "./lib/themeLoader";
+import { useThemeStyles } from "./themes/useThemeStyles";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import { defaultTab, nextTab } from "./widget/mediaTabs";
@@ -19,6 +21,7 @@ import "./Widget.css";
 
 export default function Widget() {
   const [state, setState] = useState<StateSnapshot | null>(null);
+  const themePkg = useThemeStyles(state?.config.theme ?? "default");
   const [phase, setPhase] = useState<PanelPhase>("closed");
   const [pinned, setPinned] = useState(false);
   const [day, setDay] = useState<string | null>(null);
@@ -230,14 +233,14 @@ export default function Widget() {
   // Under a note the shape is styled like the open panel, whatever the phase.
   const shownPhase: PanelPhase = note.open ? "open" : phase;
   const style = {
-    "--accent": config.accent_color,
+    "--accent": resolveAccent(themePkg, config.accent_color),
     "--s": scaleFactor(config.notch_style, mediaOnlyBox),
     "--grow-ms": `${GROW_MS}ms`,
     "--shrink-ms": `${SHRINK_MS}ms`,
   } as CSSProperties;
 
   return (
-    <div className="widget-root" data-edge={config.widget_edge} style={style}>
+    <div className="widget-root" data-edge={config.widget_edge} data-theme={themeAttribute(config.theme)} style={style}>
       <div className="scaled">
         <div
           ref={hitRef}

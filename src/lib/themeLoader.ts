@@ -58,3 +58,15 @@ export function applyTheme(doc: Document, themeId: string, pkg: ThemePackage | n
   style.textContent = pkg.css;
   if (!existing) doc.head.appendChild(style);
 }
+
+/** The accent a window uses: the theme's fixed one, else the user's own color. */
+export function resolveAccent(pkg: ThemePackage | null, userAccent: string): string {
+  return pkg?.manifest.accent ?? userAccent;
+}
+
+/** Sets or removes `data-theme` on a root element (the settings and note windows have no `.widget-root`). */
+export function markRoot(el: HTMLElement, themeId: string): void {
+  const value = themeAttribute(themeId);
+  if (value === undefined) el.removeAttribute("data-theme");
+  else el.setAttribute("data-theme", value);
+}

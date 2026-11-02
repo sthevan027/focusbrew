@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME, THEME_STYLE_ID, applyTheme, buildPackage, themeAttribute } from "./themeLoader";
+import { DEFAULT_THEME, THEME_STYLE_ID, applyTheme, buildPackage, markRoot, resolveAccent, themeAttribute } from "./themeLoader";
 import { MAX_THEME_CSS_BYTES } from "./themeManifest";
 
 const manifest = {
@@ -121,5 +121,48 @@ describe("applyTheme", () => {
     applyTheme(doc as unknown as Document, "halloween-abobora", pkg);
     applyTheme(doc as unknown as Document, DEFAULT_THEME, null);
     expect(head).toHaveLength(0);
+  });
+});
+
+describe("resolveAccent", () => {
+  const pkg = (() => {
+    const r = buildPackage({ manifest, css: "/*x*/" }, SOUND_SETS);
+    if (!r.ok) throw new Error("fixture");
+    return r.pkg;
+  })();
+
+  it("sem tema, vale a cor que o usuário escolheu", () => {
+    expect(resolveAccent(null, "#0A84FF")).toBe("#0A84FF");
+  });
+
+  it("com tema que fixa a cor, o laranja do tema ganha", () => {
+    expect(resolveAccent(pkg, "#0A84FF")).toBe("#FF7A1A");
+  });
+});
+
+describe("markRoot", () => {
+  function fakeRoot() {
+    const attrs = new Map<string, string>();
+    return {
+      attrs,
+      el: {
+        setAttribute: (k: string, v: string) => attrs.set(k, v),
+        removeAttribute: (k: string) => attrs.delete(k),
+      } as unknown as HTMLElement,
+    };
+  }
+
+  it("o padrão deixa a raiz sem data-theme", () => {
+    const { attrs, el } = fakeRoot();
+    markRoot(el, DEFAULT_THEME);
+    expect(attrs.has("data-theme")).toBe(false);
+  });
+
+  it("um tema põe data-theme, e voltar ao padrão tira", () => {
+    const { attrs, el } = fakeRoot();
+    markRoot(el, "halloween-abobora");
+    expect(attrs.get("data-theme")).toBe("halloween-abobora");
+    markRoot(el, DEFAULT_THEME);
+    expect(attrs.has("data-theme")).toBe(false);
   });
 });

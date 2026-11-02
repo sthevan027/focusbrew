@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { AppConfig, StateSnapshot } from "./lib/types";
 import { fire, getState, onStateChanged, updateSettings } from "./lib/tauri";
+import { resolveAccent } from "./lib/themeLoader";
+import { useThemeStyles } from "./themes/useThemeStyles";
 import ActivityReport from "./components/ActivityReport";
 import ActivitySettings from "./components/ActivitySettings";
 import GithubPanel from "./components/GithubPanel";
@@ -34,6 +36,7 @@ export default function App() {
   const sent = useRef<AppConfig | null>(null);
   const pending = useRef(0);
   const update = useUpdateStatus();
+  const themePkg = useThemeStyles(state?.config.theme ?? "default");
 
   useEffect(() => {
     const receive = (snapshot: StateSnapshot) => {
@@ -63,7 +66,7 @@ export default function App() {
   const current = sections.find((s) => s.id === section) ?? sections[0];
 
   return (
-    <div className="settings" style={{ "--accent": state.config.accent_color } as CSSProperties}>
+    <div className="settings" style={{ "--accent": resolveAccent(themePkg, state.config.accent_color) } as CSSProperties}>
       <nav className="sidebar" aria-label="Configurações">
         <div className="brand">focusbrew</div>
         {sections.map((s) => (
