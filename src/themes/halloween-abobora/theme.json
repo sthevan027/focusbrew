@@ -1,0 +1,10 @@
+{
+  "id": "halloween-abobora",
+  "name": "Abóbora",
+  "version": "1.0.0",
+  "author": "Sthevan Santos",
+  "accent": "#FF7A1A",
+  "fonts": [],
+  "css": "theme.css",
+  "sounds": "abobora"
+}

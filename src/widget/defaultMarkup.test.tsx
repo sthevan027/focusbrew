@@ -32,6 +32,8 @@ const config: AppConfig = {
   panel_autoclose_secs: 0,
   google_connected: false,
   activity_tracking_enabled: false,
+  theme: "default",
+  theme_sounds: true,
 };
 
 const task: Task = {
