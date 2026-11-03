@@ -40,6 +40,9 @@ export interface AppConfig {
   google_connected: boolean;
   /** Activity Tracking (local service); off by default, experimental. */
   activity_tracking_enabled: boolean;
+  /** Capture box; off by default (its shortcut is then not registered). */
+  capture_enabled: boolean;
+  shortcut_capture: string;
 }
 
 export interface CalendarEventView {

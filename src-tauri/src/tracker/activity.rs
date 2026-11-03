@@ -2,12 +2,13 @@
 //! blocks worked, which the day summary is built from.
 
 use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 
 use serde::{Deserialize, Serialize};
 
 use crate::config::data_dir;
+use crate::loadguard::{self, Loaded};
 
 /// How long the block history is kept.
 pub const KEEP_DAYS: i64 = 400;
@@ -30,7 +31,8 @@ pub struct Session {
 pub struct ActivityLog {
     /// "AAAA-MM-DD" (local date of the day the block *ended*) -> seconds.
     /// The 0.1.x fields (`days`, `app_seconds_*`, and the old `sessions`
-    /// shape) don't parse as this struct and the file starts empty.
+    /// shape) don't parse as this struct: that file is moved aside to a
+    /// `*.corrupt-<n>.json` quarantine (with an error log) and a fresh log starts.
     #[serde(default)]
     pub focus_secs_by_day: HashMap<String, u32>,
     #[serde(default)]
@@ -65,25 +67,105 @@ fn log_path() -> PathBuf {
     data_dir().join("activity.json")
 }
 
+#[cfg(test)] // kept for the old-file tests; loading uses the strict path
 pub fn parse(raw: &str) -> ActivityLog {
     serde_json::from_str(raw).unwrap_or_default()
 }
 
-pub fn load() -> ActivityLog {
-    match fs::read_to_string(log_path()) {
-        Ok(raw) => parse(&raw),
-        Err(_) => ActivityLog::default(),
+pub fn parse_strict(raw: &str) -> Result<ActivityLog, serde_json::Error> {
+    if raw.trim().is_empty() {
+        return Ok(ActivityLog::default());
     }
+    serde_json::from_str(raw)
 }
 
-pub fn save(log: &ActivityLog) -> std::io::Result<()> {
+/// Reads `path`. Missing or blank file = empty log. A corrupt one is moved
+/// aside (never erased); one that can't be read, or can't be moved aside, comes
+/// back `writable: false` and must not be saved over.
+pub fn load_from(path: &Path, stamp_ms: i64) -> Loaded<ActivityLog> {
+    loadguard::load_guarded(path, stamp_ms, "activity", &parse_strict, &crate::fsutil::quarantine)
+}
+
+pub fn load() -> Loaded<ActivityLog> {
+    load_from(&log_path(), chrono::Utc::now().timestamp_millis())
+}
+
+pub fn save_to(path: &Path, log: &ActivityLog) -> std::io::Result<()> {
     let raw = serde_json::to_string_pretty(log)?;
-    fs::write(log_path(), raw)
+    crate::fsutil::write_atomic(path, raw.as_bytes())
+}
+
+/// Saves to `log_path()`, skipped while `blocked` (the file could not be read at startup).
+pub fn save_guarded(log: &ActivityLog, blocked: &AtomicBool) -> std::io::Result<()> {
+    let path = log_path();
+    loadguard::save_unless_blocked(
+        "activity",
+        &path,
+        blocked,
+        &|| loadguard::recheck_writable(&path, &parse_strict, &crate::fsutil::quarantine),
+        || save_to(&path, log),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    fn temp_dir() -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn corrupt_activity_file_is_quarantined_not_erased() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        fs::write(&p, "{\"x\"").unwrap();
+        assert!(load_from(&p, 42).value.focus_secs_by_day.is_empty());
+        assert!(!p.exists());
+        assert_eq!(fs::read_to_string(dir.join("activity.corrupt-42.json")).unwrap(), "{\"x\"");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_activity_file_is_empty_without_quarantine() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        assert!(load_from(&p, 42).value.sessions.is_empty());
+        fs::write(&p, " 
+").unwrap();
+        assert!(load_from(&p, 42).value.sessions.is_empty());
+        assert!(p.exists());
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_non_utf8_activity_file_is_quarantined_and_writable() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        fs::write(&p, [0xff, 0xfe]).unwrap();
+        let l = load_from(&p, 5);
+        assert!(l.writable);
+        assert!(!p.exists());
+        assert_eq!(fs::read(dir.join("activity.corrupt-5.json")).unwrap(), vec![0xff, 0xfe]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn activity_save_leaves_no_tmp_and_is_valid_json() {
+        let dir = temp_dir();
+        let p = dir.join("activity.json");
+        let mut log = ActivityLog::default();
+        log.add_focus_secs("2026-10-05", 60);
+        save_to(&p, &log).unwrap();
+        assert!(!dir.join("activity.json.tmp").exists());
+        let back = load_from(&p, 1).value;
+        assert_eq!(back.focus_secs_by_day["2026-10-05"], 60);
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn seconds_add_up_within_a_day() {

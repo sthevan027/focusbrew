@@ -173,6 +173,24 @@ a nota.
   <img src="docs/screenshots/configuracoes-notas.png" alt="Aba Notas com a galeria" width="560">
 </p>
 
+## Captura por voz
+
+A caixa de captura é uma janelinha para anotar sem abrir o painel. O atalho padrão é `Ctrl+Alt+J`. Ela vem **desligada por padrão**: ligue em Configurações → Captura por voz. Você pode digitar ou ditar o texto (por exemplo com o ditado do sistema). Exemplos:
+
+- `tarefa revisar o PR #projeto tempo 40` cria uma tarefa "revisar o PR" no projeto "projeto" com 40 minutos;
+- `nota ...` guarda o texto como nota rápida;
+- `tempo 25` muda os minutos de uma tarefa já existente: a do bloco em andamento ou, se não houver, a tarefa aberta de hoje (se houver várias, a caixa pede para escolher entre as mais recentes).
+
+A prévia mostra o que será gravado antes de você confirmar. Os minutos ficam entre 5 e 180.
+
+### Logs
+
+O app grava logs em `%LOCALAPPDATA%\sthevandev\focusbrew\data\logs` (um arquivo por dia, os 7 mais recentes). Eles trazem só ids, contagens e mensagens de erro, nunca o texto de tarefas ou notas.
+
+### Arquivos `*.corrupt-<número>.json`
+
+Se `tasks.json`, `activity.json` ou `settings.json` estiver ilegível, o app move o arquivo para `*.corrupt-<número>.json` na mesma pasta, em vez de sobrescrevê-lo, e começa com um arquivo novo. Um arquivo com dados nunca é apagado: você pode abrir o `.corrupt` e recuperar o conteúdo. Se um desses arquivos estiver travado (outro programa usando, sem permissão), o app não grava nele durante a sessão e registra o erro no log.
+
 ## Atalhos
 
 | Atalho (padrão) | O que faz |

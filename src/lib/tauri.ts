@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { ActivityConfig, ActivityReportData } from "./activityReport";
+import type { CaptureItem, CapturePreview } from "./capture";
 import type { Note } from "./note";
 import type { AppConfig, CalendarEventView, GithubItem, MonitorChoice, StateSnapshot } from "./types";
 
@@ -97,6 +98,17 @@ export const onOpenNote = (cb: (id: string | null) => void) =>
 /** The cursor has been off the open panel for a while (the page may have missed the mouseleave). */
 export const onCursorOutside = (cb: () => void) => getCurrentWebviewWindow().listen("widget-cursor-outside", () => cb());
 export const onNoteFlash = (cb: () => void) => getCurrentWebviewWindow().listen("note-flash", () => cb());
+
+/** What the capture box would do with `text` (nothing is written). */
+export const capturePreview = (text: string) => invoke<CapturePreview>("capture_preview", { text });
+/** Rejects with a message to show; the box stays open. */
+export const captureCommit = (item: CaptureItem) => invoke<StateSnapshot>("capture_commit", { item });
+export const openCapture = () => invoke<void>("open_capture");
+export const closeCaptureWindow = () => invoke<void>("close_capture_window");
+/** Rejects with the reason (e.g. the shortcut is taken by another app); capture then stays off. */
+export const setCaptureEnabled = (enabled: boolean) => invoke<StateSnapshot>("set_capture_enabled", { enabled });
+/** Only sent when an existing hidden capture window is shown again (a fresh webview just mounts). */
+export const onCaptureOpen = (cb: () => void) => getCurrentWebviewWindow().listen("capture-open", () => cb());
 
 export const getActivityReport = (from: Date, to: Date) =>
   invoke<ActivityReportData>("get_activity_report", { from: from.toISOString(), to: to.toISOString() });
