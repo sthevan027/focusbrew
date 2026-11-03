@@ -1,8 +1,11 @@
 // Harness de captura (não vai para o build). Monta o Widget real sobre dados fictícios.
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import type { AppConfig, MediaView, StateSnapshot, Task, TimerView } from "../../src/lib/types";
 import Widget from "../../src/Widget";
+import ParkedPumpkin from "../../src/widget/ParkedPumpkin";
+import { useThemeStyles } from "../../src/themes/useThemeStyles";
 
 const params = new URLSearchParams(window.location.search);
 const scenario = params.get("scenario") ?? "parked";
@@ -61,6 +64,7 @@ const scenarios: Record<string, Partial<StateSnapshot>> = {
   "media-running": { timer: timer("running"), media },
   "side-left": { timer: timer("running"), config: { ...config, widget_edge: "left" } },
   parked: {},
+  "parked-awake": {},
   "panel-tasks": { timer: timer("running") },
   "panel-summary": { timer: timer("idle") },
   "panel-media": { media },
@@ -77,7 +81,23 @@ mockIPC((cmd) => {
   return null;
 });
 
-createRoot(document.getElementById("root") as HTMLElement).render(<Widget />);
+// Parked bar with the pumpkin awake: the mouse-over path opens the panel, so this
+// frame renders the bar and its pumpkin directly (the same markup the widget uses).
+function ParkedAwake() {
+  useThemeStyles(theme);
+  return (
+    <div className="widget-root" data-edge="top" data-theme={theme === "default" ? undefined : theme} style={{ "--accent": "#FF7A1A" } as React.CSSProperties}>
+      <div className="scaled">
+        <div className="shell-frame closed idle" data-kind="bar" style={{ position: "absolute", left: 210, top: 0, width: 140, height: 6 }}>
+          <ParkedPumpkin awake />
+          <div className="shell closed idle" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+createRoot(document.getElementById("root") as HTMLElement).render(scenario === "parked-awake" ? <ParkedAwake /> : <Widget />);
 
 if (wantPanel) {
   // The panel opens pinned on a click of the bare shape (as a user does).
