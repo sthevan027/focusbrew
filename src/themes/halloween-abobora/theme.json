@@ -1,0 +1,16 @@
+{
+  "id": "halloween-abobora",
+  "name": "Halloween",
+  "version": "1.0.0",
+  "author": "Sthevan Santos",
+  "accent": "#FF7A1A",
+  "fonts": [
+    {
+      "family": "Nunito",
+      "file": "assets/fonts/Nunito-latin-variable.woff2"
+    }
+  ],
+  "css": "theme.css",
+  "sounds": "abobora",
+  "mascot": "pumpkin"
+}

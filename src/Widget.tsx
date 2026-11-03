@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent } from "react";
 import type { StateSnapshot } from "./lib/types";
-import { fire, getState, onCursorOutside, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
+import { fire, getState, onBlockFinished, onCursorOutside, onOpenNote, onStateChanged, onTogglePanel, openNote, setNoteOverlayOpen, setWidgetExpanded } from "./lib/tauri";
 import { scaleFactor } from "./lib/scale";
 import { GROW_MS, SHRINK_MS, pickShape } from "./lib/shell";
 import type { PanelPhase } from "./lib/shell";
 import NoteEditor from "./note/NoteEditor";
 import type { NoteRequest } from "./note/NoteEditor";
+import { themeAttribute, resolveAccent } from "./lib/themeLoader";
+import { useThemeStyles } from "./themes/useThemeStyles";
+import { ThemeFeaturesProvider } from "./themes/ThemeContext";
+import type { ThemeFeatures } from "./themes/ThemeContext";
+import { themeSounds } from "./themes/sounds";
+import ParkedPumpkin from "./widget/ParkedPumpkin";
 import Notch from "./widget/Notch";
 import Panel from "./widget/Panel";
 import { defaultTab, nextTab } from "./widget/mediaTabs";
@@ -19,6 +25,25 @@ import "./Widget.css";
 
 export default function Widget() {
   const [state, setState] = useState<StateSnapshot | null>(null);
+  const themePkg = useThemeStyles(state?.config.theme ?? "default");
+  const features = useMemo<ThemeFeatures>(
+    () => ({
+      mascot: themePkg?.manifest.mascot ?? "none",
+      sounds: Boolean(themePkg) && Boolean(state?.config.theme_sounds) && themePkg?.manifest.sounds !== "none",
+    }),
+    [themePkg, state?.config.theme_sounds],
+  );
+  // Read by the listener below, which is subscribed once.
+  const soundsOn = useRef(false);
+  soundsOn.current = features.sounds;
+  // The mouse is in the parked bar's zone: the pumpkin behind it is awake.
+  const [awake, setAwake] = useState(false);
+  useEffect(() => {
+    const unlisten = onBlockFinished(() => themeSounds.play("cycle_end", soundsOn.current));
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
   const [phase, setPhase] = useState<PanelPhase>("closed");
   const [pinned, setPinned] = useState(false);
   const [day, setDay] = useState<string | null>(null);
@@ -230,21 +255,28 @@ export default function Widget() {
   // Under a note the shape is styled like the open panel, whatever the phase.
   const shownPhase: PanelPhase = note.open ? "open" : phase;
   const style = {
-    "--accent": config.accent_color,
+    "--accent": resolveAccent(themePkg, config.accent_color),
     "--s": scaleFactor(config.notch_style, mediaOnlyBox),
     "--grow-ms": `${GROW_MS}ms`,
     "--shrink-ms": `${SHRINK_MS}ms`,
   } as CSSProperties;
 
   return (
-    <div className="widget-root" data-edge={config.widget_edge} style={style}>
+    <ThemeFeaturesProvider value={features}>
+    <div className="widget-root" data-edge={config.widget_edge} data-theme={themeAttribute(config.theme)} style={style}>
       <div className="scaled">
         <div
           ref={hitRef}
           className="hit"
           style={{ width: shape.hit.width, height: shape.hit.height }}
-          onMouseEnter={hover.onMouseEnter}
-          onMouseLeave={hover.onMouseLeave}
+          onMouseEnter={() => {
+            setAwake(true);
+            hover.onMouseEnter();
+          }}
+          onMouseLeave={() => {
+            setAwake(false);
+            hover.onMouseLeave();
+          }}
           onMouseMove={mediaBoxShown ? onEdgeMove : undefined}
           onClick={phase === "closed" && !note.open ? () => pin(true) : undefined}
         >
@@ -254,6 +286,7 @@ export default function Widget() {
             data-kind={shape.kind}
             style={{ width: shape.shell.width, height: shape.shell.height }}
           >
+            {shape.kind === "bar" && features.mascot === "pumpkin" && <ParkedPumpkin awake={awake} />}
             <div className={`shell ${shownPhase} ${timer.status}`}>
               {note.open ? (
                 <div className="note-root">
@@ -285,5 +318,6 @@ export default function Widget() {
         </div>
       </div>
     </div>
+    </ThemeFeaturesProvider>
   );
 }

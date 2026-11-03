@@ -3,6 +3,7 @@ import type { AppConfig } from "./lib/types";
 import { closeNoteWindow, getState, onOpenNote, onStateChanged } from "./lib/tauri";
 import NoteEditor from "./note/NoteEditor";
 import type { NoteRequest } from "./note/NoteEditor";
+import { useThemeStyles } from "./themes/useThemeStyles";
 
 function initialRequest(): NoteRequest {
   const id = new URLSearchParams(window.location.search).get("note");
@@ -13,6 +14,7 @@ function initialRequest(): NoteRequest {
 export default function NoteWindow() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [request, setRequest] = useState<NoteRequest>(initialRequest);
+  useThemeStyles(config?.theme ?? "default");
 
   useEffect(() => {
     document.documentElement.style.background = "#0b0b0d";

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import type { MonitorChoice } from "../lib/types";
+import { themeOptions } from "../themes";
 import { listMonitors, setLaunchAtLogin, setShortcut } from "../lib/tauri";
 import { comboFromKeys, prettyShortcut } from "../lib/shortcut";
 import Row from "./Row";
@@ -41,6 +42,25 @@ export default function GeneralSection({
 
   return (
     <>
+      <div className="group">
+        <Row title="Tema" hint="Muda cores, fontes e a decoração do widget. Padrão = o visual de sempre.">
+          <select
+            className="select"
+            aria-label="Tema"
+            value={config.theme}
+            onChange={(e) => set({ theme: e.currentTarget.value })}
+          >
+            {themeOptions().map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row title="Sons do tema" hint="Sons baixinhos da abóbora: piscada e boca tocam quando você clica; o fim de bloco toca sozinho.">
+          <Switch label="Sons do tema" checked={config.theme_sounds} onChange={(theme_sounds) => set({ theme_sounds })} />
+        </Row>
+      </div>
       <div className="group">
         <Row title="Mostrar o widget" hint="A barra no topo da tela. Também dá pra alternar pelo ícone da bandeja.">
           <Switch

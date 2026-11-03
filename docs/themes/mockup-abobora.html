@@ -1,0 +1,519 @@
+<title>Tema Abóbora</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Nunito:wght@400;600;800&display=swap">
+<style>
+/* Layout: uma coluna, um bloco por estado do widget (fechado, música, aberto com abas, outras janelas). */
+:root {
+  --night: #0e0a14;
+  --night-2: #1a1324;
+  --pumpkin: #ff7a1a;
+  --ember: #c2410c;
+  --bone: #f3e9d2;
+  --moss: #4d7a2e;
+  --ink: #a99a8a;
+  --display: "Pirata One", "Georgia", serif;
+  --body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--night); }
+body {
+  margin: 0; color: var(--bone); font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 44px; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(40px, 9vw, 64px); line-height: 1; margin: 0; color: var(--pumpkin); text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 400; font-size: 28px; margin: 0 0 6px; color: var(--bone); }
+p { margin: 0; max-width: 62ch; color: color-mix(in srgb, var(--bone) 82%, transparent); }
+.tag { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ember); font-weight: 800; }
+header, section { display: flex; flex-direction: column; gap: 12px; }
+
+.stage {
+  background: radial-gradient(120% 90% at 50% 0%, #2a1a3a 0%, var(--night-2) 45%, var(--night) 100%);
+  border: 1px solid #2c2038; border-radius: 14px; padding: 0 16px 28px;
+  display: flex; flex-direction: column; align-items: center; gap: 30px; overflow: hidden;
+}
+.row { display: flex; flex-wrap: wrap; gap: 28px 36px; justify-content: center; align-items: flex-start; width: 100%; }
+.cell { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; }
+.cap { font-size: 12px; color: #9d8fb0; text-align: center; margin-top: 10px; max-width: 30ch; }
+
+/* ---- a ilha: caixa + orelhas (curvas onde encontra a borda da tela) ---- */
+.edge { height: 3px; width: 100%; background: #3a2a4c; border-radius: 0 0 3px 3px; }
+.top { position: relative; padding-inline: var(--ear); --ear: 14px; display: flex; flex-direction: column; align-items: center; }
+.top.big { --ear: 22px; }
+.top::before, .top::after {
+  content: ""; position: absolute; top: 0; width: var(--ear); height: var(--ear);
+}
+.top::before { left: 0; background: radial-gradient(circle at 0 100%, transparent calc(var(--ear) - .5px), #000 var(--ear)); }
+.top::after { right: 0; background: radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - .5px), #000 var(--ear)); }
+.top .deco { position: absolute; z-index: 2; pointer-events: none; }
+.top .deco.bat-l { left: -2px; top: -4px; width: 26px; transform-origin: 50% 0; animation: swing 2.6s ease-in-out infinite; }
+.top.big .deco.bat-l { width: 32px; left: -6px; }
+.top .deco.web-r { right: 0; top: 0; width: 30px; opacity: .6; transform: scaleX(-1); }
+
+.box {
+  position: relative; background: #000; min-width: 190px; height: 38px; padding: 0 16px;
+  border-radius: 0 0 20px 20px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  box-shadow: 0 10px 26px rgba(255,122,26,.16);
+}
+.top.big .box { border-radius: 0 0 26px 26px; height: 44px; min-width: 260px; }
+.box .mini { width: 24px; height: 22px; flex: none; }
+.box .t { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 14px; letter-spacing: .04em; color: var(--pumpkin); }
+.box.paused .t { color: var(--ink); }
+.box.paused .mini { filter: grayscale(.8) brightness(.7); }
+.box .title { font-size: 13px; color: var(--bone); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+.eq { display: flex; align-items: flex-end; gap: 2px; height: 16px; flex: none; }
+.eq i { width: 3px; background: var(--pumpkin); border-radius: 1px; animation: eq 0.9s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-delay: .2s; } .eq i:nth-child(3) { animation-delay: .4s; } .eq i:nth-child(4) { animation-delay: .1s; }
+
+/* ---- borda lateral ---- */
+.side { position: relative; display: flex; align-items: center; height: 150px; width: 120px; }
+.side .wall { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #3a2a4c; }
+.side .bar { position: relative; margin-left: 3px; background: #000; width: 46px; height: 92px; border-radius: 0 20px 20px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; box-shadow: 10px 0 26px rgba(255,122,26,.16); }
+.side .bar .t { font-weight: 800; font-size: 12px; color: var(--pumpkin); font-variant-numeric: tabular-nums; }
+.side .bar .mini { width: 24px; height: 22px; }
+.side .ear-u, .side .ear-d { position: absolute; left: 3px; width: 14px; height: 14px; margin-left: 0; }
+.side .ear-u { top: calc(50% - 46px - 14px); background: radial-gradient(circle at 100% 0, transparent 13.5px, #000 14px); }
+.side .ear-d { top: calc(50% + 46px); background: radial-gradient(circle at 100% 100%, transparent 13.5px, #000 14px); }
+
+/* ---- painel aberto ---- */
+.panel {
+  position: relative; width: 360px; max-width: 100%; background: #000; border-radius: 0 0 26px 26px;
+  padding: 16px 14px 16px; box-shadow: 0 16px 40px rgba(255,122,26,.16); overflow: hidden;
+}
+.panel .web { position: absolute; top: 0; left: 0; width: 92px; opacity: .5; pointer-events: none; }
+.panel .bats { position: absolute; top: 8px; right: 12px; display: flex; gap: 6px; pointer-events: none; }
+.panel .bats svg { width: 22px; animation: flap 1.3s ease-in-out infinite; }
+.panel .bats svg:nth-child(2) { animation-delay: .4s; width: 16px; margin-top: 10px; }
+.tabs { display: flex; gap: 2px; margin-top: 18px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); background: none; border: 0; padding: 7px 11px; border-radius: 999px; cursor: pointer; flex: none; }
+.tab[aria-selected="true"] { background: #2a1608; color: var(--pumpkin); box-shadow: inset 0 0 0 1px var(--ember); }
+.tab:focus-visible { outline: 3px solid var(--bone); outline-offset: 1px; }
+.pane { margin-top: 14px; min-height: 270px; }
+.head { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.time { font-family: var(--display); font-size: 50px; line-height: 1; color: var(--pumpkin); font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(255,122,26,.45); }
+.sub { font-size: 12px; color: var(--ink); }
+.line { height: 4px; background: #24180f; border-radius: 4px; margin: 12px 0; overflow: hidden; }
+.line i { display: block; height: 100%; width: 62%; background: linear-gradient(90deg, var(--ember), var(--pumpkin)); border-radius: 4px; }
+.tasks { display: flex; flex-direction: column; gap: 6px; }
+.task { display: flex; align-items: center; gap: 10px; background: #1a1209; border: 1px solid #2a1c10; border-radius: 12px; padding: 9px 12px; font-size: 14px; }
+.task.on { border-color: var(--ember); background: #231508; }
+.task .dot { width: 9px; height: 9px; border-radius: 50%; background: #4a3a2a; flex: none; }
+.task.on .dot { background: var(--pumpkin); box-shadow: 0 0 8px var(--pumpkin); }
+.task span { min-width: 0; overflow-wrap: anywhere; }
+.task small { margin-left: auto; color: var(--ink); font-size: 12px; flex: none; padding-left: 8px; }
+
+/* botão abóbora */
+.pbtn { display: block; margin: 12px auto 0; width: 80px; height: 72px; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 40px; -webkit-tap-highlight-color: transparent; }
+.pbtn:focus-visible { outline: 3px solid var(--bone); outline-offset: 4px; }
+.pbtn svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 4px 14px rgba(255,122,26,.5)); transition: transform .15s; }
+.pbtn:active svg { transform: scale(.94); }
+.pbtn .eye { transform-box: fill-box; transform-origin: center; }
+.pbtn .mouth-open { opacity: 0; }
+.pbtn.go .eye { animation: blink2 .7s ease-in-out 1; }
+.pbtn.go .mouth-open { animation: mouth .7s ease-in-out 1; }
+.pbtn.go .mouth-shut { animation: mouthshut .7s ease-in-out 1; }
+.pbtn.go svg { animation: hop .7s ease-out 1; }
+.pbtn.small { width: 58px; height: 52px; margin: 0; }
+
+/* resumo */
+.stats { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.stats b { font-family: var(--display); font-weight: 400; font-size: 34px; color: var(--pumpkin); }
+.chart { display: flex; align-items: flex-end; gap: 8px; height: 110px; margin-top: 14px; border-bottom: 1px solid #2a1c10; padding-bottom: 0; }
+.chart .c { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+.chart .c i { display: block; width: 100%; max-width: 30px; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, var(--pumpkin), var(--ember)); }
+.chart .c.today i { box-shadow: 0 0 14px rgba(255,122,26,.6); }
+.chart .c span { font-size: 10px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.days { display: flex; gap: 8px; margin-top: 4px; }
+.days span { flex: 1; text-align: center; font-size: 11px; color: var(--ink); }
+.proj { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.proj div { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.proj em { font-style: normal; color: var(--ink); margin-left: auto; font-variant-numeric: tabular-nums; }
+.proj .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+/* música */
+.player { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 6px; }
+.moon { width: 108px; height: 108px; border-radius: 22px; background: radial-gradient(circle at 50% 42%, #ffb36b 0 26%, #ff7a1a 27% 48%, #3a1a50 49%); display: grid; place-items: center; box-shadow: 0 8px 28px rgba(255,122,26,.3); overflow: hidden; position: relative; }
+.moon svg { width: 54px; }
+.songt { font-weight: 800; }
+.songa { font-size: 12px; color: var(--ink); margin-top: -8px; }
+.prog { width: 100%; height: 4px; background: #24180f; border-radius: 4px; overflow: hidden; }
+.prog i { display: block; width: 38%; height: 100%; background: var(--pumpkin); }
+.ctl { display: flex; align-items: center; gap: 22px; }
+.ctl .sk { width: 28px; height: 28px; fill: var(--bone); opacity: .85; }
+
+/* agenda / github */
+.simple { display: flex; flex-direction: column; gap: 6px; }
+.chipx { font-size: 11px; font-weight: 800; color: #fff; background: var(--ember); border-radius: 999px; padding: 2px 8px; flex: none; margin-left: auto; }
+
+/* outras janelas */
+.win { width: 300px; max-width: 100%; border-radius: 14px; overflow: hidden; border: 1px solid #2c2038; background: #15101c; }
+.win .bar { padding: 8px 12px; font-size: 12px; color: var(--ink); background: #0c0810; border-bottom: 1px solid #2c2038; }
+.win .body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.sw-row { display: flex; align-items: center; justify-content: space-between; font-size: 14px; gap: 10px; }
+.tg { width: 38px; height: 22px; border-radius: 999px; background: #3a2a4c; position: relative; flex: none; }
+.tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bone); transition: left .15s; }
+.tg.on { background: var(--pumpkin); } .tg.on::after { left: 19px; }
+.swatches { display: flex; gap: 8px; }
+.swatches i { width: 22px; height: 22px; border-radius: 50%; display: block; }
+.swatches i.sel { box-shadow: 0 0 0 2px #15101c, 0 0 0 4px var(--pumpkin); }
+.paper { background: #f6ecd2; color: #3b2410; border-radius: 10px; padding: 12px; font-size: 14px; min-height: 96px; box-shadow: inset 0 0 0 1px #e0c99a; }
+.paper b { color: var(--ember); }
+
+/* controles e texto */
+.ctrl { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.chip { font: inherit; font-weight: 800; font-size: 14px; color: var(--bone); background: #241a30; border: 1px solid #3a2a4c; border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ember); border-color: var(--pumpkin); color: #fff; }
+.chip:focus-visible { outline: 3px solid var(--bone); outline-offset: 2px; }
+.pack { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; align-items: start; }
+pre { margin: 0; background: #130e1b; border: 1px solid #2c2038; border-radius: 12px; padding: 14px; font-size: 13px; line-height: 1.55; overflow-x: auto; color: #e8dcc2; }
+pre b { color: var(--pumpkin); font-weight: 600; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #2c2038; vertical-align: top; }
+th { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
+td:first-child { font-weight: 800; white-space: nowrap; }
+.scroll { overflow-x: auto; border: 1px solid #2c2038; border-radius: 12px; background: #130e1b; }
+
+@keyframes blink2 { 0%,100% { transform: scaleY(1) } 14%,30% { transform: scaleY(.08) } 22%,38%,60% { transform: scaleY(1) } }
+@keyframes mouth { 0%,100% { opacity: 0 } 10%,80% { opacity: 1 } }
+@keyframes mouthshut { 0%,100% { opacity: 1 } 10%,80% { opacity: 0 } }
+@keyframes hop { 0% { transform: translateY(0) } 25% { transform: translateY(-9px) rotate(-4deg) } 55% { transform: translateY(0) rotate(3deg) } 100% { transform: none } }
+@keyframes flap { 0%,100% { transform: scaleX(1) translateY(0) } 50% { transform: scaleX(.6) translateY(-2px) } }
+@keyframes swing { 0%,100% { transform: rotate(-8deg) } 50% { transform: rotate(8deg) } }
+@keyframes eq { 0%,100% { height: 4px } 50% { height: 16px } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+</style>
+
+<main>
+  <header>
+    <span class="tag">Rascunho visual · Focus Brew</span>
+    <h1>Tema Abóbora</h1>
+    <p>O tema em todos os estados do widget: fechado com as orelhas, com música, na borda lateral, aberto com as abas e nas outras janelas. Toque na abóbora para ver ela piscar duas vezes e fazer o som.</p>
+    <div class="ctrl">
+      <button class="chip" id="snd" aria-pressed="true">Som ligado</button>
+      <button class="chip" id="bats" aria-pressed="true">Morcegos ligados</button>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. Fechado</h2>
+    <p>As orelhas ficam pretas e ganham um morcego pendurado de um lado e uma teia do outro. A linha cinza em cima é a borda da tela.</p>
+    <div class="stage">
+      <div class="row" style="padding-top:0">
+        <div class="cell" style="width:100%">
+          <div class="edge"></div>
+          <div class="top">
+            <svg class="deco bat-l" viewBox="0 0 40 20" aria-hidden="true"><use href="#bat"/></svg>
+            <svg class="deco web-r" viewBox="0 0 100 100" aria-hidden="true"><use href="#web"/></svg>
+            <div class="box">
+              <svg class="mini" viewBox="0 0 48 44" aria-hidden="true"><use href="#pumpkin-mini"/></svg>
+              <span class="t">24:10</span>
+              <span class="title">Fechar fluxo da captura</span>
+            </div>
+          </div>
+          <div class="cap">Timer rodando</div>
+        </div>
+        <div class="cell" style="width:100%">
+          <div class="edge"></div>
+          <div class="top">
+            <svg class="deco bat-l" viewBox="0 0 40 20" aria-hidden="true"><use href="#bat"/></svg>
+            <svg class="deco web-r" viewBox="0 0 100 100" aria-hidden="true"><use href="#web"/></svg>
+            <div class="box paused">
+              <svg class="mini" viewBox="0 0 48 44" aria-hidden="true"><use href="#pumpkin-mini"/></svg>
+              <span class="t">24:10</span>
+              <span class="title">Pausado</span>
+            </div>
+          </div>
+          <div class="cap">Timer pausado: abóbora apagada, sem brilho</div>
+        </div>
+        <div class="cell" style="width:100%">
+          <div class="edge"></div>
+          <div class="top big">
+            <svg class="deco bat-l" viewBox="0 0 40 20" aria-hidden="true"><use href="#bat"/></svg>
+            <svg class="deco web-r" viewBox="0 0 100 100" aria-hidden="true"><use href="#web"/></svg>
+            <div class="box">
+              <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              <span class="title">Thriller (Instrumental)</span>
+              <span class="t">1:12</span>
+            </div>
+          </div>
+          <div class="cap">Só música: orelhas maiores, equalizador laranja</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Na borda da esquerda</h2>
+    <p>Mesma ideia girada. As orelhas ficam acima e abaixo da barra.</p>
+    <div class="stage">
+      <div class="row" style="padding-top:20px">
+        <div class="cell">
+          <div class="side">
+            <div class="wall"></div>
+            <div class="ear-u"></div>
+            <div class="bar">
+              <svg class="mini" viewBox="0 0 48 44" aria-hidden="true" style="width:24px;height:22px"><use href="#pumpkin-mini"/></svg>
+              <span class="t">24:10</span>
+            </div>
+            <div class="ear-d"></div>
+          </div>
+          <div class="cap">Borda esquerda (a direita é o espelho)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Aberto, com as abas</h2>
+    <p>Toque nas abas. Agenda e GitHub usam só as cores do tema. Tarefas, Resumo e Música ganham desenho próprio.</p>
+    <div class="stage">
+      <div class="row" style="padding-top:0">
+        <div class="cell" style="width:100%">
+          <div class="edge"></div>
+          <div class="panel">
+            <svg class="web" viewBox="0 0 100 100" aria-hidden="true"><use href="#web"/></svg>
+            <div class="bats" aria-hidden="true">
+              <svg viewBox="0 0 40 20"><use href="#bat"/></svg>
+              <svg viewBox="0 0 40 20"><use href="#bat"/></svg>
+            </div>
+            <div class="tabs" role="tablist" id="tabs">
+              <button class="tab" role="tab" aria-selected="true" data-p="tasks">Tarefas</button>
+              <button class="tab" role="tab" aria-selected="false" data-p="summary">Resumo</button>
+              <button class="tab" role="tab" aria-selected="false" data-p="github">GitHub</button>
+              <button class="tab" role="tab" aria-selected="false" data-p="agenda">Agenda</button>
+              <button class="tab" role="tab" aria-selected="false" data-p="media">Música</button>
+            </div>
+
+            <div class="pane" id="p-tasks" role="tabpanel">
+              <div class="head"><div class="time">24:10</div><div class="sub">Foco · sessão 3 de 4</div></div>
+              <div class="line"><i></i></div>
+              <div class="tasks">
+                <div class="task on"><i class="dot"></i><span>Fechar o fluxo da captura por voz</span></div>
+                <div class="task"><i class="dot"></i><span>Revisar PR do atalho</span></div>
+                <div class="task"><i class="dot"></i><span>Responder cliente da Virex</span></div>
+              </div>
+              <div class="pbtn-slot"></div>
+            </div>
+
+            <div class="pane" id="p-summary" role="tabpanel" hidden>
+              <div class="stats"><div><div class="sub">Esta semana</div><b>14h 20min</b></div><div class="sub">hoje 3h 40min</div></div>
+              <div class="chart" aria-label="Horas focadas por dia">
+                <div class="c"><span>2h</span><i style="height:36%"></i></div>
+                <div class="c"><span>3h</span><i style="height:55%"></i></div>
+                <div class="c"><span>1h</span><i style="height:20%"></i></div>
+                <div class="c"><span>4h</span><i style="height:72%"></i></div>
+                <div class="c today"><span>3h</span><i style="height:62%"></i></div>
+                <div class="c"><span>1h</span><i style="height:18%"></i></div>
+                <div class="c"><span>0</span><i style="height:2%"></i></div>
+              </div>
+              <div class="days"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div>
+              <div class="proj">
+                <div><i class="sw" style="background:var(--pumpkin)"></i>Focus Brew<em>6h 10min</em></div>
+                <div><i class="sw" style="background:#8a5ad6"></i>Virex<em>5h 05min</em></div>
+                <div><i class="sw" style="background:var(--moss)"></i>Estudo<em>3h 05min</em></div>
+              </div>
+            </div>
+
+            <div class="pane" id="p-github" role="tabpanel" hidden>
+              <div class="simple">
+                <div class="task"><i class="dot"></i><span>#42 feat: escrita atômica</span><span class="chipx">aberto</span></div>
+                <div class="task"><i class="dot"></i><span>#41 fix: logs do tray</span><span class="chipx" style="background:var(--moss)">merged</span></div>
+                <div class="task"><i class="dot"></i><span>#39 docs: guia de temas</span><span class="chipx">revisão</span></div>
+              </div>
+            </div>
+
+            <div class="pane" id="p-agenda" role="tabpanel" hidden>
+              <div class="simple">
+                <div class="task on"><i class="dot"></i><span>Daily do time</span><small>10:00</small></div>
+                <div class="task"><i class="dot"></i><span>Call com cliente</span><small>14:30</small></div>
+                <div class="task"><i class="dot"></i><span>Estudar Rust</span><small>19:00</small></div>
+              </div>
+            </div>
+
+            <div class="pane" id="p-media" role="tabpanel" hidden>
+              <div class="player">
+                <div class="moon" aria-hidden="true"><svg viewBox="0 0 48 44"><use href="#pumpkin-mini"/></svg></div>
+                <div class="songt">Thriller (Instrumental)</div>
+                <div class="songa">Michael Jackson</div>
+                <div class="prog"><i></i></div>
+                <div class="ctl">
+                  <svg class="sk" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zM9.5 12L18 18V6z"/></svg>
+                  <div class="pbtn-slot small"></div>
+                  <svg class="sk" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cap">Widget aberto</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Outras janelas</h2>
+    <p>Na estreia, essas só ganham as cores e a fonte. Sem decoração.</p>
+    <div class="stage">
+      <div class="row" style="padding-top:28px">
+        <div class="cell">
+          <div class="win">
+            <div class="bar">Configurações</div>
+            <div class="body">
+              <div class="sw-row">Linha de progresso <i class="tg on"></i></div>
+              <div class="sw-row">Controles de música <i class="tg on"></i></div>
+              <div class="sw-row">Som do tema <i class="tg on"></i></div>
+              <div class="sw-row">Cor <span class="swatches"><i style="background:#0a84ff"></i><i style="background:#8a5ad6"></i><i class="sel" style="background:var(--pumpkin)"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="cell">
+          <div class="win">
+            <div class="bar">Nota</div>
+            <div class="body"><div class="paper"><b>Ideia:</b> deixar o usuário trocar de tema pelas configurações e lembrar a escolha.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Como o tema vira um pacote</h2>
+    <p>Um tema é uma pasta com um manifesto, o CSS e os arquivos. É o mesmo formato que a loja vai distribuir depois.</p>
+    <div class="pack">
+<pre><b>abobora/</b>
+  theme.json
+  theme.css
+  <b>assets/</b>
+    pumpkin-btn.svg
+    bat.svg
+    web.svg
+  <b>sounds/</b>
+    click.ogg
+    done.ogg</pre>
+<pre>{
+  "id": "halloween-abobora",
+  "name": "Abóbora",
+  "version": "1.0.0",
+  "author": "Sthevan",
+  "accent": "#ff7a1a",
+  "css": "theme.css",
+  "sounds": {
+    "start": "sounds/click.ogg",
+    "done": "sounds/done.ogg"
+  }
+}</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>O que cada estado recebe</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Estado</th><th>Cores e fonte</th><th>Decoração</th><th>Som</th></tr></thead>
+        <tbody>
+          <tr><td>Fechado</td><td>Sim</td><td>Morcego e teia nas orelhas</td><td>Aviso ao fim do foco</td></tr>
+          <tr><td>Com música</td><td>Sim</td><td>Equalizador laranja, orelhas maiores</td><td>Não</td></tr>
+          <tr><td>Borda lateral</td><td>Sim</td><td>Versão girada</td><td>Não</td></tr>
+          <tr><td>Tarefas</td><td>Sim</td><td>Botão abóbora, teia, morcegos</td><td>Clique no botão</td></tr>
+          <tr><td>Resumo</td><td>Sim</td><td>Barras laranja</td><td>Não</td></tr>
+          <tr><td>Música (aba)</td><td>Sim</td><td>Capa em forma de lua-abóbora</td><td>Não</td></tr>
+          <tr><td>GitHub e Agenda</td><td>Sim</td><td>Nenhuma</td><td>Não</td></tr>
+          <tr><td>Config e Nota</td><td>Sim</td><td>Nenhuma</td><td>Não</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Isto é um desenho</h2>
+    <p>As formas, as cores e os sons são rascunhos para a gente conversar. O widget real ainda não foi mexido. Os sons aqui são gerados no navegador. No tema final seriam arquivos.</p>
+  </section>
+</main>
+
+<template id="pbtn-tpl">
+  <button class="pbtn" aria-label="Iniciar foco (abóbora)">
+    <svg viewBox="0 0 96 88" aria-hidden="true">
+      <path d="M46 14c-1-7 3-12 9-14 1 4-1 9-5 14z" fill="#4d7a2e"/>
+      <ellipse cx="48" cy="52" rx="44" ry="33" fill="#c2410c"/>
+      <ellipse cx="26" cy="52" rx="21" ry="32" fill="#e8620f"/>
+      <ellipse cx="70" cy="52" rx="21" ry="32" fill="#e8620f"/>
+      <ellipse cx="48" cy="52" rx="19" ry="33" fill="#ff7a1a"/>
+      <path d="M30 41l10 8-12 2z" fill="#2a0f00" class="eye"/>
+      <path d="M66 41l-10 8 12 2z" fill="#2a0f00" class="eye"/>
+      <path class="mouth-shut" d="M32 64q16 9 32 0" stroke="#2a0f00" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path class="mouth-open" d="M30 62q18 22 36 0q-18 6-36 0z" fill="#2a0f00"/>
+      <path class="mouth-open" d="M42 66l3 5 3-5zM52 66l3 5 3-5z" fill="#f3e9d2"/>
+    </svg>
+  </button>
+</template>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="bat" viewBox="0 0 40 20"><path d="M20 4c2 0 3 2 3 4 3-3 7-5 13-4-3 2-3 5-2 8-3-2-6-2-8 1-1-2-3-3-6-3s-5 1-6 3c-2-3-5-3-8-1 1-3 1-6-2-8 6-1 10 1 13 4 0-2 1-4 3-4z" fill="#14101a" stroke="#8a5ad6" stroke-width="1"/></symbol>
+    <symbol id="web" viewBox="0 0 100 100"><g stroke="#d9cfe6" stroke-width="1" fill="none"><path d="M0 0L100 0M0 0L0 100M0 0L90 60M0 0L60 90M0 0L100 28M0 0L28 100"/><path d="M30 0Q26 26 0 30M55 0Q46 46 0 55M80 0Q64 64 0 80"/></g></symbol>
+    <symbol id="pumpkin-mini" viewBox="0 0 48 44"><path d="M23 7c-1-4 1-6 4-7 1 2 0 5-2 7z" fill="#4d7a2e"/><ellipse cx="24" cy="26" rx="22" ry="16" fill="#c2410c"/><ellipse cx="13" cy="26" rx="10" ry="15.5" fill="#e8620f"/><ellipse cx="35" cy="26" rx="10" ry="15.5" fill="#e8620f"/><ellipse cx="24" cy="26" rx="9" ry="16" fill="#ff7a1a"/><path d="M15 20l5 4-6 1zM33 20l-5 4 6 1z" fill="#2a0f00"/><path d="M16 31q8 5 16 0" stroke="#2a0f00" stroke-width="2.4" fill="none" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<script>
+(function () {
+  var snd = document.getElementById('snd');
+  var batsBtn = document.getElementById('bats');
+  var ctx = null;
+
+  function blip(freq, start, dur, type, gain, endFreq) {
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime + start);
+    if (endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + start + dur);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+    g.gain.exponentialRampToValueAtTime(gain, ctx.currentTime + start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + dur + 0.05);
+  }
+  function play() {
+    if (snd.getAttribute('aria-pressed') !== 'true') return;
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      blip(880, 0.00, 0.08, 'square', 0.05);
+      blip(880, 0.16, 0.08, 'square', 0.05);
+      blip(300, 0.32, 0.40, 'sawtooth', 0.07, 110);
+    } catch (e) {}
+  }
+
+  var tpl = document.getElementById('pbtn-tpl');
+  document.querySelectorAll('.pbtn-slot').forEach(function (slot) {
+    var b = tpl.content.firstElementChild.cloneNode(true);
+    if (slot.classList.contains('small')) b.classList.add('small');
+    slot.replaceWith(b);
+    b.addEventListener('click', function () {
+      b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');
+      play();
+      setTimeout(function () { b.classList.remove('go'); }, 900);
+    });
+  });
+
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.setAttribute('aria-selected', x === t ? 'true' : 'false'); });
+      document.querySelectorAll('.pane').forEach(function (p) { p.hidden = p.id !== 'p-' + t.dataset.p; });
+    });
+  });
+
+  snd.addEventListener('click', function () {
+    var on = snd.getAttribute('aria-pressed') !== 'true';
+    snd.setAttribute('aria-pressed', on); snd.textContent = on ? 'Som ligado' : 'Som desligado';
+  });
+  batsBtn.addEventListener('click', function () {
+    var on = batsBtn.getAttribute('aria-pressed') !== 'true';
+    batsBtn.setAttribute('aria-pressed', on); batsBtn.textContent = on ? 'Morcegos ligados' : 'Morcegos desligados';
+    document.querySelectorAll('.deco, .panel .bats').forEach(function (el) { el.style.display = on ? '' : 'none'; });
+  });
+})();
+</script>

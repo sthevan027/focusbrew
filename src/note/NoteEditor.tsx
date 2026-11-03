@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { resolveAccent } from "../lib/themeLoader";
+import { packageFor } from "../themes";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { AppConfig } from "../lib/types";
@@ -272,6 +274,11 @@ export default function NoteEditor({ request, placement, config, onClose }: Prop
     }
   };
 
+  // The theme's fixed accent wins over the user's color (Abóbora: orange), as in the widget.
+  const accent = useMemo(
+    () => resolveAccent(packageFor(config.theme), config.accent_color),
+    [config.theme, config.accent_color],
+  );
   const shown = live ?? objects;
   const selectedObject = tool === "select" && selected !== null ? shown[selected] : undefined;
   return (
@@ -283,7 +290,7 @@ export default function NoteEditor({ request, placement, config, onClose }: Prop
           void importBlob(file);
         }
       }}
-      style={{ ["--accent" as string]: config.accent_color }}>
+      style={{ ["--accent" as string]: accent }}>
       <header className="note-bar">
         <button className="note-btn" onClick={() => setHistoryOpen((o) => !o)} title="Histórico (Ctrl+H)">{NOTE_ICONS.history()}</button>
         <button className="note-btn" onClick={() => void openId(null)} title="Nota nova (Ctrl+N)">{NOTE_ICONS.plus()}</button>

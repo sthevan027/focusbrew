@@ -40,6 +40,10 @@ export interface AppConfig {
   google_connected: boolean;
   /** Activity Tracking (local service); off by default, experimental. */
   activity_tracking_enabled: boolean;
+  /** Id of the visual theme; "default" is the app's own look. */
+  theme: string;
+  /** Sounds that come with the theme; a theme with none plays nothing. */
+  theme_sounds: boolean;
   /** Capture box; off by default (its shortcut is then not registered). */
   capture_enabled: boolean;
   shortcut_capture: string;

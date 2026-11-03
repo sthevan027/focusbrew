@@ -1,8 +1,10 @@
 import type { StateSnapshot } from "../lib/types";
 import { notchLayout } from "../lib/notch";
 import { clockParts, formatClock, remainingSecs } from "../lib/progress";
+import { useThemeFeatures } from "../themes/ThemeContext";
 import { ClockIcon } from "./icons";
 import MediaBox from "./MediaBox";
+import Pumpkin from "./Pumpkin";
 import MediaControls from "./MediaControls";
 import type { BoxTab } from "./mediaTabs";
 
@@ -21,19 +23,25 @@ interface Props {
  * With media playing and the media tab active, the box shows the media instead.
  */
 export default function Notch({ state, now, activeTab }: Props) {
+  const { mascot } = useThemeFeatures();
   const { timer, config, tasks, media } = state;
   if (activeTab === "media" && media) return <MediaBox media={media} />;
   if (timer.status === "idle") return null;
 
   const layout = notchLayout(config.notch_style, config.widget_edge);
   const left = remainingSecs(timer, now);
+  // With the pumpkin theme the clock is the pumpkin: mouth open while it runs, eyes shut when paused.
+  const clock =
+    mascot === "pumpkin" ? (
+      <Pumpkin face={timer.status === "paused" ? "closed" : "open"} className="notch-pumpkin" />
+    ) : null;
 
   if (layout === "side-icon" || layout === "side-plain") {
     const { minutes, seconds } = clockParts(left);
     const stacked = config.side_count_style === "stacked";
     return (
       <div className={`notch-box side ${config.side_count_style} ${timer.status}`}>
-        {layout === "side-icon" && <ClockIcon size={stacked ? 12 : 13} />}
+        {layout === "side-icon" && (clock ?? <ClockIcon size={stacked ? 12 : 13} />)}
         {stacked ? (
           <span className="notch-time side-time">
             <span>{minutes}</span>
@@ -59,7 +67,7 @@ export default function Notch({ state, now, activeTab }: Props) {
   return (
     <div className={`notch-box ${timer.status}`}>
       <span className="notch-clock">
-        <ClockIcon />
+        {clock ?? <ClockIcon />}
         <span className="notch-time">{formatClock(left)}</span>
       </span>
       <span className={showControls ? "notch-title grow" : "notch-title"}>{task?.title ?? ""}</span>

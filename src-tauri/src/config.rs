@@ -62,6 +62,12 @@ pub struct AppConfig {
     /// experimental feature. Off = no section in Settings, no summary in the
     /// panel and no call to the service.
     pub activity_tracking_enabled: bool,
+    /// Id of the visual theme; "default" is the app's own look. Unknown or
+    /// malformed ids are replaced by "default" on save.
+    pub theme: String,
+    /// Sounds that come with the theme (blinks, mouth, end of block). On by default;
+    /// a theme with no sounds plays nothing either way.
+    pub theme_sounds: bool,
     /// The voice/text capture box: off by default. Off = its global shortcut
     /// is not registered at all.
     pub capture_enabled: bool,
@@ -176,10 +182,25 @@ impl Default for AppConfig {
             launch_at_login: false,
             panel_autoclose_secs: 0,
             activity_tracking_enabled: false,
+            theme: DEFAULT_THEME.to_string(),
+            theme_sounds: true,
             capture_enabled: false,
             shortcut_capture: DEFAULT_SHORTCUT_CAPTURE.to_string(),
         }
     }
+}
+
+/// The built-in theme that changes nothing.
+pub const DEFAULT_THEME: &str = "default";
+
+/// A theme id is 1 to 40 characters: lowercase letters, digits and hyphens.
+/// Anything else (empty, a path, spaces) is the default theme.
+fn normalize_theme_id(raw: &str) -> String {
+    let id = raw.trim();
+    let valid = (1..=40).contains(&id.len())
+        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !id.starts_with('-');
+    if valid { id.to_string() } else { DEFAULT_THEME.to_string() }
 }
 
 fn or_default(value: String, default: &str) -> String {
@@ -204,6 +225,7 @@ impl AppConfig {
         if !AUTOCLOSE_CHOICES.contains(&self.panel_autoclose_secs) {
             self.panel_autoclose_secs = 0;
         }
+        self.theme = normalize_theme_id(&self.theme);
         self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
         self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
         self.shortcut_note = or_default(self.shortcut_note, DEFAULT_SHORTCUT_NOTE);
@@ -286,6 +308,39 @@ pub fn try_local_data_dir() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_theme_defaults_to_the_app_look_with_sounds_on() {
+        let c = AppConfig::default();
+        assert_eq!(c.theme, "default");
+        assert!(c.theme_sounds);
+    }
+
+    // A settings file from before themes: the theme gets its default, nothing else moves.
+    #[test]
+    fn a_settings_file_without_theme_fields_keeps_its_values() {
+        let c = parse(r##"{"accent_color":"#112233","rgb_line":true}"##);
+        assert_eq!(c.theme, "default");
+        assert!(c.theme_sounds);
+        assert_eq!(c.accent_color, "#112233");
+        assert!(c.rgb_line);
+    }
+
+    #[test]
+    fn a_saved_theme_id_is_kept() {
+        let c = parse(r##"{"theme":"halloween-abobora","theme_sounds":false}"##).normalized();
+        assert_eq!(c.theme, "halloween-abobora");
+        assert!(!c.theme_sounds);
+    }
+
+    #[test]
+    fn a_malformed_theme_id_falls_back_to_default() {
+        let long = "a".repeat(41);
+        for bad in ["", "   ", "../etc", "Halloween", "tem espaço", "-x", long.as_str()] {
+            let c = AppConfig { theme: bad.to_string(), ..AppConfig::default() }.normalized();
+            assert_eq!(c.theme, "default", "input: {bad:?}");
+        }
+    }
 
     #[test]
     fn try_local_data_dir_resolves() {

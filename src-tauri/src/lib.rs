@@ -251,6 +251,8 @@ fn spawn_tick_loop(app: AppHandle) {
                 let finished = state.tracker.tick(now, last, &today);
                 if finished.is_some() {
                     state.save_tracker();
+                    // The theme's end-of-block sound listens for this (a stopped block does not emit it).
+                    let _ = app.emit("block-finished", ());
                     if state.config.notify_on_finish {
                         to_notify = finished.clone();
                     }
