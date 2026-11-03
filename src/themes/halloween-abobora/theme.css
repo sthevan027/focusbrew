@@ -48,6 +48,14 @@
     radial-gradient(circle at 100% 100%, transparent calc(var(--ear) - 0.5px), var(--shell-bg) var(--ear)) left top / var(--ear) var(--ear) no-repeat;
 }
 
+/* o relógio da caixa é a própria abóbora (Notch, mascote "pumpkin") */
+[data-theme="halloween-abobora"] .notch-pumpkin {
+  flex: none;
+  width: 22px;
+  height: 20px;
+  overflow: visible;
+}
+
 /* ---- capa da música: lua (quando não há capa do app) ---- */
 [data-theme="halloween-abobora"] .media-cover:not(:has(img)) {
   background:

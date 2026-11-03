@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Captura do widget (dados fictícios)</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #14101c; overflow: hidden; }
+      /* the same box the app's window gives the widget: 560 x 380, nothing outside it */
+      #stage { position: relative; width: 560px; height: 380px; overflow: hidden; background: radial-gradient(120% 90% at 50% 0%, #2a1a3a 0%, #1a1324 45%, #0e0a14 100%); }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><div id="root"></div></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
