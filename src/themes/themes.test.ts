@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME } from "../lib/themeLoader";
+import { DEFAULT_THEME, resolveAccent } from "../lib/themeLoader";
 import { packageFor, themeOptions } from "./index";
 
 describe("temas embutidos", () => {
@@ -19,5 +19,11 @@ describe("temas embutidos", () => {
 
   it("um id desconhecido não tem pacote", () => {
     expect(packageFor("nao-existe")).toBeNull();
+  });
+
+  // Regressão: a janela de Nota (e a Nota dentro do widget) usa o mesmo accent do tema, não o do usuário.
+  it("no tema abóbora o accent é laranja mesmo com outra cor escolhida pelo usuário", () => {
+    expect(resolveAccent(packageFor("halloween-abobora"), "#0A84FF")).toBe("#FF7A1A");
+    expect(resolveAccent(packageFor(DEFAULT_THEME), "#0A84FF")).toBe("#0A84FF");
   });
 });
