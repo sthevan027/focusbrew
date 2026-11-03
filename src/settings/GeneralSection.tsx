@@ -57,7 +57,7 @@ export default function GeneralSection({
             ))}
           </select>
         </Row>
-        <Row title="Sons do tema" hint="Piscadas, boca e fim de bloco da abóbora. Baixo volume; só toca com ação sua.">
+        <Row title="Sons do tema" hint="Sons baixinhos da abóbora: piscada e boca tocam quando você clica; o fim de bloco toca sozinho.">
           <Switch label="Sons do tema" checked={config.theme_sounds} onChange={(theme_sounds) => set({ theme_sounds })} />
         </Row>
       </div>
