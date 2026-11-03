@@ -11,9 +11,6 @@ pub struct Loaded<T> {
     pub value: T,
     /// `false` = the file exists but was neither read nor moved aside: do not write it.
     pub writable: bool,
-    /// The file existed with content and parsed (the value is that content).
-    #[allow(dead_code)]
-    pub had_data: bool,
 }
 
 /// Describes a JSON error without echoing the text of the file.
@@ -84,15 +81,15 @@ fn load_guarded_with<T: Default>(
     quarantine: Quarantine,
 ) -> Loaded<T> {
     match inspect(path, read, parse) {
-        Disk::Absent => Loaded { value: T::default(), writable: true, had_data: false },
-        Disk::Data(value) => Loaded { value, writable: true, had_data: true },
+        Disk::Absent => Loaded { value: T::default(), writable: true },
+        Disk::Data(value) => Loaded { value, writable: true },
         Disk::Unreadable(reason) => {
             tracing::error!(what, path = %path.display(), reason, "file could not be read; writes to it are blocked");
-            Loaded { value: T::default(), writable: false, had_data: false }
+            Loaded { value: T::default(), writable: false }
         }
         Disk::Corrupt(reason) => {
             let moved = move_aside(path, stamp_ms, what, &reason, quarantine);
-            Loaded { value: T::default(), writable: moved, had_data: false }
+            Loaded { value: T::default(), writable: moved }
         }
     }
 }

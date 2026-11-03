@@ -186,11 +186,7 @@ pub fn save_to(path: &Path, tasks: &[Task]) -> std::io::Result<()> {
     crate::fsutil::write_atomic(path, raw.as_bytes())
 }
 
-pub fn save(tasks: &[Task]) -> std::io::Result<()> {
-    save_to(&tasks_path(), tasks)
-}
-
-/// `save`, skipped while `blocked` (the file could not be read at startup).
+/// Saves to `tasks_path()`, skipped while `blocked` (the file could not be read at startup).
 pub fn save_guarded(tasks: &[Task], blocked: &AtomicBool) -> std::io::Result<()> {
     let path = tasks_path();
     loadguard::save_unless_blocked(

@@ -275,17 +275,22 @@ pub fn data_dir() -> PathBuf {
 }
 
 /// Machine-local data (logs): `%LOCALAPPDATA%`, unlike `data_dir()` which roams.
-pub fn local_data_dir() -> PathBuf {
-    let dirs = directories::ProjectDirs::from("com", "sthevandev", "focusbrew")
-        .expect("could not resolve app data directory");
+/// Never panics: `None` when the directory cannot be resolved.
+pub fn try_local_data_dir() -> Option<PathBuf> {
+    let dirs = directories::ProjectDirs::from("com", "sthevandev", "focusbrew")?;
     let dir = dirs.data_local_dir().to_path_buf();
     fs::create_dir_all(&dir).ok();
-    dir
+    Some(dir)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_local_data_dir_resolves() {
+        assert!(try_local_data_dir().is_some());
+    }
 
     fn temp_dir() -> std::path::PathBuf {
         let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());

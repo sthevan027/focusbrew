@@ -31,7 +31,8 @@ pub struct Session {
 pub struct ActivityLog {
     /// "AAAA-MM-DD" (local date of the day the block *ended*) -> seconds.
     /// The 0.1.x fields (`days`, `app_seconds_*`, and the old `sessions`
-    /// shape) don't parse as this struct and the file starts empty.
+    /// shape) don't parse as this struct: that file is moved aside to a
+    /// `*.corrupt-<n>.json` quarantine (with an error log) and a fresh log starts.
     #[serde(default)]
     pub focus_secs_by_day: HashMap<String, u32>,
     #[serde(default)]
@@ -94,11 +95,7 @@ pub fn save_to(path: &Path, log: &ActivityLog) -> std::io::Result<()> {
     crate::fsutil::write_atomic(path, raw.as_bytes())
 }
 
-pub fn save(log: &ActivityLog) -> std::io::Result<()> {
-    save_to(&log_path(), log)
-}
-
-/// `save`, skipped while `blocked` (the file could not be read at startup).
+/// Saves to `log_path()`, skipped while `blocked` (the file could not be read at startup).
 pub fn save_guarded(log: &ActivityLog, blocked: &AtomicBool) -> std::io::Result<()> {
     let path = log_path();
     loadguard::save_unless_blocked(

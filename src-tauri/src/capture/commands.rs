@@ -162,10 +162,22 @@ pub struct CapturePreview {
     pub target: Target,
 }
 
+/// Parses for the preview with the minutes already limited like the commit
+/// does, so the box shows what will really be stored.
+fn preview_parsed(text: &str, today: &str) -> Parsed {
+    match parse_capture(text, today) {
+        Parsed::Task { title, project, minutes, day } => {
+            Parsed::Task { title, project, minutes: minutes.map(tasks::clamp_minutes), day }
+        }
+        Parsed::SetMinutes { minutes } => Parsed::SetMinutes { minutes: tasks::clamp_minutes(minutes) },
+        other => other,
+    }
+}
+
 #[tauri::command]
 pub fn capture_preview(text: String, shared: State<'_, Shared>) -> CapturePreview {
     let today = today_key();
-    let parsed = parse_capture(&text, &today);
+    let parsed = preview_parsed(&text, &today);
     let state = shared.lock();
     let open_today: Vec<(String, i64)> = state
         .tracker
@@ -273,7 +285,9 @@ pub fn set_capture_enabled(
         crate::sync_ui(&app, &state);
         StateSnapshot::from(&*state)
     };
-    // After the state lock is released: hiding a window waits on the main thread.
+    // Registering the shortcut above is safe with the `Shared` lock held because
+    // synchronous commands run on the main thread. The window is closed only
+    // after the lock is released.
     if !enabled {
         capture_window::close(&app);
     }
@@ -284,6 +298,18 @@ pub fn set_capture_enabled(
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn preview_clamps_minutes_like_commit() {
+        match preview_parsed("tempo 4", "2026-10-31") {
+            Parsed::SetMinutes { minutes } => assert_eq!(minutes, 5),
+            other => panic!("inesperado: {other:?}"),
+        }
+        match preview_parsed("tarefa x tempo 240", "2026-10-31") {
+            Parsed::Task { minutes, .. } => assert_eq!(minutes, Some(180)),
+            other => panic!("inesperado: {other:?}"),
+        }
+    }
 
     fn ids(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()

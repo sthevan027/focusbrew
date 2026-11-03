@@ -2,7 +2,7 @@
 
 use std::ffi::OsString;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 /// Grava em `<nome>.tmp` e faz `rename` sobre o destino, para que uma queda
@@ -16,7 +16,15 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut tmp_name: OsString = path.file_name().unwrap_or_default().to_os_string();
     tmp_name.push(".tmp");
     let tmp = path.with_file_name(tmp_name);
-    fs::write(&tmp, bytes)?;
+    let written = (|| {
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()
+    })();
+    if let Err(e) = written {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
     fs::rename(&tmp, path).map_err(|e| {
         let _ = fs::remove_file(&tmp);
         e
@@ -61,6 +69,21 @@ mod tests {
         write_atomic(&p, b"bb").unwrap();
         assert_eq!(fs::read_to_string(&p).unwrap(), "bb");
         assert!(!dir.join("tasks.json.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_atomic_failure_leaves_no_tmp_and_keeps_old_content() {
+        let dir = temp_dir();
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("tasks.json");
+        fs::write(&p, "old").unwrap();
+        // A directory where the temp file should go makes the write fail.
+        let tmp = dir.join("tasks.json.tmp");
+        fs::create_dir(&tmp).unwrap();
+        assert!(write_atomic(&p, b"new").is_err());
+        assert_eq!(fs::read_to_string(&p).unwrap(), "old");
+        fs::remove_dir(&tmp).unwrap();
         let _ = fs::remove_dir_all(&dir);
     }
 

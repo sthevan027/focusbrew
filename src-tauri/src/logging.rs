@@ -33,7 +33,7 @@ pub fn init_in(dir: &Path) -> Result<WorkerGuard, String> {
 
 /// Logs into `<local data dir>/logs`. A failure becomes `None`: logging must never take the app down.
 pub fn init() -> Option<WorkerGuard> {
-    let dir = crate::config::local_data_dir().join("logs");
+    let dir = crate::config::try_local_data_dir()?.join("logs");
     std::fs::create_dir_all(&dir).ok()?;
     init_in(&dir).ok()
 }

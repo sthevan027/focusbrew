@@ -338,7 +338,8 @@ fn spawn_google_sync_loop(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Held for the whole run so buffered log lines are flushed on exit.
+    // Keeps the log writer alive during `run`. `App::run` ends the process on
+    // exit without dropping this guard, so the last buffered lines may be lost.
     let _log_guard = logging::init();
 
     // The shortcuts themselves come from the settings and are registered in
