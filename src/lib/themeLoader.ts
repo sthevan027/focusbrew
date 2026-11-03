@@ -91,7 +91,7 @@ export function fontFaceCss(
     .flatMap((font) => {
       const url = urlFor(font.file);
       if (!url) return [];
-      const family = font.family.replace(/["\\r\n]/g, "");
+      const family = font.family.replace(/["\\\r\n]/g, "");
       return [
         `@font-face{font-family:"${family}";src:url("${url}") format("${fontFormat(font.file)}");font-weight:200 1000;font-style:normal;font-display:swap}`,
       ];

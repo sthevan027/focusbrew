@@ -179,6 +179,11 @@ describe("fontFaceCss", () => {
     expect(fontFaceCss([{ family: "X", file: "assets/x.woff2" }], () => undefined)).toBe("");
   });
 
+  it("mantém letras minúsculas 'r' no nome da família (só tira aspas, barra invertida e quebras de linha)", () => {
+    const css = fontFaceCss([{ family: "Pirata One\r\n", file: "a.ttf" }], () => "/u/a.ttf");
+    expect(css).toContain('font-family:"Pirata One"');
+  });
+
   it("tira aspas e barras do nome da família para não quebrar o CSS", () => {
     const css = fontFaceCss([{ family: "Bad\"Name\\", file: "a.ttf" }], () => "/u/a.ttf");
     expect(css).toContain('font-family:"BadName"');
