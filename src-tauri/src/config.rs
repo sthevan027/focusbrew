@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::loadguard::{self, Loaded};
 use crate::tracker::tasks::{clamp_minutes, DEFAULT_MINUTES};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,11 +68,17 @@ pub struct AppConfig {
     /// Sounds that come with the theme (blinks, mouth, end of block). On by default;
     /// a theme with no sounds plays nothing either way.
     pub theme_sounds: bool,
+    /// The voice/text capture box: off by default. Off = its global shortcut
+    /// is not registered at all.
+    pub capture_enabled: bool,
+    /// Open the capture box.
+    pub shortcut_capture: String,
 }
 
 pub const DEFAULT_SHORTCUT_TOGGLE: &str = "CommandOrControl+Shift+Space";
 pub const DEFAULT_SHORTCUT_PANEL: &str = "CommandOrControl+Shift+Alt+Space";
 pub const DEFAULT_SHORTCUT_NOTE: &str = "CommandOrControl+Alt+KeyN";
+pub const DEFAULT_SHORTCUT_CAPTURE: &str = "CommandOrControl+Alt+KeyJ";
 pub const BEFORE_END_CHOICES: [u32; 4] = [0, 1, 2, 5];
 pub const IDLE_REMINDER_CHOICES: [u32; 4] = [0, 15, 30, 60];
 pub const MAX_DAILY_GOAL_MINS: u32 = 12 * 60;
@@ -176,6 +184,8 @@ impl Default for AppConfig {
             activity_tracking_enabled: false,
             theme: DEFAULT_THEME.to_string(),
             theme_sounds: true,
+            capture_enabled: false,
+            shortcut_capture: DEFAULT_SHORTCUT_CAPTURE.to_string(),
         }
     }
 }
@@ -219,12 +229,14 @@ impl AppConfig {
         self.shortcut_toggle = or_default(self.shortcut_toggle, DEFAULT_SHORTCUT_TOGGLE);
         self.shortcut_panel = or_default(self.shortcut_panel, DEFAULT_SHORTCUT_PANEL);
         self.shortcut_note = or_default(self.shortcut_note, DEFAULT_SHORTCUT_NOTE);
+        self.shortcut_capture = or_default(self.shortcut_capture, DEFAULT_SHORTCUT_CAPTURE);
         self.monitor = self.monitor.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
         self
     }
 }
 
 /// Reads a settings file's text; anything unreadable becomes the defaults.
+#[cfg(test)] // kept for the old-file tests; loading uses the strict path
 pub fn parse(raw: &str) -> AppConfig {
     serde_json::from_str::<AppConfig>(raw).unwrap_or_default().normalized()
 }
@@ -237,18 +249,43 @@ fn config_path() -> PathBuf {
     dir.join("settings.json")
 }
 
-pub fn load() -> AppConfig {
-    let path = config_path();
-    match fs::read_to_string(&path) {
-        Ok(raw) => parse(&raw),
-        Err(_) => AppConfig::default(),
-    }
+fn parse_config(raw: &str) -> Result<AppConfig, serde_json::Error> {
+    serde_json::from_str::<AppConfig>(raw).map(AppConfig::normalized)
 }
 
+/// Reads `path`. Missing or blank file = defaults. A corrupt one is moved aside
+/// (never erased); one that can't be read, or can't be moved aside, comes back
+/// `writable: false` and must not be saved over. Values are normalized.
+pub fn load_from(path: &Path, stamp_ms: i64) -> Loaded<AppConfig> {
+    loadguard::load_guarded(path, stamp_ms, "settings", &parse_config, &crate::fsutil::quarantine)
+}
+
+/// Process-wide on purpose: `save` is a free function with no state to hang
+/// this on. Set by `load()` (settings file unreadable and not moved aside),
+/// cleared by `save` once `recheck_writable` says the file is safe. Private.
+static SETTINGS_BLOCKED: AtomicBool = AtomicBool::new(false);
+
+pub fn load() -> AppConfig {
+    let loaded = load_from(&config_path(), chrono::Utc::now().timestamp_millis());
+    SETTINGS_BLOCKED.store(!loaded.writable, Ordering::SeqCst);
+    loaded.value
+}
+
+pub fn save_to(path: &Path, config: &AppConfig) -> std::io::Result<()> {
+    let raw = serde_json::to_string_pretty(config)?;
+    crate::fsutil::write_atomic(path, raw.as_bytes())
+}
+
+/// Skipped (and logged) while the settings file is blocked, see `SETTINGS_BLOCKED`.
 pub fn save(config: &AppConfig) -> std::io::Result<()> {
     let path = config_path();
-    let raw = serde_json::to_string_pretty(config)?;
-    fs::write(path, raw)
+    loadguard::save_unless_blocked(
+        "settings",
+        &path,
+        &SETTINGS_BLOCKED,
+        &|| loadguard::recheck_writable(&path, &parse_config, &crate::fsutil::quarantine),
+        || save_to(&path, config),
+    )
 }
 
 pub fn data_dir() -> PathBuf {
@@ -257,6 +294,15 @@ pub fn data_dir() -> PathBuf {
     let dir = dirs.data_dir().to_path_buf();
     fs::create_dir_all(&dir).ok();
     dir
+}
+
+/// Machine-local data (logs): `%LOCALAPPDATA%`, unlike `data_dir()` which roams.
+/// Never panics: `None` when the directory cannot be resolved.
+pub fn try_local_data_dir() -> Option<PathBuf> {
+    let dirs = directories::ProjectDirs::from("com", "sthevandev", "focusbrew")?;
+    let dir = dirs.data_local_dir().to_path_buf();
+    fs::create_dir_all(&dir).ok();
+    Some(dir)
 }
 
 #[cfg(test)]
@@ -294,6 +340,63 @@ mod tests {
             let c = AppConfig { theme: bad.to_string(), ..AppConfig::default() }.normalized();
             assert_eq!(c.theme, "default", "input: {bad:?}");
         }
+    }
+
+    #[test]
+    fn try_local_data_dir_resolves() {
+        assert!(try_local_data_dir().is_some());
+    }
+
+    fn temp_dir() -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn corrupt_settings_file_is_quarantined_not_erased() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        fs::write(&p, "{\"x\"").unwrap();
+        assert_eq!(load_from(&p, 42).value.accent_color, DEFAULT_ACCENT);
+        assert!(!p.exists());
+        assert_eq!(fs::read_to_string(dir.join("settings.corrupt-42.json")).unwrap(), "{\"x\"");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_settings_file_is_default_without_quarantine() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        assert_eq!(load_from(&p, 42).value.default_minutes, 25);
+        fs::write(&p, "  ").unwrap();
+        assert_eq!(load_from(&p, 42).value.default_minutes, 25);
+        assert!(p.exists());
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_non_utf8_settings_file_is_quarantined_and_writable() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        fs::write(&p, [0xff, 0xfe]).unwrap();
+        let l = load_from(&p, 5);
+        assert!(l.writable);
+        assert!(!p.exists());
+        assert_eq!(fs::read(dir.join("settings.corrupt-5.json")).unwrap(), vec![0xff, 0xfe]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn settings_save_leaves_no_tmp_and_load_from_keeps_normalizing() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        save_to(&p, &AppConfig { default_minutes: 5000, accent_color: "#ff9f0a".into(), ..AppConfig::default() }).unwrap();
+        assert!(!dir.join("settings.json.tmp").exists());
+        let c = load_from(&p, 1).value;
+        assert_eq!((c.default_minutes, c.accent_color.as_str()), (180, "#FF9F0A"));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -533,5 +636,28 @@ mod tests {
     fn a_blank_note_shortcut_falls_back_to_the_default() {
         let c = AppConfig { shortcut_note: "  ".into(), ..AppConfig::default() }.normalized();
         assert_eq!(c.shortcut_note, DEFAULT_SHORTCUT_NOTE);
+    }
+
+    #[test]
+    fn capture_fields_default_off() {
+        let c = AppConfig::default();
+        assert!(!c.capture_enabled);
+        assert_eq!(c.shortcut_capture, "CommandOrControl+Alt+KeyJ");
+        let blank = AppConfig { shortcut_capture: "  ".into(), ..AppConfig::default() }.normalized();
+        assert_eq!(blank.shortcut_capture, DEFAULT_SHORTCUT_CAPTURE);
+    }
+
+    #[test]
+    fn an_old_settings_file_loads_with_capture_defaults() {
+        let dir = temp_dir();
+        let p = dir.join("settings.json");
+        fs::write(&p, r##"{"accent_color":"#112233","shortcut_note":"Alt+F9"}"##).unwrap();
+        let l = load_from(&p, 1);
+        assert!(l.writable);
+        assert_eq!(l.value.accent_color, "#112233");
+        assert_eq!(l.value.shortcut_note, "Alt+F9");
+        assert!(!l.value.capture_enabled);
+        assert_eq!(l.value.shortcut_capture, DEFAULT_SHORTCUT_CAPTURE);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

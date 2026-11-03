@@ -34,6 +34,8 @@ const config: AppConfig = {
   activity_tracking_enabled: false,
   theme: "default",
   theme_sounds: true,
+  capture_enabled: false,
+  shortcut_capture: "",
 };
 
 const task: Task = {

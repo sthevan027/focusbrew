@@ -44,6 +44,9 @@ export interface AppConfig {
   theme: string;
   /** Sounds that come with the theme; a theme with none plays nothing. */
   theme_sounds: boolean;
+  /** Capture box; off by default (its shortcut is then not registered). */
+  capture_enabled: boolean;
+  shortcut_capture: string;
 }
 
 export interface CalendarEventView {

@@ -46,7 +46,7 @@ pub async fn media_previous() -> Result<(), String> {
 
 /// Locks the state, runs `change`, saves tasks/log and publishes the result.
 /// Every task and timer command has this shape.
-fn apply<T>(
+pub(crate) fn apply<T>(
     app: &AppHandle,
     shared: &Shared,
     change: impl FnOnce(&mut AppState, i64, &str) -> T,
@@ -193,9 +193,12 @@ pub fn set_shortcut(
         shortcuts::Action::Toggle => state.config.shortcut_toggle = text,
         shortcuts::Action::Panel => state.config.shortcut_panel = text,
         shortcuts::Action::Note => state.config.shortcut_note = text,
+        // Capture's key is changed through its own command: accepting it here
+        // could register it while capture is disabled.
+        shortcuts::Action::Capture => unreachable!("\"capture\" is refused by the match above"),
     }
     state.shortcut_warning = None;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     sync_ui(&app, &state);
     Ok(StateSnapshot::from(&*state))
 }
@@ -209,7 +212,7 @@ pub fn set_launch_at_login(
     autostart::set(enabled)?;
     let mut state = shared.lock();
     state.config.launch_at_login = enabled;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     sync_ui(&app, &state);
     Ok(StateSnapshot::from(&*state))
 }
@@ -235,9 +238,11 @@ pub fn update_settings(
     config.shortcut_toggle = state.config.shortcut_toggle.clone();
     config.shortcut_panel = state.config.shortcut_panel.clone();
     config.shortcut_note = state.config.shortcut_note.clone();
+    config.capture_enabled = state.config.capture_enabled;
+    config.shortcut_capture = state.config.shortcut_capture.clone();
     config.launch_at_login = state.config.launch_at_login;
     state.config = config;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     sync_ui(&app, &state);
     StateSnapshot::from(&*state)
 }
@@ -250,7 +255,7 @@ pub async fn save_github_token(token: String, shared: State<'_, Shared>) -> Resu
     state.config.github_login = Some(login.clone());
     // Pasting a token is an explicit choice: use it instead of gh's login.
     state.config.github_use_gh = false;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     Ok(login)
 }
 
@@ -279,7 +284,7 @@ pub async fn google_connect(app: AppHandle, shared: State<'_, Shared>) -> Result
     state.config.google_connected = true;
     state.google_access_token = Some(tokens.access_token);
     state.google_error = None;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     let snapshot = StateSnapshot::from(&*state);
     sync_ui(&app, &state);
     Ok(snapshot)
@@ -290,7 +295,7 @@ pub fn google_disconnect(app: AppHandle, shared: State<'_, Shared>) -> StateSnap
     let _ = google_calendar::clear_refresh_token();
     let mut state = shared.lock();
     state.disconnect_google();
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     let snapshot = StateSnapshot::from(&*state);
     sync_ui(&app, &state);
     snapshot
@@ -467,7 +472,7 @@ pub async fn connect_github_with_gh(shared: State<'_, Shared>) -> Result<String,
     let mut state = shared.lock();
     state.config.github_login = Some(login.clone());
     state.config.github_use_gh = true;
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     Ok(login)
 }
 
@@ -484,7 +489,7 @@ pub fn clear_github_token(shared: State<'_, Shared>) -> Result<(), String> {
     state.github_items.clear();
     state.github_days.clear();
     state.github_events.clear();
-    let _ = config::save(&state.config);
+    crate::logging::log_io("save settings", config::save(&state.config));
     Ok(())
 }
 

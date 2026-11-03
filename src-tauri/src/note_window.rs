@@ -36,7 +36,7 @@ pub fn wants_window(placement: NotePlacement, widget_visible: bool) -> bool {
 }
 
 /// Centers the window on the monitor the mouse is on.
-fn center_on_cursor_monitor(app: &AppHandle, window: &WebviewWindow) {
+pub(crate) fn center_on_cursor_monitor(app: &AppHandle, window: &WebviewWindow) {
     let monitor = app
         .cursor_position()
         .ok()

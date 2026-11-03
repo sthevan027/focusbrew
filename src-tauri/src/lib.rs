@@ -1,11 +1,16 @@
 mod activity_tracking;
 mod alerts;
 mod autostart;
+mod capture;
+mod capture_window;
 mod commands;
 mod config;
+mod fsutil;
 mod github;
 mod google_calendar;
 mod google_sync;
+mod loadguard;
+mod logging;
 mod media;
 mod note_window;
 mod notes;
@@ -144,6 +149,19 @@ fn note_action(app: &AppHandle) {
         (state.config.note_placement, state.config.widget_visible)
     };
     note_window::open(app, None, note_window::wants_window(placement, visible));
+}
+
+/// The capture shortcut: opens the capture box (or brings it forward). A press
+/// that arrives after capture was turned off does nothing.
+fn capture_action(app: &AppHandle) {
+    let enabled = {
+        let shared = app.state::<Shared>();
+        let enabled = shared.lock().config.capture_enabled;
+        enabled
+    };
+    if enabled {
+        capture_window::open(app);
+    }
 }
 
 fn alert_text(alert: &Alert) -> (String, String) {
@@ -308,7 +326,7 @@ fn spawn_google_sync_loop(app: AppHandle) {
                         let _ = google_calendar::clear_refresh_token();
                         state.config.google_connected = false;
                         state.google_access_token = None;
-                        let _ = config::save(&state.config);
+                        crate::logging::log_io("save settings", config::save(&state.config));
                         state.google_error = Some(GOOGLE_RECONNECT_MESSAGE.to_string());
                     } else {
                         state.google_error = Some(e);
@@ -322,6 +340,10 @@ fn spawn_google_sync_loop(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Keeps the log writer alive during `run`. `App::run` ends the process on
+    // exit without dropping this guard, so the last buffered lines may be lost.
+    let _log_guard = logging::init();
+
     // The shortcuts themselves come from the settings and are registered in
     // `setup` (see `shortcuts::apply`); this only routes a press to its action.
     let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
@@ -336,6 +358,11 @@ pub fn run() {
                 Some(shortcuts::Action::Note) => {
                     let app = app.clone();
                     std::thread::spawn(move || note_action(&app));
+                }
+                // Same reason: the capture window is built from here.
+                Some(shortcuts::Action::Capture) => {
+                    let app = app.clone();
+                    std::thread::spawn(move || capture_action(&app));
                 }
                 None => {}
             }
@@ -405,6 +432,11 @@ pub fn run() {
             commands::open_note,
             commands::close_note_window,
             commands::set_note_overlay_open,
+            capture::commands::capture_preview,
+            capture::commands::capture_commit,
+            capture::commands::open_capture,
+            capture::commands::close_capture_window,
+            capture::commands::set_capture_enabled,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -429,7 +461,7 @@ pub fn run() {
                         let shared = app.state::<Shared>();
                         let mut state = shared.lock();
                         state.config.widget_visible = !state.config.widget_visible;
-                        let _ = config::save(&state.config);
+                        crate::logging::log_io("save settings", config::save(&state.config));
                         sync_ui(app, &state);
                     }
                     "pause" => {
@@ -458,11 +490,15 @@ pub fn run() {
                 let mut state = shared.lock();
                 // Each on its own: one taken by another app leaves the other
                 // working, and the settings say which one needs changing.
-                let wanted = [
+                let mut wanted = vec![
                     (shortcuts::Action::Toggle, state.config.shortcut_toggle.clone()),
                     (shortcuts::Action::Panel, state.config.shortcut_panel.clone()),
                     (shortcuts::Action::Note, state.config.shortcut_note.clone()),
                 ];
+                // Disabled capture = its shortcut is not registered at all.
+                if state.config.capture_enabled {
+                    wanted.push((shortcuts::Action::Capture, state.config.shortcut_capture.clone()));
+                }
                 let problems: Vec<String> = wanted
                     .iter()
                     .filter_map(|(action, text)| shortcuts::set(&handle, *action, text).err())
